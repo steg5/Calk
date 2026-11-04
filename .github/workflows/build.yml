@@ -62,8 +62,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 2
-                  versionName = "2.0"
+                  versionCode = 1
+                  versionName = "1.0"
               }
 
               compileOptions {
@@ -112,17 +112,6 @@ jobs:
                           <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                       </intent-filter>
                   </receiver>
-
-                  <service
-                      android:name=".QuickToggleService"
-                      android:icon="@drawable/ic_stat"
-                      android:label="Нічна мережа"
-                      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.service.quicksettings.action.QS_TILE" />
-                      </intent-filter>
-                  </service>
 
                   <provider
                       android:name="rikka.shizuku.ShizukuProvider"
@@ -178,54 +167,22 @@ jobs:
               public void onReceive(Context context, Intent intent) {
                   final PendingResult result = goAsync();
                   final Context app = context.getApplicationContext();
+                  final String action = intent == null ? null : intent.getAction();
                   new Thread(() -> {
                       try {
-                          Scheduler.sync(app);
+                          boolean preNotice = false;
+                          if (action != null) {
+                              int dot = action.lastIndexOf('.');
+                              if (dot >= 0) {
+                                  try { preNotice = Integer.parseInt(action.substring(dot + 1)) % 3 == 1; }
+                                  catch (NumberFormatException ignored) { }
+                              }
+                          }
+                          Scheduler.sync(app, preNotice);
                       } finally {
                           result.finish();
                       }
                   }).start();
-              }
-          }
-          EOF
-
-          cat > src/main/java/com/example/nightnet/QuickToggleService.java <<'EOF'
-          package com.example.nightnet;
-
-          import android.service.quicksettings.Tile;
-          import android.service.quicksettings.TileService;
-
-          public class QuickToggleService extends TileService {
-              @Override
-              public void onStartListening() {
-                  super.onStartListening();
-                  updateTileState();
-              }
-
-              @Override
-              public void onClick() {
-                  super.onClick();
-                  new Thread(() -> {
-                      boolean active = Prefs.get(this).getBoolean("active", false);
-                      if (active) {
-                          Radio.on(this);
-                          Prefs.get(this).edit().putBoolean("active", false).apply();
-                      } else {
-                          Radio.off(this);
-                          Prefs.get(this).edit().putBoolean("active", true).apply();
-                      }
-                      Scheduler.sync(getApplicationContext());
-                      updateTileState();
-                  }).start();
-              }
-
-              private void updateTileState() {
-                  Tile tile = getQsTile();
-                  if (tile == null) return;
-                  boolean active = Prefs.get(this).getBoolean("active", false);
-                  tile.setState(active ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
-                  tile.setLabel("Нічна мережа");
-                  tile.updateTile();
               }
           }
           EOF
@@ -248,14 +205,11 @@ jobs:
           import rikka.shizuku.Shizuku;
 
           final class Prefs {
-              static SharedPreferences get(Context c) {
-                  return c.getSharedPreferences("cfg", Context.MODE_PRIVATE);
-              }
+              static SharedPreferences get(Context c) { return c.getSharedPreferences("cfg", Context.MODE_PRIVATE); }
           }
 
           final class Radio {
               static final int OK = 0, NOT_READY = 1, FAILED = 2;
-
               private static boolean ready(int waitMs) {
                   long end = System.currentTimeMillis() + waitMs;
                   try {
@@ -264,23 +218,16 @@ jobs:
                           Thread.sleep(200);
                       }
                       return Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
-                  } catch (Throwable t) {
-                      return false;
-                  }
+                  } catch (Throwable t) { return false; }
               }
-
               private static boolean run(String... cmd) {
                   try {
-                      Method m = Shizuku.class.getDeclaredMethod(
-                              "newProcess", String[].class, String[].class, String.class);
+                      Method m = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
                       m.setAccessible(true);
                       Process p = (Process) m.invoke(null, cmd, null, null);
                       return p.waitFor() == 0;
-                  } catch (Throwable t) {
-                      return false;
-                  }
+                  } catch (Throwable t) { return false; }
               }
-
               private static int apply(boolean wifi, boolean data, boolean enable) {
                   if (!wifi && !data) return OK;
                   if (!ready(6000)) return NOT_READY;
@@ -290,20 +237,16 @@ jobs:
                   if (data) ok &= run("/system/bin/svc", "data", act);
                   return ok ? OK : FAILED;
               }
-
               static int off(Context c) {
                   SharedPreferences p = Prefs.get(c);
-                  boolean w = p.getBoolean("wifi", false);
-                  boolean d = p.getBoolean("data", false);
+                  boolean w = p.getBoolean("wifi", false), d = p.getBoolean("data", false);
                   p.edit().putBoolean("off_wifi", w).putBoolean("off_data", d).apply();
                   return apply(w, d, false);
               }
-
               static int on(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   return apply(p.getBoolean("off_wifi", false), p.getBoolean("off_data", false), true);
               }
-
               static int force(Context c, boolean enable) {
                   SharedPreferences p = Prefs.get(c);
                   return apply(p.getBoolean("wifi", false), p.getBoolean("data", false), enable);
@@ -311,140 +254,122 @@ jobs:
           }
 
           final class Scheduler {
-              private static final String CHANNEL = "status";
+              private static final String CHANNEL = "schedule_notice";
               private static final int NOTIFICATION_ID = 1;
+              static String hhmm(int minutes) { return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60); }
 
-              static String hhmm(int minutes) {
-                  return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60);
+              private static int startFor(SharedPreferences p, int day) {
+                  boolean weekend = day == Calendar.SATURDAY || day == Calendar.SUNDAY;
+                  return p.getInt(weekend ? "weekend_start" : "weekday_start", 22 * 60);
               }
-
-              static boolean isWeekend() {
-                  int day = Calendar.getInstance().get(Calendar.DAY_OF_WEEK);
-                  return day == Calendar.SATURDAY || day == Calendar.SUNDAY;
+              private static int endFor(SharedPreferences p, int day) {
+                  boolean weekend = day == Calendar.SATURDAY || day == Calendar.SUNDAY;
+                  return p.getInt(weekend ? "weekend_end" : "weekday_end", 6 * 60);
               }
-
-              static boolean inWindow(int start, int end) {
-                  Calendar now = Calendar.getInstance();
-                  int m = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
-                  if (start < end) return m >= start && m < end;
-                  return m >= start || m < end;
-              }
-
-              private static long nextTrigger(int minuteOfDay) {
-                  Calendar c = Calendar.getInstance();
-                  c.set(Calendar.HOUR_OF_DAY, minuteOfDay / 60);
-                  c.set(Calendar.MINUTE, minuteOfDay % 60);
-                  c.set(Calendar.SECOND, 0);
-                  c.set(Calendar.MILLISECOND, 0);
-                  if (c.getTimeInMillis() <= System.currentTimeMillis()) c.add(Calendar.DAY_OF_YEAR, 1);
-                  return c.getTimeInMillis();
-              }
-
               private static PendingIntent pending(Context c, int code) {
-                  Intent i = new Intent(c, AlarmReceiver.class).setAction("com.example.nightnet.SYNC");
-                  return PendingIntent.getBroadcast(c, code, i,
-                          PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                  Intent i = new Intent(c, AlarmReceiver.class).setAction("com.example.nightnet.SYNC." + code);
+                  return PendingIntent.getBroadcast(c, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
               }
-
-              private static void setAlarm(Context c, int code, int minuteOfDay) {
-                  AlarmManager am = c.getSystemService(AlarmManager.class);
-                  am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTrigger(minuteOfDay), pending(c, code));
-              }
-
               private static void cancelAlarms(Context c) {
                   AlarmManager am = c.getSystemService(AlarmManager.class);
-                  am.cancel(pending(c, 1));
-                  am.cancel(pending(c, 2));
+                  for (int i = 100; i < 140; i++) am.cancel(pending(c, i));
               }
-
-              private static void show(Context c, String title, String text) {
+              private static void schedule(Context c, int code, long when) {
+                  if (when <= System.currentTimeMillis()) return;
+                  AlarmManager am = c.getSystemService(AlarmManager.class);
+                  am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(c, code));
+              }
+              private static Calendar at(Calendar base, int minute) {
+                  Calendar c = (Calendar) base.clone();
+                  c.set(Calendar.HOUR_OF_DAY, minute / 60);
+                  c.set(Calendar.MINUTE, minute % 60);
+                  c.set(Calendar.SECOND, 0);
+                  c.set(Calendar.MILLISECOND, 0);
+                  return c;
+              }
+              private static boolean inWindow(Calendar now, Calendar start, Calendar end) {
+                  return !now.before(start) && now.before(end);
+              }
+              private static void showPreNotice(Context c, SharedPreferences p) {
+                  if (!p.getBoolean("notifications", true)) return;
                   NotificationManager nm = c.getSystemService(NotificationManager.class);
-                  nm.createNotificationChannel(new NotificationChannel(
-                          CHANNEL, "Стан розкладу", NotificationManager.IMPORTANCE_LOW));
-                  PendingIntent open = PendingIntent.getActivity(c, 0,
-                          new Intent(c, MainActivity.class),
-                          PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                  nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Нагадування розкладу", NotificationManager.IMPORTANCE_DEFAULT));
+                  StringBuilder what = new StringBuilder();
+                  if (p.getBoolean("wifi", false)) what.append("Wi-Fi");
+                  if (p.getBoolean("data", false)) {
+                      if (what.length() > 0) what.append(" та ");
+                      what.append("мобільні дані");
+                  }
                   Notification n = new Notification.Builder(c, CHANNEL)
                           .setSmallIcon(R.drawable.ic_stat)
-                          .setContentTitle(title)
-                          .setContentText(text)
-                          .setContentIntent(open)
-                          .setOngoing(false)
+                          .setContentTitle("За 5 хвилин почнеться розклад")
+                          .setContentText("Буде вимкнено: " + what)
                           .setAutoCancel(true)
-                          .setShowWhen(false)
+                          .setTimeoutAfter(5 * 60 * 1000L)
                           .build();
                   nm.notify(NOTIFICATION_ID, n);
               }
+              static synchronized void sync(Context c) { sync(c, false); }
 
-              static synchronized void sync(Context c) {
+              static synchronized void sync(Context c, boolean preNotice) {
                   SharedPreferences p = Prefs.get(c);
-                  boolean wifi = p.getBoolean("wifi", false);
-                  boolean data = p.getBoolean("data", false);
-                  boolean weekend = isWeekend();
-
-                  int start = p.getInt(weekend ? "start_w" : "start_d", 22 * 60);
-                  int end = p.getInt(weekend ? "end_w" : "end_d", 6 * 60);
-
-                  boolean on = p.getBoolean("enabled", false) && (wifi || data) && start != end;
-                  boolean active = p.getBoolean("active", false);
+                  boolean wifi = p.getBoolean("wifi", false), data = p.getBoolean("data", false);
+                  boolean enabled = p.getBoolean("enabled", false) && (wifi || data);
                   NotificationManager nm = c.getSystemService(NotificationManager.class);
-
-                  if (!on) {
-                      cancelAlarms(c);
+                  cancelAlarms(c);
+                  if (!enabled) {
                       nm.cancel(NOTIFICATION_ID);
-                      if (active && Radio.on(c) != Radio.NOT_READY) {
-                          p.edit().putBoolean("active", false).apply();
+                      if (p.getBoolean("active", false)) {
+                          int result = Radio.on(c);
+                          if (result == Radio.OK) p.edit().putBoolean("active", false).apply();
                       }
                       return;
                   }
 
-                  int notifyTriggerTime = start - 5;
-                  if (notifyTriggerTime < 0) notifyTriggerTime += 24 * 60;
-
-                  setAlarm(c, 1, notifyTriggerTime);
-                  setAlarm(c, 2, end);
-
-                  boolean inside = inWindow(start, end);
-                  if (inside && !active && Radio.off(c) != Radio.NOT_READY) {
-                      active = true;
-                  } else if (!inside && active && Radio.on(c) != Radio.NOT_READY) {
-                      active = false;
+                  Calendar now = Calendar.getInstance();
+                  Calendar activeStart = null, activeEnd = null;
+                  // Check windows starting yesterday or today. The schedule belongs to its start day.
+                  for (int back = 1; back >= 0; back--) {
+                      Calendar day = (Calendar) now.clone();
+                      day.add(Calendar.DAY_OF_YEAR, -back);
+                      int startMin = startFor(p, day.get(Calendar.DAY_OF_WEEK));
+                      int endMin = endFor(p, day.get(Calendar.DAY_OF_WEEK));
+                      if (startMin == endMin) continue;
+                      Calendar st = at(day, startMin);
+                      Calendar en = at(day, endMin);
+                      if (endMin <= startMin) en.add(Calendar.DAY_OF_YEAR, 1);
+                      if (inWindow(now, st, en)) { activeStart = st; activeEnd = en; break; }
+                  }
+                  boolean active = p.getBoolean("active", false);
+                  if (activeStart != null && !active) {
+                      int result = Radio.off(c);
+                      if (result == Radio.OK) active = true;
+                  } else if (activeStart == null && active) {
+                      int result = Radio.on(c);
+                      if (result == Radio.OK) active = false;
                   }
                   p.edit().putBoolean("active", active).apply();
+                  if (preNotice && activeStart == null && p.getBoolean("notifications", true)) showPreNotice(c, p);
+                  if (activeStart != null || !preNotice || !p.getBoolean("notifications", true)) nm.cancel(NOTIFICATION_ID);
 
-                  Calendar now = Calendar.getInstance();
-                  int currentMin = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
-                  
-                  boolean showNotification = false;
-                  if (inside) {
-                      showNotification = true;
-                  } else {
-                      int diff = start - currentMin;
-                      if (diff < 0) diff += 24 * 60;
-                      if (diff <= 5) {
-                          showNotification = true;
-                      }
+                  // Schedule pre-start, start and end alarms for the next 8 calendar days.
+                  for (int offset = 0; offset < 8; offset++) {
+                      Calendar day = (Calendar) now.clone();
+                      day.add(Calendar.DAY_OF_YEAR, offset);
+                      int startMin = startFor(p, day.get(Calendar.DAY_OF_WEEK));
+                      int endMin = endFor(p, day.get(Calendar.DAY_OF_WEEK));
+                      if (startMin == endMin) continue;
+                      Calendar st = at(day, startMin);
+                      Calendar en = at(day, endMin);
+                      if (endMin <= startMin) en.add(Calendar.DAY_OF_YEAR, 1);
+                      int base = 100 + offset * 3;
+                      Calendar pre = (Calendar) st.clone();
+                      pre.add(Calendar.MINUTE, -5);
+                      if (pre.after(now)) schedule(c, base, pre.getTimeInMillis());
+                      if (st.after(now)) schedule(c, base + 1, st.getTimeInMillis());
+                      if (en.after(now)) schedule(c, base + 2, en.getTimeInMillis());
                   }
-
-                  if (!showNotification) {
-                      nm.cancel(NOTIFICATION_ID);
-                  } else {
-                      StringBuilder what = new StringBuilder();
-                      if (wifi) what.append("Wi-Fi");
-                      if (data) {
-                          if (what.length() > 0) what.append(", ");
-                          what.append("мобільні дані");
-                      }
-                      String text;
-                      if (inside && !active) {
-                          text = "Не вдалося вимкнути: запустіть Shizuku";
-                      } else if (!inside && active) {
-                          text = "Не вдалося повернути зв’язок: запустіть Shizuku";
-                      } else {
-                          text = (active ? "Зараз вимкнено: " : "Вимикатиме о " + hhmm(start) + ": ") + what;
-                      }
-                      show(c, "Нічна мережа", text);
-                  }
+                  // If the active window is already in progress, no persistent notification is shown.
               }
           }
           EOF
@@ -458,6 +383,7 @@ jobs:
           import android.content.Context;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
+          import android.content.res.ColorStateList;
           import android.os.Build;
           import android.os.Bundle;
           import android.view.View;
@@ -472,36 +398,146 @@ jobs:
 
           public class MainActivity extends Activity {
               private SharedPreferences prefs;
-              private CheckBox cbWifi, cbData;
-              private Button btnFromD, btnToD, btnFromW, btnToW, btnPermission;
+              private CheckBox cbWifi, cbData, cbNotifications;
+              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission;
               private Switch swEnabled;
               private TextView tvStatus;
               private boolean loading;
-
-              private static final int[][] THEMES = {
-                  {0xFF121212, 0xFF1E2923, 0xFFE0F2F1}, // 1. Зелена нічна
-                  {0xFF121212, 0xFF1E1E2C, 0xFFE2E8F0}, // 2. Темна поночі
-                  {0xFFF4F6F8, 0xFFFFFFFF, 0xFF0F172A}, // 3. Світла сучасна
-                  {0xFF1A1614, 0xFF2C2421, 0xFFFDEED9}, // 4. Тепла кавова
-                  {0xFF0F172A, 0xFF1E293B, 0xFFF1F5F9}  // 5. Сувора блакитна
-              };
-
-              private int dp(int v) {
-                  return (int) (v * getResources().getDisplayMetrics().density);
+              private final String[] themeNames = {"Бірюзова", "Синя", "Фіолетова", "Смарагдова", "Бурштинова"};
+              private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
+              private int color() { return themeColors[Math.floorMod(prefs.getInt("theme", 0), themeColors.length)]; }
+              private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
+              private TextView label(String text) {
+                  TextView t = new TextView(this); t.setText(text); t.setTextSize(18); t.setTextColor(0xFF202124);
+                  t.setPadding(0, dp(18), 0, dp(6)); return t;
               }
-
-              private TextView label(String text, int textColor) {
-                  TextView t = new TextView(this);
-                  t.setText(text);
-                  t.setTextSize(17);
-                  t.setTextColor(textColor);
-                  t.setPadding(0, dp(16), 0, dp(4));
-                  return t;
+              private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
+              private Button makeButton(String text) {
+                  Button b = new Button(this); b.setText(text); b.setAllCaps(false);
+                  b.setBackgroundTintList(ColorStateList.valueOf(color())); b.setTextColor(0xFFFFFFFF); return b;
               }
-
-              private void toast(String s) {
-                  Toast.makeText(this, s, Toast.LENGTH_LONG).show();
+              private LinearLayout timeRow(Button a, Button b) {
+                  LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                  lp.setMargins(dp(3), 0, dp(3), 0); row.addView(a, lp); row.addView(b, lp); return row;
               }
+              @Override protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  prefs = Prefs.get(this);
+                  // Migrate the original single schedule to both new schedules without losing user settings.
+                  SharedPreferences.Editor migration = prefs.edit();
+                  if (!prefs.contains("weekday_start")) migration.putInt("weekday_start", prefs.getInt("start", 22 * 60));
+                  if (!prefs.contains("weekday_end")) migration.putInt("weekday_end", prefs.getInt("end", 6 * 60));
+                  if (!prefs.contains("weekend_start")) migration.putInt("weekend_start", prefs.getInt("start", 22 * 60));
+                  if (!prefs.contains("weekend_end")) migration.putInt("weekend_end", prefs.getInt("end", 6 * 60));
+                  migration.apply();
 
-              @Override
-              protected void onCreate
+                  LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(20), dp(8), dp(20), dp(24));
+                  root.setBackgroundColor(0xFFF7F8FA);
+                  root.addView(label("Що вимикати"));
+                  cbWifi = new CheckBox(this); cbWifi.setText("Wi-Fi"); root.addView(cbWifi);
+                  cbData = new CheckBox(this); cbData.setText("Мобільні дані"); root.addView(cbData);
+
+                  root.addView(label("Графік на будні (понеділок – п’ятниця)"));
+                  btnWeekdayFrom = makeButton("Початок"); btnWeekdayTo = makeButton("Завершення");
+                  root.addView(timeRow(btnWeekdayFrom, btnWeekdayTo));
+                  root.addView(label("Графік на вихідні (субота – неділя)"));
+                  btnWeekendFrom = makeButton("Початок"); btnWeekendTo = makeButton("Завершення");
+                  root.addView(timeRow(btnWeekendFrom, btnWeekendTo));
+
+                  swEnabled = new Switch(this); swEnabled.setText("Розклад увімкнено"); swEnabled.setTextSize(18);
+                  swEnabled.setPadding(0, dp(20), 0, dp(8)); root.addView(swEnabled);
+                  cbNotifications = new CheckBox(this); cbNotifications.setText("Нагадувати за 5 хвилин до початку");
+                  root.addView(cbNotifications);
+                  btnTheme = makeButton("Колірна схема"); root.addView(btnTheme);
+                  tvStatus = new TextView(this); tvStatus.setPadding(0, dp(12), 0, dp(4)); tvStatus.setTextColor(0xFF30343A); root.addView(tvStatus);
+                  btnPermission = makeButton("Дати дозвіл Shizuku"); root.addView(btnPermission);
+                  root.addView(label("Перевірка"));
+                  Button testOff = makeButton("Вимкнути зараз");
+                  Button testOn = makeButton("Увімкнути назад");
+                  root.addView(testOff); root.addView(testOn);
+                  ScrollView sv = new ScrollView(this); sv.addView(root); setContentView(sv);
+
+                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  cbNotifications.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("notifications", on).apply(); if (on) requestNotificationPermissionIfNeeded(); runSync(); } });
+                  btnWeekdayFrom.setOnClickListener(v -> pick("weekday_start"));
+                  btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
+                  btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
+                  btnWeekendTo.setOnClickListener(v -> pick("weekend_end"));
+                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); });
+                  btnPermission.setOnClickListener(v -> { try { Shizuku.requestPermission(100); } catch (Throwable t) { toast("Спершу запустіть Shizuku"); } });
+                  testOff.setOnClickListener(v -> test(false)); testOn.setOnClickListener(v -> test(true));
+                  render();
+              }
+              @Override protected void onResume() { super.onResume(); render(); runSync(); }
+              private void requestNotificationPermissionIfNeeded() {
+                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                      requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+              }
+              private void changed() {
+                  boolean w = cbWifi.isChecked(), d = cbData.isChecked(), en = swEnabled.isChecked();
+                  if (en && !w && !d) {
+                      en = false; loading = true; swEnabled.setChecked(false); loading = false;
+                      toast("Оберіть, що вимикати: Wi-Fi або мобільні дані");
+                  }
+                  prefs.edit().putBoolean("wifi", w).putBoolean("data", d).putBoolean("enabled", en).apply();
+                  if (en && cbNotifications.isChecked()) requestNotificationPermissionIfNeeded();
+                  runSync(); render();
+              }
+              private void pick(String key) {
+                  int cur = prefs.getInt(key, key.endsWith("start") ? 22 * 60 : 6 * 60);
+                  new TimePickerDialog(this, (view, h, m) -> {
+                      int value = h * 60 + m;
+                      String otherKey = key.endsWith("start") ? key.replace("start", "end") : key.replace("end", "start");
+                      if (value == prefs.getInt(otherKey, key.endsWith("start") ? 6 * 60 : 22 * 60)) { toast("Початок і кінець не можуть збігатися"); return; }
+                      prefs.edit().putInt(key, value).apply(); runSync(); render();
+                  }, cur / 60, cur % 60, true).show();
+              }
+              private void runSync() {
+                  final Context app = getApplicationContext();
+                  new Thread(() -> { Scheduler.sync(app); runOnUiThread(this::render); }).start();
+              }
+              private void test(boolean enable) {
+                  if (!cbWifi.isChecked() && !cbData.isChecked()) { toast("Спершу оберіть Wi-Fi або мобільні дані"); return; }
+                  final Context app = getApplicationContext();
+                  new Thread(() -> {
+                      int r = Radio.force(app, enable);
+                      String msg = r == Radio.OK ? "Команду виконано. Перевірте, чи змінився стан." : r == Radio.NOT_READY ? "Shizuku не запущено або немає дозволу." : "Команда не спрацювала.";
+                      runOnUiThread(() -> toast(msg));
+                  }).start();
+              }
+              private void render() {
+                  if (prefs == null || cbWifi == null) return;
+                  loading = true;
+                  cbWifi.setChecked(prefs.getBoolean("wifi", false)); cbData.setChecked(prefs.getBoolean("data", false));
+                  swEnabled.setChecked(prefs.getBoolean("enabled", false)); cbNotifications.setChecked(prefs.getBoolean("notifications", true));
+                  loading = false;
+                  btnWeekdayFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekday_start", 22 * 60)));
+                  btnWeekdayTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekday_end", 6 * 60)));
+                  btnWeekendFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekend_start", 22 * 60)));
+                  btnWeekendTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekend_end", 6 * 60)));
+                  btnTheme.setText("Колірна схема: " + themeNames[prefs.getInt("theme", 0) % themeNames.length]);
+                  int c = color();
+                  btnWeekdayFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekdayTo.setBackgroundTintList(ColorStateList.valueOf(c));
+                  btnWeekendFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekendTo.setBackgroundTintList(ColorStateList.valueOf(c));
+                  btnTheme.setBackgroundTintList(ColorStateList.valueOf(c)); btnPermission.setBackgroundTintList(ColorStateList.valueOf(c));
+                  boolean binder = false, granted = false;
+                  try { binder = Shizuku.pingBinder(); granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable ignored) {}
+                  String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад запрацює." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
+                  if (prefs.getBoolean("active", false)) s += "\nЗараз зв’язок вимкнено за розкладом.";
+                  s += "\nСповіщення необов’язкові: без них розклад працює.";
+                  tvStatus.setText(s); btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NightNet-APK
+          path: build/outputs/apk/debug/*.apk
