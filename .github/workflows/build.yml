@@ -25,7 +25,7 @@ jobs:
 
       - name: Create app files
         run: |
-          mkdir -p src/main/java/com/example/calculator src/main/assets src/main/res/drawable
+          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable
 
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
@@ -41,7 +41,12 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "Calculator"
+          rootProject.name = "NightNet"
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
           EOF
 
           cat > build.gradle.kts <<'EOF'
@@ -50,12 +55,12 @@ jobs:
           }
 
           android {
-              namespace = "com.example.calculator"
+              namespace = "com.example.nightnet"
               compileSdk = 34
 
               defaultConfig {
-                  applicationId = "com.example.calculator"
-                  minSdk = 26
+                  applicationId = "com.example.nightnet"
+                  minSdk = 29
                   targetSdk = 34
                   versionCode = 1
                   versionName = "1.0"
@@ -66,27 +71,69 @@ jobs:
                   targetCompatibility = JavaVersion.VERSION_17
               }
           }
+
+          tasks.withType<JavaCompile>().configureEach {
+              options.encoding = "UTF-8"
+          }
+
+          dependencies {
+              implementation("dev.rikka.shizuku:api:13.1.5")
+              implementation("dev.rikka.shizuku:provider:13.1.5")
+          }
           EOF
 
           cat > src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
               <application
                   android:allowBackup="false"
                   android:icon="@drawable/ic_launcher"
-                  android:label="Калькулятор">
+                  android:label="Нічна мережа"
+                  android:theme="@android:style/Theme.DeviceDefault.DayNight">
+
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
-                      android:screenOrientation="portrait"
-                      android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+                      android:screenOrientation="portrait">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+
+                  <receiver
+                      android:name=".AlarmReceiver"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                          <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                      </intent-filter>
+                  </receiver>
+
+                  <provider
+                      android:name="rikka.shizuku.ShizukuProvider"
+                      android:authorities="${applicationId}.shizuku"
+                      android:enabled="true"
+                      android:exported="true"
+                      android:multiprocess="false"
+                      android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
               </application>
           </manifest>
+          EOF
+
+          cat > src/main/res/drawable/ic_stat.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24">
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
+          </vector>
           EOF
 
           cat > src/main/res/drawable/ic_launcher.xml <<'EOF'
@@ -96,254 +143,444 @@ jobs:
               android:viewportWidth="108"
               android:viewportHeight="108">
               <path android:fillColor="#0D7A6D" android:pathData="M0,0h108v108h-108z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M30,40h48v8h-48z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M30,60h48v8h-48z" />
+              <group
+                  android:scaleX="3"
+                  android:scaleY="3"
+                  android:translateX="18"
+                  android:translateY="18">
+                  <path
+                      android:fillColor="#FFFFFF"
+                      android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
+              </group>
           </vector>
           EOF
 
-          cat > src/main/java/com/example/calculator/MainActivity.java <<'EOF'
-          package com.example.calculator;
+          cat > src/main/java/com/example/nightnet/AlarmReceiver.java <<'EOF'
+          package com.example.nightnet;
 
-          import android.app.Activity;
-          import android.content.res.Configuration;
-          import android.graphics.Color;
-          import android.os.Bundle;
-          import android.view.View;
-          import android.view.Window;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
 
-          public class MainActivity extends Activity {
+          public class AlarmReceiver extends BroadcastReceiver {
               @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-                  boolean night = (getResources().getConfiguration().uiMode
-                          & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-                  int bg = Color.parseColor(night ? "#0E1514" : "#E8EEEC");
-
-                  Window window = getWindow();
-                  window.setStatusBarColor(bg);
-                  window.setNavigationBarColor(bg);
-                  if (!night) {
-                      window.getDecorView().setSystemUiVisibility(
-                              View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                                      | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-                  }
-
-                  WebView web = new WebView(this);
-                  web.setBackgroundColor(bg);
-                  web.setOverScrollMode(View.OVER_SCROLL_NEVER);
-                  WebSettings settings = web.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setTextZoom(100);
-                  setContentView(web);
-                  web.loadUrl("file:///android_asset/index.html#" + (night ? "dark" : "light"));
+              public void onReceive(Context context, Intent intent) {
+                  final PendingResult result = goAsync();
+                  final Context app = context.getApplicationContext();
+                  new Thread(() -> {
+                      try {
+                          Scheduler.sync(app);
+                      } finally {
+                          result.finish();
+                      }
+                  }).start();
               }
           }
           EOF
 
-          cat > src/main/assets/index.html <<'EOF'
-          <!doctype html>
-          <html lang="uk">
-          <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-          <title>Калькулятор</title>
-          <script>
-          var h = location.hash.slice(1);
-          if (h === 'dark' || h === 'light') document.documentElement.setAttribute('data-theme', h);
-          </script>
-          <style>
-          :root{--bg:#e8eeec;--key:#fff;--key-fg:#16211f;--fn:#d6e0de;--fn-fg:#273634;--op:#c4e1dc;--op-fg:#0a4f47;--accent:#0d7a6d;--accent-fg:#fff;--muted:#566764;--line:#c3cfcc;--err:#b42318;--num:"Roboto Mono",Menlo,Consolas,monospace;--ui:system-ui,sans-serif;color-scheme:light}
-          :root[data-theme="dark"]{--bg:#0e1514;--key:#1b2625;--key-fg:#e7f0ee;--fn:#26312f;--fn-fg:#c9d6d3;--op:#1e3b37;--op-fg:#8fdacf;--accent:#3fc4b1;--accent-fg:#06201c;--muted:#8ea29e;--line:#2b3735;--err:#ff8a7a;color-scheme:dark}
-          *{box-sizing:border-box}
-          html,body{height:100%;margin:0}
-          body{display:flex;justify-content:center;padding:12px 16px;background:var(--bg);color:var(--key-fg);font-family:var(--ui)}
-          .app{width:100%;max-width:420px;height:100%;min-height:0;display:flex;flex-direction:column;gap:14px}
-          .screen{flex:1 1 auto;min-height:0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;gap:4px;padding:8px 6px 2px;text-align:right}
-          .expr{width:100%;min-height:1.5em;font:16px var(--num);color:var(--muted);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
-          .expr::-webkit-scrollbar{display:none}
-          .main{max-width:100%;font:400 56px/1.1 var(--num);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
-          .main.is-error{color:var(--err);font-family:var(--ui);font-weight:600;letter-spacing:0}
-          .pad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:64px;grid-auto-rows:clamp(54px,10.5dvh,76px);gap:10px}
-          .key{appearance:none;-webkit-appearance:none;border:0;border-radius:16px;background:var(--key);color:var(--key-fg);font:400 24px var(--num);cursor:pointer;box-shadow:0 1px 0 var(--line);touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,filter .08s}
-          .key:active{transform:scale(.96);filter:brightness(.94)}
-          .key.fn{background:var(--fn);color:var(--fn-fg);font:600 20px var(--ui)}
-          .key.op{background:var(--op);color:var(--op-fg);font-size:28px}
-          .key.eq{background:var(--accent);color:var(--accent-fg);font-size:30px}
-          </style>
-          </head>
-          <body>
-          <main class="app">
-          <section class="screen">
-          <div class="expr" id="expr"></div>
-          <div class="main" id="main">0</div>
-          </section>
-          <div class="pad" id="pad">
-          <button class="key fn" data-k="clear">C</button>
-          <button class="key fn" data-k="back">⌫</button>
-          <button class="key fn" data-k="pct">%</button>
-          <button class="key op" data-k="div">÷</button>
-          <button class="key" data-k="7">7</button>
-          <button class="key" data-k="8">8</button>
-          <button class="key" data-k="9">9</button>
-          <button class="key op" data-k="mul">×</button>
-          <button class="key" data-k="4">4</button>
-          <button class="key" data-k="5">5</button>
-          <button class="key" data-k="6">6</button>
-          <button class="key op" data-k="sub">−</button>
-          <button class="key" data-k="1">1</button>
-          <button class="key" data-k="2">2</button>
-          <button class="key" data-k="3">3</button>
-          <button class="key op" data-k="add">+</button>
-          <button class="key fn" data-k="sign">±</button>
-          <button class="key" data-k="0">0</button>
-          <button class="key" data-k=".">,</button>
-          <button class="key eq" data-k="eq">=</button>
-          </div>
-          </main>
-          <script>
-          /*core*/
-          var SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
-          var THIN = '\u202f';
+          cat > src/main/java/com/example/nightnet/Core.java <<'EOF'
+          package com.example.nightnet;
 
-          function fmtNum(s) {
-            var neg = s.charAt(0) === '-';
-            if (neg) s = s.slice(1);
-            var parts = s.split('.');
-            var int = parts[0];
-            if (/^\d+$/.test(int)) int = int.replace(/\B(?=(\d{3})+(?!\d))/g, THIN);
-            return (neg ? '−' : '') + int + (parts.length > 1 ? ',' + parts[1] : '');
-          }
-          function fmtTok(t) {
-            return (t === '+' || t === '−' || t === '×' || t === '÷') ? t : fmtNum(t);
-          }
-          function clean(n) { return String(parseFloat(n.toPrecision(12))); }
+          import android.app.AlarmManager;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import java.lang.reflect.Method;
+          import java.util.Calendar;
+          import java.util.Locale;
+          import rikka.shizuku.Shizuku;
 
-          function evaluate(t) {
-            var out = [t[0]];
-            for (var i = 1; i < t.length; i += 2) {
-              var op = t[i], n = parseFloat(t[i + 1]);
-              if (op === '×' || op === '÷') {
-                var prev = parseFloat(out[out.length - 1]);
-                if (op === '÷' && n === 0) return NaN;
-                out[out.length - 1] = String(op === '×' ? prev * n : prev / n);
-              } else {
-                out.push(op);
-                out.push(String(n));
+          final class Prefs {
+              static SharedPreferences get(Context c) {
+                  return c.getSharedPreferences("cfg", Context.MODE_PRIVATE);
               }
-            }
-            var res = parseFloat(out[0]);
-            for (var j = 1; j < out.length; j += 2) {
-              var v = parseFloat(out[j + 1]);
-              res = out[j] === '+' ? res + v : res - v;
-            }
-            return res;
           }
 
-          function createCalc() {
-            var s;
-            function reset() { s = { tokens: [], cur: '0', done: false, err: false, expr: '' }; }
-            reset();
+          final class Radio {
+              static final int OK = 0, NOT_READY = 1, FAILED = 2;
 
-            function press(k) {
-              if (k === 'clear') { reset(); return; }
-              if (s.err) reset();
+              private static boolean ready(int waitMs) {
+                  long end = System.currentTimeMillis() + waitMs;
+                  try {
+                      while (!Shizuku.pingBinder()) {
+                          if (System.currentTimeMillis() > end) return false;
+                          Thread.sleep(200);
+                      }
+                      return Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+                  } catch (Throwable t) {
+                      return false;
+                  }
+              }
 
-              if (/^\d$/.test(k)) {
-                if (s.done) { s.tokens = []; s.cur = '0'; s.done = false; s.expr = ''; }
-                if (s.cur === '') { s.cur = k; return; }
-                if (s.cur.replace(/[-.]/g, '').length >= 15) return;
-                s.cur = (s.cur === '0') ? k : s.cur + k;
-                return;
+              private static boolean run(String... cmd) {
+                  try {
+                      Method m = Shizuku.class.getDeclaredMethod(
+                              "newProcess", String[].class, String[].class, String.class);
+                      m.setAccessible(true);
+                      Process p = (Process) m.invoke(null, cmd, null, null);
+                      return p.waitFor() == 0;
+                  } catch (Throwable t) {
+                      return false;
+                  }
               }
-              if (k === '.') {
-                if (s.done) { s.tokens = []; s.cur = '0.'; s.done = false; s.expr = ''; return; }
-                if (s.cur === '') { s.cur = '0.'; return; }
-                if (s.cur.indexOf('.') < 0) s.cur += '.';
-                return;
-              }
-              if (SYM.hasOwnProperty(k)) {
-                var op = SYM[k];
-                if (s.done) { s.tokens = [s.cur, op]; s.cur = ''; s.done = false; s.expr = ''; return; }
-                if (s.cur === '') { s.tokens[s.tokens.length - 1] = op; return; }
-                s.tokens.push(s.cur);
-                s.tokens.push(op);
-                s.cur = '';
-                return;
-              }
-              if (k === 'pct') {
-                if (s.cur === '') return;
-                s.cur = clean(parseFloat(s.cur) / 100);
-                return;
-              }
-              if (k === 'sign') {
-                if (s.cur === '' || s.cur === '0') return;
-                s.cur = s.cur.charAt(0) === '-' ? s.cur.slice(1) : '-' + s.cur;
-                return;
-              }
-              if (k === 'back') {
-                if (s.done) { reset(); return; }
-                if (s.cur === '') { s.tokens.pop(); s.cur = s.tokens.pop(); return; }
-                s.cur = s.cur.slice(0, -1);
-                if (s.cur === '' || s.cur === '-') s.cur = '0';
-                return;
-              }
-              if (k === 'eq') {
-                if (s.done || s.tokens.length === 0) return;
-                var t = s.tokens.slice();
-                if (s.cur === '') t.pop(); else t.push(s.cur);
-                if (t.length === 0) return;
-                var r = evaluate(t);
-                var shown = t.map(fmtTok).join(' ') + ' =';
-                if (!isFinite(r)) { reset(); s.err = true; s.expr = shown; return; }
-                s.expr = shown;
-                s.cur = clean(r);
-                s.tokens = [];
-                s.done = true;
-                return;
-              }
-            }
 
-            function view() {
-              if (s.err) return { expr: s.expr, main: 'Ділення на нуль', err: true };
-              var main = s.cur !== '' ? fmtNum(s.cur) : fmtNum(s.tokens[s.tokens.length - 2]);
-              var expr = s.done ? s.expr : s.tokens.map(fmtTok).join(' ');
-              return { expr: expr, main: main, err: false };
-            }
-            return { press: press, view: view };
+              private static int apply(boolean wifi, boolean data, boolean enable) {
+                  if (!wifi && !data) return OK;
+                  if (!ready(6000)) return NOT_READY;
+                  String act = enable ? "enable" : "disable";
+                  boolean ok = true;
+                  if (wifi) ok &= run("/system/bin/svc", "wifi", act);
+                  if (data) ok &= run("/system/bin/svc", "data", act);
+                  return ok ? OK : FAILED;
+              }
+
+              /** Disables what is selected now and remembers it, so it can be restored later. */
+              static int off(Context c) {
+                  SharedPreferences p = Prefs.get(c);
+                  boolean w = p.getBoolean("wifi", false);
+                  boolean d = p.getBoolean("data", false);
+                  p.edit().putBoolean("off_wifi", w).putBoolean("off_data", d).apply();
+                  return apply(w, d, false);
+              }
+
+              /** Enables only what the schedule switched off earlier. */
+              static int on(Context c) {
+                  SharedPreferences p = Prefs.get(c);
+                  return apply(p.getBoolean("off_wifi", false), p.getBoolean("off_data", false), true);
+              }
+
+              /** Used by the test buttons: acts on the current selection. */
+              static int force(Context c, boolean enable) {
+                  SharedPreferences p = Prefs.get(c);
+                  return apply(p.getBoolean("wifi", false), p.getBoolean("data", false), enable);
+              }
           }
-          /*endcore*/
 
-          (function () {
-            var calc = createCalc();
-            var elMain = document.getElementById('main');
-            var elExpr = document.getElementById('expr');
+          final class Scheduler {
+              private static final String CHANNEL = "status";
+              private static final int NOTIFICATION_ID = 1;
 
-            function render() {
-              var v = calc.view();
-              elMain.textContent = v.main;
-              elMain.classList.toggle('is-error', v.err);
-              var n = v.main.length;
-              elMain.style.fontSize = v.err ? '28px' : (n <= 9 ? '56px' : n <= 12 ? '44px' : n <= 15 ? '36px' : '30px');
-              elExpr.textContent = v.expr;
-              elExpr.scrollLeft = elExpr.scrollWidth;
-            }
+              static String hhmm(int minutes) {
+                  return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60);
+              }
 
-            document.getElementById('pad').addEventListener('click', function (e) {
-              var b = e.target.closest('button[data-k]');
-              if (!b) return;
-              calc.press(b.getAttribute('data-k'));
-              render();
-            });
+              static boolean inWindow(int start, int end) {
+                  Calendar now = Calendar.getInstance();
+                  int m = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+                  if (start < end) return m >= start && m < end;
+                  return m >= start || m < end;
+              }
 
-            render();
-          })();
-          </script>
-          </body>
-          </html>
+              private static long nextTrigger(int minuteOfDay) {
+                  Calendar c = Calendar.getInstance();
+                  c.set(Calendar.HOUR_OF_DAY, minuteOfDay / 60);
+                  c.set(Calendar.MINUTE, minuteOfDay % 60);
+                  c.set(Calendar.SECOND, 0);
+                  c.set(Calendar.MILLISECOND, 0);
+                  if (c.getTimeInMillis() <= System.currentTimeMillis()) c.add(Calendar.DAY_OF_YEAR, 1);
+                  return c.getTimeInMillis();
+              }
+
+              private static PendingIntent pending(Context c, int code) {
+                  Intent i = new Intent(c, AlarmReceiver.class).setAction("com.example.nightnet.SYNC");
+                  return PendingIntent.getBroadcast(c, code, i,
+                          PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+              }
+
+              private static void setAlarm(Context c, int code, int minuteOfDay) {
+                  AlarmManager am = c.getSystemService(AlarmManager.class);
+                  am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTrigger(minuteOfDay), pending(c, code));
+              }
+
+              private static void cancelAlarms(Context c) {
+                  AlarmManager am = c.getSystemService(AlarmManager.class);
+                  am.cancel(pending(c, 1));
+                  am.cancel(pending(c, 2));
+              }
+
+              private static void show(Context c, String title, String text) {
+                  NotificationManager nm = c.getSystemService(NotificationManager.class);
+                  nm.createNotificationChannel(new NotificationChannel(
+                          CHANNEL, "Стан розкладу", NotificationManager.IMPORTANCE_LOW));
+                  PendingIntent open = PendingIntent.getActivity(c, 0,
+                          new Intent(c, MainActivity.class),
+                          PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                  Notification n = new Notification.Builder(c, CHANNEL)
+                          .setSmallIcon(R.drawable.ic_stat)
+                          .setContentTitle(title)
+                          .setContentText(text)
+                          .setContentIntent(open)
+                          .setOngoing(true)
+                          .setShowWhen(false)
+                          .build();
+                  nm.notify(NOTIFICATION_ID, n);
+              }
+
+              /** Brings the phone in line with the schedule and re-arms the alarms. */
+              static synchronized void sync(Context c) {
+                  SharedPreferences p = Prefs.get(c);
+                  boolean wifi = p.getBoolean("wifi", false);
+                  boolean data = p.getBoolean("data", false);
+                  int start = p.getInt("start", 22 * 60);
+                  int end = p.getInt("end", 6 * 60);
+                  boolean on = p.getBoolean("enabled", false) && (wifi || data) && start != end;
+                  boolean active = p.getBoolean("active", false);
+                  NotificationManager nm = c.getSystemService(NotificationManager.class);
+
+                  if (!on) {
+                      cancelAlarms(c);
+                      nm.cancel(NOTIFICATION_ID);
+                      if (active && Radio.on(c) != Radio.NOT_READY) {
+                          p.edit().putBoolean("active", false).apply();
+                      }
+                      return;
+                  }
+
+                  setAlarm(c, 1, start);
+                  setAlarm(c, 2, end);
+
+                  boolean inside = inWindow(start, end);
+                  if (inside && !active && Radio.off(c) != Radio.NOT_READY) {
+                      active = true;
+                  } else if (!inside && active && Radio.on(c) != Radio.NOT_READY) {
+                      active = false;
+                  }
+                  p.edit().putBoolean("active", active).apply();
+
+                  StringBuilder what = new StringBuilder();
+                  if (wifi) what.append("Wi-Fi");
+                  if (data) {
+                      if (what.length() > 0) what.append(", ");
+                      what.append("мобільні дані");
+                  }
+                  String text;
+                  if (inside && !active) {
+                      text = "Не вдалося вимкнути: запустіть Shizuku";
+                  } else if (!inside && active) {
+                      text = "Не вдалося повернути зв’язок: запустіть Shizuku";
+                  } else {
+                      text = (active ? "Зараз вимкнено: " : "Вимикатиме: ") + what;
+                  }
+                  show(c, "Нічне вимкнення " + hhmm(start) + "–" + hhmm(end), text);
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/MainActivity.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.TimePickerDialog;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.CheckBox;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.Switch;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import rikka.shizuku.Shizuku;
+
+          public class MainActivity extends Activity {
+              private SharedPreferences prefs;
+              private CheckBox cbWifi, cbData;
+              private Button btnFrom, btnTo, btnPermission;
+              private Switch swEnabled;
+              private TextView tvStatus;
+              private boolean loading;
+
+              private int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density);
+              }
+
+              private TextView label(String text) {
+                  TextView t = new TextView(this);
+                  t.setText(text);
+                  t.setTextSize(18);
+                  t.setPadding(0, dp(20), 0, dp(6));
+                  return t;
+              }
+
+              private void toast(String s) {
+                  Toast.makeText(this, s, Toast.LENGTH_LONG).show();
+              }
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  prefs = Prefs.get(this);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(20), dp(8), dp(20), dp(24));
+
+                  root.addView(label("Що вимикати"));
+                  cbWifi = new CheckBox(this);
+                  cbWifi.setText("Wi-Fi");
+                  root.addView(cbWifi);
+                  cbData = new CheckBox(this);
+                  cbData.setText("Мобільні дані");
+                  root.addView(cbData);
+
+                  root.addView(label("Години вимкнення"));
+                  LinearLayout row = new LinearLayout(this);
+                  btnFrom = new Button(this);
+                  btnTo = new Button(this);
+                  LinearLayout.LayoutParams lp =
+                          new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                  row.addView(btnFrom, lp);
+                  row.addView(btnTo, lp);
+                  root.addView(row);
+
+                  swEnabled = new Switch(this);
+                  swEnabled.setText("Розклад увімкнено");
+                  swEnabled.setTextSize(18);
+                  swEnabled.setPadding(0, dp(24), 0, dp(8));
+                  root.addView(swEnabled);
+
+                  tvStatus = new TextView(this);
+                  tvStatus.setPadding(0, dp(12), 0, dp(4));
+                  root.addView(tvStatus);
+                  btnPermission = new Button(this);
+                  btnPermission.setText("Дати дозвіл Shizuku");
+                  root.addView(btnPermission);
+
+                  root.addView(label("Перевірка"));
+                  Button testOff = new Button(this);
+                  testOff.setText("Вимкнути зараз (тест)");
+                  Button testOn = new Button(this);
+                  testOn.setText("Увімкнути назад");
+                  root.addView(testOff);
+                  root.addView(testOn);
+
+                  ScrollView sv = new ScrollView(this);
+                  sv.addView(root);
+                  setContentView(sv);
+
+                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  btnFrom.setOnClickListener(v -> pick("start"));
+                  btnTo.setOnClickListener(v -> pick("end"));
+                  btnPermission.setOnClickListener(v -> {
+                      try {
+                          Shizuku.requestPermission(100);
+                      } catch (Throwable t) {
+                          toast("Спершу запустіть Shizuku");
+                      }
+                  });
+                  testOff.setOnClickListener(v -> test(false));
+                  testOn.setOnClickListener(v -> test(true));
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  render();
+                  runSync();
+              }
+
+              private void changed() {
+                  boolean w = cbWifi.isChecked();
+                  boolean d = cbData.isChecked();
+                  boolean en = swEnabled.isChecked();
+                  if (en && !w && !d) {
+                      en = false;
+                      loading = true;
+                      swEnabled.setChecked(false);
+                      loading = false;
+                      toast("Оберіть, що вимикати: Wi-Fi або мобільні дані");
+                  }
+                  if (en && Build.VERSION.SDK_INT >= 33
+                          && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                          != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+                  }
+                  prefs.edit().putBoolean("wifi", w).putBoolean("data", d).putBoolean("enabled", en).apply();
+                  runSync();
+                  render();
+              }
+
+              private void pick(final String key) {
+                  boolean isStart = key.equals("start");
+                  int cur = prefs.getInt(key, isStart ? 22 * 60 : 6 * 60);
+                  new TimePickerDialog(this, (view, h, m) -> {
+                      int other = prefs.getInt(isStart ? "end" : "start", isStart ? 6 * 60 : 22 * 60);
+                      if (h * 60 + m == other) {
+                          toast("Початок і кінець не можуть збігатися");
+                          return;
+                      }
+                      prefs.edit().putInt(key, h * 60 + m).apply();
+                      runSync();
+                      render();
+                  }, cur / 60, cur % 60, true).show();
+              }
+
+              private void runSync() {
+                  final Context app = getApplicationContext();
+                  new Thread(() -> {
+                      Scheduler.sync(app);
+                      runOnUiThread(this::render);
+                  }).start();
+              }
+
+              private void test(final boolean enable) {
+                  if (!cbWifi.isChecked() && !cbData.isChecked()) {
+                      toast("Спершу оберіть Wi-Fi або мобільні дані");
+                      return;
+                  }
+                  final Context app = getApplicationContext();
+                  new Thread(() -> {
+                      int r = Radio.force(app, enable);
+                      final String msg = r == Radio.OK ? "Команду виконано. Перевірте, чи змінився стан."
+                              : r == Radio.NOT_READY ? "Shizuku не запущено або немає дозволу."
+                              : "Команда не спрацювала.";
+                      runOnUiThread(() -> toast(msg));
+                  }).start();
+              }
+
+              private void render() {
+                  loading = true;
+                  cbWifi.setChecked(prefs.getBoolean("wifi", false));
+                  cbData.setChecked(prefs.getBoolean("data", false));
+                  swEnabled.setChecked(prefs.getBoolean("enabled", false));
+                  loading = false;
+                  btnFrom.setText("З " + Scheduler.hhmm(prefs.getInt("start", 22 * 60)));
+                  btnTo.setText("До " + Scheduler.hhmm(prefs.getInt("end", 6 * 60)));
+
+                  boolean binder = false;
+                  boolean granted = false;
+                  try {
+                      binder = Shizuku.pingBinder();
+                      granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+                  } catch (Throwable ignored) {
+                  }
+                  String s;
+                  if (!binder) {
+                      s = "Shizuku не запущено. Запустіть його, і розклад запрацює.";
+                  } else if (!granted) {
+                      s = "Shizuku запущено, але цьому застосунку ще не дано дозвіл.";
+                  } else {
+                      s = "Shizuku готовий.";
+                  }
+                  if (prefs.getBoolean("active", false)) {
+                      s += "\nЗараз зв’язок вимкнено за розкладом.";
+                  }
+                  tvStatus.setText(s);
+                  btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
+              }
+          }
           EOF
 
       - name: Build APK
@@ -351,5 +588,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Calculator-APK
+          name: NightNet-APK
           path: build/outputs/apk/debug/*.apk
