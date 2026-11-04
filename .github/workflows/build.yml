@@ -25,7 +25,7 @@ jobs:
 
       - name: Create app files
         run: |
-          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable
+          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable src/main/res/values
 
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
@@ -62,8 +62,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 1
-                  versionName = "1.0"
+                  versionCode = 2
+                  versionName = "2.0"
               }
 
               compileOptions {
@@ -112,6 +112,17 @@ jobs:
                           <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                       </intent-filter>
                   </receiver>
+
+                  <service
+                      android:name=".QuickToggleService"
+                      android:icon="@drawable/ic_stat"
+                      android:label="Нічна мережа"
+                      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.service.quicksettings.action.QS_TILE" />
+                      </intent-filter>
+                  </service>
 
                   <provider
                       android:name="rikka.shizuku.ShizukuProvider"
@@ -178,6 +189,47 @@ jobs:
           }
           EOF
 
+          cat > src/main/java/com/example/nightnet/QuickToggleService.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.service.quicksettings.Tile;
+          import android.service.quicksettings.TileService;
+
+          public class QuickToggleService extends TileService {
+              @Override
+              public void onStartListening() {
+                  super.onStartListening();
+                  updateTileState();
+              }
+
+              @Override
+              public void onClick() {
+                  super.onClick();
+                  new Thread(() -> {
+                      boolean active = Prefs.get(this).getBoolean("active", false);
+                      if (active) {
+                          Radio.on(this);
+                          Prefs.get(this).edit().putBoolean("active", false).apply();
+                      } else {
+                          Radio.off(this);
+                          Prefs.get(this).edit().putBoolean("active", true).apply();
+                      }
+                      Scheduler.sync(getApplicationContext());
+                      updateTileState();
+                  }).start();
+              }
+
+              private void updateTileState() {
+                  Tile tile = getQsTile();
+                  if (tile == null) return;
+                  boolean active = Prefs.get(this).getBoolean("active", false);
+                  tile.setState(active ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
+                  tile.setLabel("Нічна мережа");
+                  tile.updateTile();
+              }
+          }
+          EOF
+
           cat > src/main/java/com/example/nightnet/Core.java <<'EOF'
           package com.example.nightnet;
 
@@ -239,7 +291,6 @@ jobs:
                   return ok ? OK : FAILED;
               }
 
-              /** Disables what is selected now and remembers it, so it can be restored later. */
               static int off(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   boolean w = p.getBoolean("wifi", false);
@@ -248,13 +299,11 @@ jobs:
                   return apply(w, d, false);
               }
 
-              /** Enables only what the schedule switched off earlier. */
               static int on(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   return apply(p.getBoolean("off_wifi", false), p.getBoolean("off_data", false), true);
               }
 
-              /** Used by the test buttons: acts on the current selection. */
               static int force(Context c, boolean enable) {
                   SharedPreferences p = Prefs.get(c);
                   return apply(p.getBoolean("wifi", false), p.getBoolean("data", false), enable);
@@ -267,6 +316,11 @@ jobs:
 
               static String hhmm(int minutes) {
                   return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60);
+              }
+
+              static boolean isWeekend() {
+                  int day = Calendar.getInstance().get(Calendar.DAY_OF_WEEK);
+                  return day == Calendar.SATURDAY || day == Calendar.SUNDAY;
               }
 
               static boolean inWindow(int start, int end) {
@@ -315,19 +369,22 @@ jobs:
                           .setContentTitle(title)
                           .setContentText(text)
                           .setContentIntent(open)
-                          .setOngoing(true)
+                          .setOngoing(false)
+                          .setAutoCancel(true)
                           .setShowWhen(false)
                           .build();
                   nm.notify(NOTIFICATION_ID, n);
               }
 
-              /** Brings the phone in line with the schedule and re-arms the alarms. */
               static synchronized void sync(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   boolean wifi = p.getBoolean("wifi", false);
                   boolean data = p.getBoolean("data", false);
-                  int start = p.getInt("start", 22 * 60);
-                  int end = p.getInt("end", 6 * 60);
+                  boolean weekend = isWeekend();
+
+                  int start = p.getInt(weekend ? "start_w" : "start_d", 22 * 60);
+                  int end = p.getInt(weekend ? "end_w" : "end_d", 6 * 60);
+
                   boolean on = p.getBoolean("enabled", false) && (wifi || data) && start != end;
                   boolean active = p.getBoolean("active", false);
                   NotificationManager nm = c.getSystemService(NotificationManager.class);
@@ -341,7 +398,11 @@ jobs:
                       return;
                   }
 
-                  setAlarm(c, 1, start);
+                  // Сповіщення за 5 хв до початку або під час активності
+                  int notifyTriggerTime = start - 5;
+                  if (notifyTriggerTime < 0) notifyTriggerTime += 24 * 60;
+
+                  setAlarm(c, 1, notifyTriggerTime);
                   setAlarm(c, 2, end);
 
                   boolean inside = inWindow(start, end);
@@ -352,21 +413,41 @@ jobs:
                   }
                   p.edit().putBoolean("active", active).apply();
 
-                  StringBuilder what = new StringBuilder();
-                  if (wifi) what.append("Wi-Fi");
-                  if (data) {
-                      if (what.length() > 0) what.append(", ");
-                      what.append("мобільні дані");
-                  }
-                  String text;
-                  if (inside && !active) {
-                      text = "Не вдалося вимкнути: запустіть Shizuku";
-                  } else if (!inside && active) {
-                      text = "Не вдалося повернути зв’язок: запустіть Shizuku";
+                  // Керування показом сповіщення (лише за 5 хв до початку і під час дії)
+                  Calendar now = Calendar.getInstance();
+                  int currentMin = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+                  
+                  boolean showNotification = false;
+                  if (inside) {
+                      showNotification = true;
                   } else {
-                      text = (active ? "Зараз вимкнено: " : "Вимикатиме: ") + what;
+                      // Перевірка чи ми в межах 5 хв до початку
+                      int diff = start - currentMin;
+                      if (diff < 0) diff += 24 * 60;
+                      if (diff <= 5) {
+                          showNotification = true;
+                      }
                   }
-                  show(c, "Нічне вимкнення " + hhmm(start) + "–" + hhmm(end), text);
+
+                  if (!showNotification) {
+                      nm.cancel(NOTIFICATION_ID);
+                  } else {
+                      StringBuilder what = new StringBuilder();
+                      if (wifi) what.append("Wi-Fi");
+                      if (data) {
+                          if (what.length() > 0) what.append(", ");
+                          what.append("мобільні дані");
+                      }
+                      String text;
+                      if (inside && !active) {
+                          text = "Не вдалося вимкнути: запустіть Shizuku";
+                      } else if (!inside && active) {
+                          text = "Не вдалося повернути зв’язок: запустіть Shizuku";
+                      } else {
+                          text = (active ? "Зараз вимкнено: " : "Вимикатиме о " + hhmm(start) + ": ") + what;
+                      }
+                      show(c, "Нічна мережа", text);
+                  }
               }
           }
           EOF
@@ -374,13 +455,10 @@ jobs:
           cat > src/main/java/com/example/nightnet/MainActivity.java <<'EOF'
           package com.example.nightnet;
 
-          import android.Manifest;
           import android.app.Activity;
           import android.app.TimePickerDialog;
-          import android.content.Context;
           import android.content.SharedPreferences;
-          import android.content.pm.PackageManager;
-          import android.os.Build;
+          import android.graphics.Color;
           import android.os.Bundle;
           import android.view.View;
           import android.widget.Button;
@@ -395,70 +473,130 @@ jobs:
           public class MainActivity extends Activity {
               private SharedPreferences prefs;
               private CheckBox cbWifi, cbData;
-              private Button btnFrom, btnTo, btnPermission;
+              private Button btnFromD, btnToD, btnFromW, btnToW, btnPermission;
               private Switch swEnabled;
               private TextView tvStatus;
               private boolean loading;
+
+              // Колірні схеми (фон, акцент/картки, текст)
+              private static final int[][] THEMES = {
+                  {0xFF121212, 0xFF1E2923, 0xFFE0F2F1}, // 1. Зелена нічна
+                  {0xFF121212, 0xFF1E1E2C, 0xFFE2E8F0}, // 2. Темна поночі
+                  {0xFFF4F6F8, 0xFFFFFFFF, 0xFF0F172A}, // 3. Світла сучасна
+                  {0xFF1A1614, 0xFF2C2421, 0xFFFDEED9}, // 4. Тепла кавова
+                  {0xFF0F172A, 0xFF1E293B, 0xFFF1F5F9}  // 5. Сувора блакитна
+              };
 
               private int dp(int v) {
                   return (int) (v * getResources().getDisplayMetrics().density);
               }
 
-              private TextView label(String text) {
+              private TextView label(String text, int textColor) {
                   TextView t = new TextView(this);
                   t.setText(text);
-                  t.setTextSize(18);
-                  t.setPadding(0, dp(20), 0, dp(6));
+                  t.setTextSize(17);
+                  t.setTextColor(textColor);
+                  t.setPadding(0, dp(16), 0, dp(4));
                   return t;
               }
 
               private void toast(String s) {
-                  Toast.makeText(this, s, Toast.LENGTH_LONG).show();
+                  Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
               }
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   prefs = Prefs.get(this);
+                  loadUI();
+              }
+
+              private void loadUI() {
+                  int themeIdx = prefs.getInt("theme", 0);
+                  int[] colors = THEMES[themeIdx % THEMES.length];
+                  int bgCol = colors[0];
+                  int cardCol = colors[1];
+                  int textCol = colors[2];
 
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(dp(20), dp(8), dp(20), dp(24));
+                  root.setPadding(dp(16), dp(8), dp(16), dp(24));
+                  root.setBackgroundColor(bgCol);
 
-                  root.addView(label("Що вимикати"));
+                  // Вибір теми
+                  root.addView(label("Оберіть колірну схему", textCol));
+                  LinearLayout themeRow = new LinearLayout(this);
+                  themeRow.setOrientation(LinearLayout.HORIZONTAL);
+                  String[] themeNames = {"Зелена", "Темна", "Світла", "Кавова", "Блакитна"};
+                  for (int i = 0; i < themeNames.length; i++) {
+                      final int idx = i;
+                      Button b = new Button(this);
+                      b.setText(themeNames[i]);
+                      b.setTextSize(11);
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                      lp.setMargins(4, 0, 4, 0);
+                      b.setLayoutParams(lp);
+                      b.setOnClickListener(v -> {
+                          prefs.edit().putInt("theme", idx).apply();
+                          loadUI();
+                      });
+                      themeRow.addView(b);
+                  }
+                  root.addView(themeRow);
+
+                  // Що вимикати
+                  root.addView(label("Що вимикати", textCol));
                   cbWifi = new CheckBox(this);
                   cbWifi.setText("Wi-Fi");
+                  cbWifi.setTextColor(textCol);
                   root.addView(cbWifi);
+
                   cbData = new CheckBox(this);
                   cbData.setText("Мобільні дані");
+                  cbData.setTextColor(textCol);
                   root.addView(cbData);
 
-                  root.addView(label("Години вимкнення"));
-                  LinearLayout row = new LinearLayout(this);
-                  btnFrom = new Button(this);
-                  btnTo = new Button(this);
-                  LinearLayout.LayoutParams lp =
-                          new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-                  row.addView(btnFrom, lp);
-                  row.addView(btnTo, lp);
-                  root.addView(row);
+                  // Графік для буднів
+                  root.addView(label("Графік: Будні (Пн-Пт)", textCol));
+                  LinearLayout rowD = new LinearLayout(this);
+                  btnFromD = new Button(this);
+                  btnToD = new Button(this);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                  rowD.addView(btnFromD, lp);
+                  rowD.addView(btnToD, lp);
+                  root.addView(rowD);
 
+                  // Графік для вихідних
+                  root.addView(label("Графік: Вихідні (Сб-Нд)", textCol));
+                  LinearLayout rowW = new LinearLayout(this);
+                  btnFromW = new Button(this);
+                  btnToW = new Button(this);
+                  rowW.addView(btnFromW, lp);
+                  rowW.addView(btnToW, lp);
+                  root.addView(rowW);
+
+                  // Перемикач
                   swEnabled = new Switch(this);
                   swEnabled.setText("Розклад увімкнено");
+                  swEnabled.setTextColor(textCol);
                   swEnabled.setTextSize(18);
-                  swEnabled.setPadding(0, dp(24), 0, dp(8));
+                  swEnabled.setPadding(0, dp(20), 0, dp(8));
                   root.addView(swEnabled);
 
+                  // Статус та Shizuku
                   tvStatus = new TextView(this);
-                  tvStatus.setPadding(0, dp(12), 0, dp(4));
+                  tvStatus.setTextColor(textCol);
+                  tvStatus.setPadding(0, dp(8), 0, dp(4));
                   root.addView(tvStatus);
+
                   btnPermission = new Button(this);
                   btnPermission.setText("Дати дозвіл Shizuku");
                   root.addView(btnPermission);
 
-                  root.addView(label("Перевірка"));
+                  // Тест кнопки
+                  root.addView(label("Керування", textCol));
                   Button testOff = new Button(this);
-                  testOff.setText("Вимкнути зараз (тест)");
+                  testOff.setText("Вимкнути зараз");
                   Button testOn = new Button(this);
                   testOn.setText("Увімкнути назад");
                   root.addView(testOff);
@@ -468,125 +606,87 @@ jobs:
                   sv.addView(root);
                   setContentView(sv);
 
-                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  btnFrom.setOnClickListener(v -> pick("start"));
-                  btnTo.setOnClickListener(v -> pick("end"));
-                  btnPermission.setOnClickListener(v -> {
-                      try {
-                          Shizuku.requestPermission(100);
-                      } catch (Throwable t) {
-                          toast("Спершу запустіть Shizuku");
-                      }
-                  });
-                  testOff.setOnClickListener(v -> test(false));
-                  testOn.setOnClickListener(v -> test(true));
-              }
-
-              @Override
-              protected void onResume() {
-                  super.onResume();
-                  render();
-                  runSync();
-              }
-
-              private void changed() {
-                  boolean w = cbWifi.isChecked();
-                  boolean d = cbData.isChecked();
-                  boolean en = swEnabled.isChecked();
-                  if (en && !w && !d) {
-                      en = false;
-                      loading = true;
-                      swEnabled.setChecked(false);
-                      loading = false;
-                      toast("Оберіть, що вимикати: Wi-Fi або мобільні дані");
-                  }
-                  if (en && Build.VERSION.SDK_INT >= 33
-                          && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                          != PackageManager.PERMISSION_GRANTED) {
-                      requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
-                  }
-                  prefs.edit().putBoolean("wifi", w).putBoolean("data", d).putBoolean("enabled", en).apply();
-                  runSync();
-                  render();
-              }
-
-              private void pick(final String key) {
-                  boolean isStart = key.equals("start");
-                  int cur = prefs.getInt(key, isStart ? 22 * 60 : 6 * 60);
-                  new TimePickerDialog(this, (view, h, m) -> {
-                      int other = prefs.getInt(isStart ? "end" : "start", isStart ? 6 * 60 : 22 * 60);
-                      if (h * 60 + m == other) {
-                          toast("Початок і кінець не можуть збігатися");
-                          return;
-                      }
-                      prefs.edit().putInt(key, h * 60 + m).apply();
-                      runSync();
-                      render();
-                  }, cur / 60, cur % 60, true).show();
-              }
-
-              private void runSync() {
-                  final Context app = getApplicationContext();
-                  new Thread(() -> {
-                      Scheduler.sync(app);
-                      runOnUiThread(this::render);
-                  }).start();
-              }
-
-              private void test(final boolean enable) {
-                  if (!cbWifi.isChecked() && !cbData.isChecked()) {
-                      toast("Спершу оберіть Wi-Fi або мобільні дані");
-                      return;
-                  }
-                  final Context app = getApplicationContext();
-                  new Thread(() -> {
-                      int r = Radio.force(app, enable);
-                      final String msg = r == Radio.OK ? "Команду виконано. Перевірте, чи змінився стан."
-                              : r == Radio.NOT_READY ? "Shizuku не запущено або немає дозволу."
-                              : "Команда не спрацювала.";
-                      runOnUiThread(() -> toast(msg));
-                  }).start();
-              }
-
-              private void render() {
                   loading = true;
                   cbWifi.setChecked(prefs.getBoolean("wifi", false));
                   cbData.setChecked(prefs.getBoolean("data", false));
                   swEnabled.setChecked(prefs.getBoolean("enabled", false));
+                  updateTimes();
                   loading = false;
-                  btnFrom.setText("З " + Scheduler.hhmm(prefs.getInt("start", 22 * 60)));
-                  btnTo.setText("До " + Scheduler.hhmm(prefs.getInt("end", 6 * 60)));
 
-                  boolean binder = false;
-                  boolean granted = false;
+                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  
+                  btnFromD.setOnClickListener(v -> pick("start_d"));
+                  btnToD.setOnClickListener(v -> pick("end_d"));
+                  btnFromW.setOnClickListener(v -> pick("start_w"));
+                  btnToW.setOnClickListener(v -> pick("end_w"));
+
+                  btnPermission.setOnClickListener(v -> {
+                      try {
+                          Shizuku.requestPermission(100);
+                      } catch (Throwable t) {
+                          toast("Помилка запиту Shizuku");
+                      }
+                  });
+
+                  testOff.setOnClickListener(v -> new Thread(() -> {
+                      int res = Radio.off(MainActivity.this);
+                      runOnUiThread(() -> toast(res == Radio.OK ? "Вимкнено" : "Помилка Shizuku"));
+                  }).start());
+
+                  testOn.setOnClickListener(v -> new Thread(() -> {
+                      int res = Radio.on(MainActivity.this);
+                      runOnUiThread(() -> toast(res == Radio.OK ? "Увімкнено" : "Помилка Shizuku"));
+                  }).start());
+
+                  checkShizukuStatus();
+              }
+
+              private void updateTimes() {
+                  int sD = prefs.getInt("start_d", 22 * 60);
+                  int eD = prefs.getInt("end_d", 6 * 60);
+                  int sW = prefs.getInt("start_w", 23 * 60);
+                  int eW = prefs.getInt("end_w", 8 * 60);
+
+                  btnFromD.setText("З: " + Scheduler.hhmm(sD));
+                  btnToD.setText("До: " + Scheduler.hhmm(eD));
+                  btnFromW.setText("З: " + Scheduler.hhmm(sW));
+                  btnToW.setText("До: " + Scheduler.hhmm(eW));
+              }
+
+              private void pick(String key) {
+                  int val = prefs.getInt(key, 22 * 60);
+                  new TimePickerDialog(this, (view, h, m) -> {
+                      prefs.edit().putInt(key, h * 60 + m).apply();
+                      updateTimes();
+                      changed();
+                  }, val / 60, val % 60, true).show();
+              }
+
+              private void changed() {
+                  prefs.edit()
+                          .putBoolean("wifi", cbWifi.isChecked())
+                          .putBoolean("data", cbData.isChecked())
+                          .putBoolean("enabled", swEnabled.isChecked())
+                          .apply();
+                  Scheduler.sync(this);
+                  toast("Збережено");
+              }
+
+              private void checkShizukuStatus() {
+                  boolean ok = false;
                   try {
-                      binder = Shizuku.pingBinder();
-                      granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
-                  } catch (Throwable ignored) {
-                  }
-                  String s;
-                  if (!binder) {
-                      s = "Shizuku не запущено. Запустіть його, і розклад запрацює.";
-                  } else if (!granted) {
-                      s = "Shizuku запущено, але цьому застосунку ще не дано дозвіл.";
+                      ok = Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+                  } catch (Throwable ignored) {}
+
+                  if (ok) {
+                      tvStatus.setText("Shizuku підключено ✅");
+                      btnPermission.setVisibility(View.GONE);
                   } else {
-                      s = "Shizuku готовий.";
+                      tvStatus.setText("Shizuku не готовий (потрібен дозвіл) ⚠️");
+                      btnPermission.setVisibility(View.VISIBLE);
                   }
-                  if (prefs.getBoolean("active", false)) {
-                      s += "\nЗараз зв’язок вимкнено за розкладом.";
-                  }
-                  tvStatus.setText(s);
-                  btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
               }
           }
           EOF
-
-      - name: Build APK
-        run: gradle assembleDebug --no-daemon
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NightNet-APK
-          path: build/outputs/apk/debug/*.apk
