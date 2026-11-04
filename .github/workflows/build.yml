@@ -1,0 +1,355 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-34 build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Create app files
+        run: |
+          mkdir -p src/main/java/com/example/calculator src/main/assets src/main/res/drawable
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Calculator"
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.7.3"
+          }
+
+          android {
+              namespace = "com.example.calculator"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.calculator"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:allowBackup="false"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="Калькулятор">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait"
+                      android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#0D7A6D" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M30,40h48v8h-48z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M30,60h48v8h-48z" />
+          </vector>
+          EOF
+
+          cat > src/main/java/com/example/calculator/MainActivity.java <<'EOF'
+          package com.example.calculator;
+
+          import android.app.Activity;
+          import android.content.res.Configuration;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.Window;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+                  boolean night = (getResources().getConfiguration().uiMode
+                          & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+                  int bg = Color.parseColor(night ? "#0E1514" : "#E8EEEC");
+
+                  Window window = getWindow();
+                  window.setStatusBarColor(bg);
+                  window.setNavigationBarColor(bg);
+                  if (!night) {
+                      window.getDecorView().setSystemUiVisibility(
+                              View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                                      | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+                  }
+
+                  WebView web = new WebView(this);
+                  web.setBackgroundColor(bg);
+                  web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  WebSettings settings = web.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setTextZoom(100);
+                  setContentView(web);
+                  web.loadUrl("file:///android_asset/index.html#" + (night ? "dark" : "light"));
+              }
+          }
+          EOF
+
+          cat > src/main/assets/index.html <<'EOF'
+          <!doctype html>
+          <html lang="uk">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+          <title>Калькулятор</title>
+          <script>
+          var h = location.hash.slice(1);
+          if (h === 'dark' || h === 'light') document.documentElement.setAttribute('data-theme', h);
+          </script>
+          <style>
+          :root{--bg:#e8eeec;--key:#fff;--key-fg:#16211f;--fn:#d6e0de;--fn-fg:#273634;--op:#c4e1dc;--op-fg:#0a4f47;--accent:#0d7a6d;--accent-fg:#fff;--muted:#566764;--line:#c3cfcc;--err:#b42318;--num:"Roboto Mono",Menlo,Consolas,monospace;--ui:system-ui,sans-serif;color-scheme:light}
+          :root[data-theme="dark"]{--bg:#0e1514;--key:#1b2625;--key-fg:#e7f0ee;--fn:#26312f;--fn-fg:#c9d6d3;--op:#1e3b37;--op-fg:#8fdacf;--accent:#3fc4b1;--accent-fg:#06201c;--muted:#8ea29e;--line:#2b3735;--err:#ff8a7a;color-scheme:dark}
+          *{box-sizing:border-box}
+          html,body{height:100%;margin:0}
+          body{display:flex;justify-content:center;padding:12px 16px;background:var(--bg);color:var(--key-fg);font-family:var(--ui)}
+          .app{width:100%;max-width:420px;height:100%;min-height:0;display:flex;flex-direction:column;gap:14px}
+          .screen{flex:1 1 auto;min-height:0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;gap:4px;padding:8px 6px 2px;text-align:right}
+          .expr{width:100%;min-height:1.5em;font:16px var(--num);color:var(--muted);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
+          .expr::-webkit-scrollbar{display:none}
+          .main{max-width:100%;font:400 56px/1.1 var(--num);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+          .main.is-error{color:var(--err);font-family:var(--ui);font-weight:600;letter-spacing:0}
+          .pad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:64px;grid-auto-rows:clamp(54px,10.5dvh,76px);gap:10px}
+          .key{appearance:none;-webkit-appearance:none;border:0;border-radius:16px;background:var(--key);color:var(--key-fg);font:400 24px var(--num);cursor:pointer;box-shadow:0 1px 0 var(--line);touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,filter .08s}
+          .key:active{transform:scale(.96);filter:brightness(.94)}
+          .key.fn{background:var(--fn);color:var(--fn-fg);font:600 20px var(--ui)}
+          .key.op{background:var(--op);color:var(--op-fg);font-size:28px}
+          .key.eq{background:var(--accent);color:var(--accent-fg);font-size:30px}
+          </style>
+          </head>
+          <body>
+          <main class="app">
+          <section class="screen">
+          <div class="expr" id="expr"></div>
+          <div class="main" id="main">0</div>
+          </section>
+          <div class="pad" id="pad">
+          <button class="key fn" data-k="clear">C</button>
+          <button class="key fn" data-k="back">⌫</button>
+          <button class="key fn" data-k="pct">%</button>
+          <button class="key op" data-k="div">÷</button>
+          <button class="key" data-k="7">7</button>
+          <button class="key" data-k="8">8</button>
+          <button class="key" data-k="9">9</button>
+          <button class="key op" data-k="mul">×</button>
+          <button class="key" data-k="4">4</button>
+          <button class="key" data-k="5">5</button>
+          <button class="key" data-k="6">6</button>
+          <button class="key op" data-k="sub">−</button>
+          <button class="key" data-k="1">1</button>
+          <button class="key" data-k="2">2</button>
+          <button class="key" data-k="3">3</button>
+          <button class="key op" data-k="add">+</button>
+          <button class="key fn" data-k="sign">±</button>
+          <button class="key" data-k="0">0</button>
+          <button class="key" data-k=".">,</button>
+          <button class="key eq" data-k="eq">=</button>
+          </div>
+          </main>
+          <script>
+          /*core*/
+          var SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
+          var THIN = '\u202f';
+
+          function fmtNum(s) {
+            var neg = s.charAt(0) === '-';
+            if (neg) s = s.slice(1);
+            var parts = s.split('.');
+            var int = parts[0];
+            if (/^\d+$/.test(int)) int = int.replace(/\B(?=(\d{3})+(?!\d))/g, THIN);
+            return (neg ? '−' : '') + int + (parts.length > 1 ? ',' + parts[1] : '');
+          }
+          function fmtTok(t) {
+            return (t === '+' || t === '−' || t === '×' || t === '÷') ? t : fmtNum(t);
+          }
+          function clean(n) { return String(parseFloat(n.toPrecision(12))); }
+
+          function evaluate(t) {
+            var out = [t[0]];
+            for (var i = 1; i < t.length; i += 2) {
+              var op = t[i], n = parseFloat(t[i + 1]);
+              if (op === '×' || op === '÷') {
+                var prev = parseFloat(out[out.length - 1]);
+                if (op === '÷' && n === 0) return NaN;
+                out[out.length - 1] = String(op === '×' ? prev * n : prev / n);
+              } else {
+                out.push(op);
+                out.push(String(n));
+              }
+            }
+            var res = parseFloat(out[0]);
+            for (var j = 1; j < out.length; j += 2) {
+              var v = parseFloat(out[j + 1]);
+              res = out[j] === '+' ? res + v : res - v;
+            }
+            return res;
+          }
+
+          function createCalc() {
+            var s;
+            function reset() { s = { tokens: [], cur: '0', done: false, err: false, expr: '' }; }
+            reset();
+
+            function press(k) {
+              if (k === 'clear') { reset(); return; }
+              if (s.err) reset();
+
+              if (/^\d$/.test(k)) {
+                if (s.done) { s.tokens = []; s.cur = '0'; s.done = false; s.expr = ''; }
+                if (s.cur === '') { s.cur = k; return; }
+                if (s.cur.replace(/[-.]/g, '').length >= 15) return;
+                s.cur = (s.cur === '0') ? k : s.cur + k;
+                return;
+              }
+              if (k === '.') {
+                if (s.done) { s.tokens = []; s.cur = '0.'; s.done = false; s.expr = ''; return; }
+                if (s.cur === '') { s.cur = '0.'; return; }
+                if (s.cur.indexOf('.') < 0) s.cur += '.';
+                return;
+              }
+              if (SYM.hasOwnProperty(k)) {
+                var op = SYM[k];
+                if (s.done) { s.tokens = [s.cur, op]; s.cur = ''; s.done = false; s.expr = ''; return; }
+                if (s.cur === '') { s.tokens[s.tokens.length - 1] = op; return; }
+                s.tokens.push(s.cur);
+                s.tokens.push(op);
+                s.cur = '';
+                return;
+              }
+              if (k === 'pct') {
+                if (s.cur === '') return;
+                s.cur = clean(parseFloat(s.cur) / 100);
+                return;
+              }
+              if (k === 'sign') {
+                if (s.cur === '' || s.cur === '0') return;
+                s.cur = s.cur.charAt(0) === '-' ? s.cur.slice(1) : '-' + s.cur;
+                return;
+              }
+              if (k === 'back') {
+                if (s.done) { reset(); return; }
+                if (s.cur === '') { s.tokens.pop(); s.cur = s.tokens.pop(); return; }
+                s.cur = s.cur.slice(0, -1);
+                if (s.cur === '' || s.cur === '-') s.cur = '0';
+                return;
+              }
+              if (k === 'eq') {
+                if (s.done || s.tokens.length === 0) return;
+                var t = s.tokens.slice();
+                if (s.cur === '') t.pop(); else t.push(s.cur);
+                if (t.length === 0) return;
+                var r = evaluate(t);
+                var shown = t.map(fmtTok).join(' ') + ' =';
+                if (!isFinite(r)) { reset(); s.err = true; s.expr = shown; return; }
+                s.expr = shown;
+                s.cur = clean(r);
+                s.tokens = [];
+                s.done = true;
+                return;
+              }
+            }
+
+            function view() {
+              if (s.err) return { expr: s.expr, main: 'Ділення на нуль', err: true };
+              var main = s.cur !== '' ? fmtNum(s.cur) : fmtNum(s.tokens[s.tokens.length - 2]);
+              var expr = s.done ? s.expr : s.tokens.map(fmtTok).join(' ');
+              return { expr: expr, main: main, err: false };
+            }
+            return { press: press, view: view };
+          }
+          /*endcore*/
+
+          (function () {
+            var calc = createCalc();
+            var elMain = document.getElementById('main');
+            var elExpr = document.getElementById('expr');
+
+            function render() {
+              var v = calc.view();
+              elMain.textContent = v.main;
+              elMain.classList.toggle('is-error', v.err);
+              var n = v.main.length;
+              elMain.style.fontSize = v.err ? '28px' : (n <= 9 ? '56px' : n <= 12 ? '44px' : n <= 15 ? '36px' : '30px');
+              elExpr.textContent = v.expr;
+              elExpr.scrollLeft = elExpr.scrollWidth;
+            }
+
+            document.getElementById('pad').addEventListener('click', function (e) {
+              var b = e.target.closest('button[data-k]');
+              if (!b) return;
+              calc.press(b.getAttribute('data-k'));
+              render();
+            });
+
+            render();
+          })();
+          </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Calculator-APK
+          path: build/outputs/apk/debug/*.apk
