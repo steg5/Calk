@@ -25,7 +25,7 @@ jobs:
 
       - name: Create app files
         run: |
-          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable
+          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable src/main/res/layout
 
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
@@ -91,6 +91,7 @@ jobs:
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
               <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
               <uses-permission android:name="android.permission.DUMP" />
               <uses-permission android:name="android.permission.BATTERY_STATS" />
@@ -99,7 +100,7 @@ jobs:
               <application
                   android:allowBackup="false"
                   android:icon="@drawable/ic_launcher"
-                  android:label="Нічна мережа"
+                  android:label="Мої налаштування"
                   android:theme="@android:style/Theme.DeviceDefault.DayNight">
 
                   <activity
@@ -146,6 +147,45 @@ jobs:
           </manifest>
           EOF
 
+          cat > src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#0E2A3B" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#133F57" android:pathData="M54,54m-40,0a40,40 0 1,0 80,0a40,40 0 1,0 -80,0" />
+              <group
+                  android:scaleX="2.2"
+                  android:scaleY="2.2"
+                  android:translateX="20"
+                  android:translateY="14">
+                  <path
+                      android:fillColor="#FFFFFF"
+                      android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
+              </group>
+              <path
+                  android:fillColor="#FFB020"
+                  android:pathData="M80,20L69,36L76,36L73,48L87,31L80,31z" />
+              <path
+                  android:strokeColor="#2DD4BF"
+                  android:strokeWidth="5"
+                  android:strokeLineCap="round"
+                  android:pathData="M62.9,80.9A10,10 0 0 1 77.1,80.9" />
+              <path
+                  android:strokeColor="#2DD4BF"
+                  android:strokeWidth="5"
+                  android:strokeLineCap="round"
+                  android:pathData="M56.6,74.6A19,19 0 0 1 83.4,74.6" />
+              <path
+                  android:strokeColor="#2DD4BF"
+                  android:strokeWidth="5"
+                  android:strokeLineCap="round"
+                  android:pathData="M50.2,68.2A28,28 0 0 1 89.8,68.2" />
+              <path android:fillColor="#2DD4BF" android:pathData="M70,88m-4,0a4,4 0 1,0 8,0a4,4 0 1,0 -8,0" />
+          </vector>
+          EOF
+
           cat > src/main/res/drawable/ic_stat.xml <<'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="24dp"
@@ -158,23 +198,31 @@ jobs:
           </vector>
           EOF
 
-          cat > src/main/res/drawable/ic_launcher.xml <<'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="108"
-              android:viewportHeight="108">
-              <path android:fillColor="#0D7A6D" android:pathData="M0,0h108v108h-108z" />
-              <group
-                  android:scaleX="3"
-                  android:scaleY="3"
-                  android:translateX="18"
-                  android:translateY="18">
-                  <path
-                      android:fillColor="#FFFFFF"
-                      android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
-              </group>
-          </vector>
+          cat > src/main/res/layout/notif.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="horizontal">
+
+              <TextView
+                  android:id="@+id/left"
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:gravity="start"
+                  android:singleLine="true"
+                  android:textAppearance="@android:style/TextAppearance.Material.Notification" />
+
+              <TextView
+                  android:id="@+id/right"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:gravity="end"
+                  android:paddingStart="8dp"
+                  android:singleLine="true"
+                  android:textAppearance="@android:style/TextAppearance.Material.Notification" />
+          </LinearLayout>
           EOF
 
           cat > src/main/java/com/example/nightnet/AlarmReceiver.java <<'EOF'
@@ -214,6 +262,7 @@ jobs:
           package com.example.nightnet;
 
           import android.app.AlarmManager;
+          import android.app.KeyguardManager;
           import android.app.Notification;
           import android.app.NotificationChannel;
           import android.app.NotificationManager;
@@ -222,6 +271,8 @@ jobs:
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
+          import android.os.PowerManager;
+          import android.provider.Settings;
           import java.lang.reflect.Method;
           import java.util.Calendar;
           import java.util.Locale;
@@ -252,10 +303,8 @@ jobs:
               }
               private static boolean run(String... cmd) {
                   try {
-                      Method m = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
-                      m.setAccessible(true);
-                      Process p = (Process) m.invoke(null, cmd, null, null);
-                      return p.waitFor() == 0;
+                      Process p = spawn(cmd);
+                      return p != null && p.waitFor() == 0;
                   } catch (Throwable t) { return false; }
               }
               private static int apply(boolean wifi, boolean data, boolean enable) {
@@ -267,6 +316,7 @@ jobs:
                   if (data) ok &= run("/system/bin/svc", "data", act);
                   return ok ? OK : FAILED;
               }
+              static int setData(boolean enable) { return apply(false, true, enable); }
               static int off(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   boolean w = p.getBoolean("wifi", false), d = p.getBoolean("data", false);
@@ -277,15 +327,50 @@ jobs:
                   SharedPreferences p = Prefs.get(c);
                   return apply(p.getBoolean("off_wifi", false), p.getBoolean("off_data", false), true);
               }
-              static int force(Context c, boolean enable) {
-                  SharedPreferences p = Prefs.get(c);
-                  return apply(p.getBoolean("wifi", false), p.getBoolean("data", false), enable);
+          }
+
+          /** Switches mobile data off on a stable Wi-Fi and back on when Wi-Fi has been gone for a while. */
+          final class WifiAuto {
+              static final long HOLD_MS = 5 * 60 * 1000L;
+
+              private static boolean dataOn(Context c) {
+                  try { return Settings.Global.getInt(c.getContentResolver(), "mobile_data", 1) == 1; }
+                  catch (Throwable t) { return true; }
+              }
+
+              static synchronized void eval(Context c) {
+                  try {
+                      SharedPreferences p = Prefs.get(c);
+                      boolean mine = p.getBoolean("auto_data_off", false);
+                      if (!p.getBoolean("wifi_auto", false)) {
+                          if (mine) {
+                              if (dataOn(c) || Radio.setData(true) == Radio.OK) p.edit().putBoolean("auto_data_off", false).apply();
+                          }
+                          return;
+                      }
+                      // The night schedule has priority.
+                      if (p.getBoolean("active", false)) return;
+                      long now = System.currentTimeMillis();
+                      long conn = p.getLong("wifi_conn_since", 0);
+                      long lost = p.getLong("wifi_lost_since", 0);
+                      boolean on = dataOn(c);
+                      if (conn > 0 && now - conn >= HOLD_MS) {
+                          if (on && Radio.setData(false) == Radio.OK) p.edit().putBoolean("auto_data_off", true).apply();
+                      } else if (conn == 0 && lost > 0 && now - lost >= HOLD_MS) {
+                          if (mine && (on || Radio.setData(true) == Radio.OK)) p.edit().putBoolean("auto_data_off", false).apply();
+                      } else if (conn > 0) {
+                          Scheduler.schedule(c, 161, conn + HOLD_MS + 2000L);
+                      } else if (lost > 0) {
+                          Scheduler.schedule(c, 161, lost + HOLD_MS + 2000L);
+                      }
+                  } catch (Throwable ignored) { }
               }
           }
 
           final class Scheduler {
               private static final String CHANNEL = "schedule_notice";
               private static final int NOTIFICATION_ID = 1;
+              static final long IDLE_MS = 20 * 60 * 1000L;
               static String hhmm(int minutes) { return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60); }
 
               private static int startFor(SharedPreferences p, int day) {
@@ -296,15 +381,15 @@ jobs:
                   boolean weekend = day == Calendar.SATURDAY || day == Calendar.SUNDAY;
                   return p.getInt(weekend ? "weekend_end" : "weekday_end", 6 * 60);
               }
-              private static PendingIntent pending(Context c, int code) {
+              static PendingIntent pending(Context c, int code) {
                   Intent i = new Intent(c, AlarmReceiver.class).setAction("com.example.nightnet.SYNC." + code);
                   return PendingIntent.getBroadcast(c, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
               }
               private static void cancelAlarms(Context c) {
                   AlarmManager am = c.getSystemService(AlarmManager.class);
-                  for (int i = 100; i < 140; i++) am.cancel(pending(c, i));
+                  for (int i = 100; i < 152; i++) am.cancel(pending(c, i));
               }
-              private static void schedule(Context c, int code, long when) {
+              static void schedule(Context c, int code, long when) {
                   if (when <= System.currentTimeMillis()) return;
                   AlarmManager am = c.getSystemService(AlarmManager.class);
                   am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(c, code));
@@ -342,6 +427,14 @@ jobs:
               static synchronized void sync(Context c) { sync(c, false); }
 
               static synchronized void sync(Context c, boolean preNotice) {
+                  try {
+                      syncCore(c, preNotice);
+                  } finally {
+                      WifiAuto.eval(c);
+                  }
+              }
+
+              private static void syncCore(Context c, boolean preNotice) {
                   SharedPreferences p = Prefs.get(c);
                   boolean wifi = p.getBoolean("wifi", false), data = p.getBoolean("data", false);
                   boolean enabled = p.getBoolean("enabled", false) && (wifi || data);
@@ -351,13 +444,13 @@ jobs:
                       nm.cancel(NOTIFICATION_ID);
                       if (p.getBoolean("active", false)) {
                           int result = Radio.on(c);
-                          if (result == Radio.OK) p.edit().putBoolean("active", false).apply();
+                          if (result == Radio.OK) p.edit().putLong("flip_ts", System.currentTimeMillis()).putBoolean("active", false).apply();
                       }
                       return;
                   }
 
                   Calendar now = Calendar.getInstance();
-                  Calendar activeStart = null, activeEnd = null;
+                  Calendar activeStart = null;
                   // Check windows starting yesterday or today. The schedule belongs to its start day.
                   for (int back = 1; back >= 0; back--) {
                       Calendar day = (Calendar) now.clone();
@@ -368,20 +461,42 @@ jobs:
                       Calendar st = at(day, startMin);
                       Calendar en = at(day, endMin);
                       if (endMin <= startMin) en.add(Calendar.DAY_OF_YEAR, 1);
-                      if (inWindow(now, st, en)) { activeStart = st; activeEnd = en; break; }
+                      if (inWindow(now, st, en)) { activeStart = st; break; }
                   }
+
+                  // The schedule only runs while the phone is not in use: locked for at least IDLE_MS.
+                  long nowMs = now.getTimeInMillis();
+                  PowerManager pm = c.getSystemService(PowerManager.class);
+                  KeyguardManager km = c.getSystemService(KeyguardManager.class);
+                  boolean inUse = pm != null && km != null && pm.isInteractive() && !km.isKeyguardLocked();
+                  long idleSince = p.getLong("idle_since", 0);
+                  if (inUse) {
+                      if (idleSince != 0) { p.edit().putLong("idle_since", 0).apply(); idleSince = 0; }
+                  } else if (idleSince == 0) {
+                      idleSince = nowMs;
+                      p.edit().putLong("idle_since", nowMs).apply();
+                  }
+                  boolean idleOk = !inUse && idleSince > 0 && nowMs - idleSince >= IDLE_MS;
+                  boolean want = activeStart != null && idleOk;
+
                   boolean active = p.getBoolean("active", false);
-                  if (activeStart != null && !active) {
+                  boolean was = active;
+                  if (want && !active) {
                       int result = Radio.off(c);
                       if (result == Radio.OK) active = true;
-                  } else if (activeStart == null && active) {
+                  } else if (!want && active) {
                       int result = Radio.on(c);
                       if (result == Radio.OK) active = false;
                   }
-                  if (active != p.getBoolean("active", false)) p.edit().putLong("flip_ts", System.currentTimeMillis()).apply();
+                  if (active != was) p.edit().putLong("flip_ts", nowMs).apply();
                   p.edit().putBoolean("active", active).apply();
-                  if (preNotice && activeStart == null && p.getBoolean("notifications", true)) showPreNotice(c, p);
-                  if (activeStart != null || !preNotice || !p.getBoolean("notifications", true)) nm.cancel(NOTIFICATION_ID);
+
+                  boolean notif = p.getBoolean("notifications", true);
+                  if (preNotice && activeStart == null && notif) showPreNotice(c, p);
+                  if (activeStart != null || !preNotice || !notif) nm.cancel(NOTIFICATION_ID);
+
+                  // Inside the window, wait for 20 idle minutes.
+                  if (activeStart != null && !idleOk && !inUse && idleSince > 0) schedule(c, 150, idleSince + IDLE_MS);
 
                   // Schedule pre-start, start and end alarms for the next 8 calendar days.
                   for (int offset = 0; offset < 8; offset++) {
@@ -400,173 +515,6 @@ jobs:
                       if (st.after(now)) schedule(c, base + 1, st.getTimeInMillis());
                       if (en.after(now)) schedule(c, base + 2, en.getTimeInMillis());
                   }
-                  // If the active window is already in progress, no persistent notification is shown.
-              }
-          }
-          EOF
-
-          cat > src/main/java/com/example/nightnet/MainActivity.java <<'EOF'
-          package com.example.nightnet;
-
-          import android.Manifest;
-          import android.app.Activity;
-          import android.app.TimePickerDialog;
-          import android.content.Context;
-          import android.content.SharedPreferences;
-          import android.content.pm.PackageManager;
-          import android.content.res.ColorStateList;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.view.View;
-          import android.widget.Button;
-          import android.widget.CheckBox;
-          import android.widget.LinearLayout;
-          import android.widget.ScrollView;
-          import android.widget.Switch;
-          import android.widget.TextView;
-          import android.widget.Toast;
-          import rikka.shizuku.Shizuku;
-
-          public class MainActivity extends Activity {
-              private SharedPreferences prefs;
-              private CheckBox cbWifi, cbData, cbNotifications;
-              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission;
-              private Switch swEnabled;
-              private TextView tvStatus;
-              private boolean loading;
-              private BatteryUi ui;
-              private final String[] themeNames = {"Бірюзова", "Синя", "Фіолетова", "Смарагдова", "Бурштинова"};
-              private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
-              private int color() { return themeColors[Math.floorMod(prefs.getInt("theme", 0), themeColors.length)]; }
-              private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
-              private TextView label(String text) {
-                  TextView t = new TextView(this); t.setText(text); t.setTextSize(18); t.setTextColor(0xFF202124);
-                  t.setPadding(0, dp(18), 0, dp(6)); return t;
-              }
-              private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
-              private Button makeButton(String text) {
-                  Button b = new Button(this); b.setText(text); b.setAllCaps(false);
-                  b.setBackgroundTintList(ColorStateList.valueOf(color())); b.setTextColor(0xFFFFFFFF); return b;
-              }
-              private LinearLayout timeRow(Button a, Button b) {
-                  LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-                  lp.setMargins(dp(3), 0, dp(3), 0); row.addView(a, lp); row.addView(b, lp); return row;
-              }
-              @Override protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  prefs = Prefs.get(this);
-                  // Migrate the original single schedule to both new schedules without losing user settings.
-                  SharedPreferences.Editor migration = prefs.edit();
-                  if (!prefs.contains("weekday_start")) migration.putInt("weekday_start", prefs.getInt("start", 22 * 60));
-                  if (!prefs.contains("weekday_end")) migration.putInt("weekday_end", prefs.getInt("end", 6 * 60));
-                  if (!prefs.contains("weekend_start")) migration.putInt("weekend_start", prefs.getInt("start", 22 * 60));
-                  if (!prefs.contains("weekend_end")) migration.putInt("weekend_end", prefs.getInt("end", 6 * 60));
-                  migration.apply();
-
-                  LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(dp(20), dp(8), dp(20), dp(24));
-                  root.setBackgroundColor(0xFFF7F8FA);
-                  root.addView(label("Що вимикати"));
-                  cbWifi = new CheckBox(this); cbWifi.setText("Wi-Fi"); root.addView(cbWifi);
-                  cbData = new CheckBox(this); cbData.setText("Мобільні дані"); root.addView(cbData);
-
-                  root.addView(label("Графік на будні (понеділок – п’ятниця)"));
-                  btnWeekdayFrom = makeButton("Початок"); btnWeekdayTo = makeButton("Завершення");
-                  root.addView(timeRow(btnWeekdayFrom, btnWeekdayTo));
-                  root.addView(label("Графік на вихідні (субота – неділя)"));
-                  btnWeekendFrom = makeButton("Початок"); btnWeekendTo = makeButton("Завершення");
-                  root.addView(timeRow(btnWeekendFrom, btnWeekendTo));
-
-                  swEnabled = new Switch(this); swEnabled.setText("Розклад увімкнено"); swEnabled.setTextSize(18);
-                  swEnabled.setPadding(0, dp(20), 0, dp(8)); root.addView(swEnabled);
-                  cbNotifications = new CheckBox(this); cbNotifications.setText("Нагадувати за 5 хвилин до початку");
-                  root.addView(cbNotifications);
-                  btnTheme = makeButton("Колірна схема"); root.addView(btnTheme);
-                  tvStatus = new TextView(this); tvStatus.setPadding(0, dp(12), 0, dp(4)); tvStatus.setTextColor(0xFF30343A); root.addView(tvStatus);
-                  btnPermission = makeButton("Дати дозвіл Shizuku"); root.addView(btnPermission);
-                  root.addView(label("Перевірка"));
-                  Button testOff = makeButton("Вимкнути зараз");
-                  Button testOn = makeButton("Увімкнути назад");
-                  root.addView(testOff); root.addView(testOn);
-                  ScrollView sv = new ScrollView(this); sv.addView(root);
-                  ui = new BatteryUi(this); setContentView(ui.build(sv));
-
-                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  cbNotifications.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("notifications", on).apply(); if (on) requestNotificationPermissionIfNeeded(); runSync(); } });
-                  btnWeekdayFrom.setOnClickListener(v -> pick("weekday_start"));
-                  btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
-                  btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
-                  btnWeekendTo.setOnClickListener(v -> pick("weekend_end"));
-                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); });
-                  btnPermission.setOnClickListener(v -> { try { Shizuku.requestPermission(100); } catch (Throwable t) { toast("Спершу запустіть Shizuku"); } });
-                  testOff.setOnClickListener(v -> test(false)); testOn.setOnClickListener(v -> test(true));
-                  render();
-              }
-              @Override protected void onResume() {
-                  super.onResume(); render(); runSync();
-                  MonitorService.ensure(getApplicationContext());
-                  if (ui != null) ui.refresh();
-              }
-              private void requestNotificationPermissionIfNeeded() {
-                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-                      requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
-              }
-              private void changed() {
-                  boolean w = cbWifi.isChecked(), d = cbData.isChecked(), en = swEnabled.isChecked();
-                  if (en && !w && !d) {
-                      en = false; loading = true; swEnabled.setChecked(false); loading = false;
-                      toast("Оберіть, що вимикати: Wi-Fi або мобільні дані");
-                  }
-                  prefs.edit().putBoolean("wifi", w).putBoolean("data", d).putBoolean("enabled", en).apply();
-                  if (en && cbNotifications.isChecked()) requestNotificationPermissionIfNeeded();
-                  runSync(); render();
-              }
-              private void pick(String key) {
-                  int cur = prefs.getInt(key, key.endsWith("start") ? 22 * 60 : 6 * 60);
-                  new TimePickerDialog(this, (view, h, m) -> {
-                      int value = h * 60 + m;
-                      String otherKey = key.endsWith("start") ? key.replace("start", "end") : key.replace("end", "start");
-                      if (value == prefs.getInt(otherKey, key.endsWith("start") ? 6 * 60 : 22 * 60)) { toast("Початок і кінець не можуть збігатися"); return; }
-                      prefs.edit().putInt(key, value).apply(); runSync(); render();
-                  }, cur / 60, cur % 60, true).show();
-              }
-              private void runSync() {
-                  final Context app = getApplicationContext();
-                  new Thread(() -> { Scheduler.sync(app); runOnUiThread(this::render); }).start();
-              }
-              private void test(boolean enable) {
-                  if (!cbWifi.isChecked() && !cbData.isChecked()) { toast("Спершу оберіть Wi-Fi або мобільні дані"); return; }
-                  final Context app = getApplicationContext();
-                  new Thread(() -> {
-                      int r = Radio.force(app, enable);
-                      String msg = r == Radio.OK ? "Команду виконано. Перевірте, чи змінився стан." : r == Radio.NOT_READY ? "Shizuku не запущено або немає дозволу." : "Команда не спрацювала.";
-                      runOnUiThread(() -> toast(msg));
-                  }).start();
-              }
-              private void render() {
-                  if (prefs == null || cbWifi == null) return;
-                  loading = true;
-                  cbWifi.setChecked(prefs.getBoolean("wifi", false)); cbData.setChecked(prefs.getBoolean("data", false));
-                  swEnabled.setChecked(prefs.getBoolean("enabled", false)); cbNotifications.setChecked(prefs.getBoolean("notifications", true));
-                  loading = false;
-                  btnWeekdayFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekday_start", 22 * 60)));
-                  btnWeekdayTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekday_end", 6 * 60)));
-                  btnWeekendFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekend_start", 22 * 60)));
-                  btnWeekendTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekend_end", 6 * 60)));
-                  btnTheme.setText("Колірна схема: " + themeNames[prefs.getInt("theme", 0) % themeNames.length]);
-                  int c = color();
-                  btnWeekdayFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekdayTo.setBackgroundTintList(ColorStateList.valueOf(c));
-                  btnWeekendFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekendTo.setBackgroundTintList(ColorStateList.valueOf(c));
-                  btnTheme.setBackgroundTintList(ColorStateList.valueOf(c)); btnPermission.setBackgroundTintList(ColorStateList.valueOf(c));
-                  boolean binder = false, granted = false;
-                  try { binder = Shizuku.pingBinder(); granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable ignored) {}
-                  String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад запрацює." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
-                  if (prefs.getBoolean("active", false)) s += "\nЗараз зв’язок вимкнено за розкладом.";
-                  s += "\nСповіщення необов’язкові: без них розклад працює.";
-                  tvStatus.setText(s); btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
               }
           }
           EOF
@@ -1314,6 +1262,16 @@ jobs:
           import android.content.Intent;
           import android.content.IntentFilter;
           import android.content.SharedPreferences;
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.Icon;
+          import android.net.ConnectivityManager;
+          import android.net.Network;
+          import android.net.NetworkCapabilities;
+          import android.net.NetworkRequest;
+          import android.net.TrafficStats;
           import android.os.BatteryManager;
           import android.os.Build;
           import android.os.Handler;
@@ -1321,8 +1279,21 @@ jobs:
           import android.os.IBinder;
           import android.os.PowerManager;
           import android.os.SystemClock;
+          import android.widget.RemoteViews;
+          import java.util.Locale;
+
+          final class BatInfo {
+              int level, status, plugged, health, temp, volt;
+              String tech = "";
+              double ma = Double.NaN;
+              boolean charging;
+              long ccUah;
+              double designMah;
+          }
 
           final class Power {
+              private static double design = -1;
+
               static int level(Context c) {
                   try {
                       BatteryManager bm = c.getSystemService(BatteryManager.class);
@@ -1344,6 +1315,71 @@ jobs:
                       Intent i = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
                       return i != null && i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
                   } catch (Throwable t) { return false; }
+              }
+
+              static synchronized double designMah(Context c) {
+                  if (design >= 0) return design;
+                  try {
+                      Class<?> k = Class.forName("com.android.internal.os.PowerProfile");
+                      Object pp = k.getConstructor(Context.class).newInstance(c);
+                      design = ((Number) k.getMethod("getBatteryCapacity").invoke(pp)).doubleValue();
+                  } catch (Throwable t) { design = 0; }
+                  return design;
+              }
+
+              static BatInfo info(Context c) {
+                  BatInfo b = new BatInfo();
+                  try {
+                      Intent i = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                      if (i != null) {
+                          int lv = i.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
+                          int sc = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+                          b.level = sc > 0 ? lv * 100 / sc : lv;
+                          b.status = i.getIntExtra(BatteryManager.EXTRA_STATUS, 0);
+                          b.plugged = i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+                          b.health = i.getIntExtra(BatteryManager.EXTRA_HEALTH, 0);
+                          b.temp = i.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
+                          b.volt = i.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
+                          String t = i.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY);
+                          b.tech = t == null ? "" : t;
+                      }
+                      b.charging = b.plugged != 0 && b.status == BatteryManager.BATTERY_STATUS_CHARGING;
+                      BatteryManager bm = c.getSystemService(BatteryManager.class);
+                      long raw = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+                      if (raw != Long.MIN_VALUE) {
+                          double ma = raw / 1000.0;
+                          if (b.charging) ma = Math.abs(ma);
+                          else if (b.plugged == 0) ma = -Math.abs(ma);
+                          b.ma = ma;
+                      }
+                      b.ccUah = cc(c);
+                      b.designMah = designMah(c);
+                  } catch (Throwable ignored) { }
+                  return b;
+              }
+          }
+
+          final class Fmt {
+              /** {number, unit} for a speed in bytes per second, switching kB/s, MB/s, GB/s automatically. */
+              static String[] speed(double bps) {
+                  double kb = Math.max(0, bps) / 1024.0;
+                  String unit = "kB/s";
+                  double v = kb;
+                  if (kb >= 1000) {
+                      v = kb / 1024.0;
+                      unit = "MB/s";
+                      if (v >= 1000) {
+                          v = v / 1024.0;
+                          unit = "GB/s";
+                      }
+                  }
+                  String num = v < 0.05 ? "0" : v < 10 ? String.format(Locale.US, "%.1f", v) : String.format(Locale.US, "%.0f", v);
+                  return new String[]{num, unit};
+              }
+
+              static String line(double bps) {
+                  String[] p = speed(bps);
+                  return p[0] + " " + p[1];
               }
           }
 
@@ -1372,16 +1408,29 @@ jobs:
           }
 
           public class MonitorService extends Service {
-              private static final String CH = "monitor";
+              private static final String CH = "monitor_v2";
               private HandlerThread ht;
               private Handler h;
               private BroadcastReceiver rx;
               private PowerManager.WakeLock wl;
+              private NotificationManager nm;
+              private ConnectivityManager.NetworkCallback netCb;
+              private boolean unlocked;
+              private boolean ticking;
+              private boolean basicShown = true;
+              private long lastRx, lastTx, lastT;
+
+              static boolean needed(Context c) {
+                  SharedPreferences p = Prefs.get(c);
+                  return p.getBoolean("mon_enabled", true) || p.getBoolean("show_speed", false)
+                          || p.getBoolean("show_current", false) || p.getBoolean("wifi_auto", false)
+                          || p.getBoolean("enabled", false);
+              }
 
               static void ensure(Context c) {
                   try {
                       Intent i = new Intent(c, MonitorService.class);
-                      if (!Prefs.get(c).getBoolean("mon_enabled", true)) {
+                      if (!needed(c)) {
                           c.stopService(i);
                           return;
                       }
@@ -1391,23 +1440,34 @@ jobs:
 
               @Override public IBinder onBind(Intent intent) { return null; }
 
-              private Notification notification() {
+              private Notification build(CharSequence left, CharSequence right, Icon icon) {
                   PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-                  return new Notification.Builder(this, CH)
-                          .setSmallIcon(R.drawable.ic_stat)
-                          .setContentTitle("Моніторинг батареї")
+                  Notification.Builder b = new Notification.Builder(this, CH)
                           .setOngoing(true)
-                          .setContentIntent(pi)
-                          .build();
+                          .setOnlyAlertOnce(true)
+                          .setShowWhen(false)
+                          .setContentIntent(pi);
+                  if (icon != null) b.setSmallIcon(icon);
+                  else b.setSmallIcon(R.drawable.ic_stat);
+                  if (left != null || right != null) {
+                      RemoteViews rv = new RemoteViews(getPackageName(), R.layout.notif);
+                      rv.setTextViewText(R.id.left, left == null ? "" : left);
+                      rv.setTextViewText(R.id.right, right == null ? "" : right);
+                      b.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomContentView(rv);
+                  } else {
+                      b.setContentTitle("Мої налаштування").setContentText("Працює у фоні");
+                  }
+                  return b.build();
               }
 
               @Override public void onCreate() {
                   super.onCreate();
-                  NotificationManager nm = getSystemService(NotificationManager.class);
-                  NotificationChannel ch = new NotificationChannel(CH, "Моніторинг батареї", NotificationManager.IMPORTANCE_MIN);
+                  nm = getSystemService(NotificationManager.class);
+                  try { nm.deleteNotificationChannel("monitor"); } catch (Throwable ignored) { }
+                  NotificationChannel ch = new NotificationChannel(CH, "Фонова робота", NotificationManager.IMPORTANCE_LOW);
                   ch.setShowBadge(false);
                   nm.createNotificationChannel(ch);
-                  startForeground(2, notification());
+                  startForeground(2, build(null, null, null));
 
                   ht = new HandlerThread("nightnet-monitor");
                   ht.start();
@@ -1431,18 +1491,23 @@ jobs:
                   f.addAction(Intent.ACTION_SCREEN_ON);
                   f.addAction(Intent.ACTION_USER_PRESENT);
                   f.addAction(Intent.ACTION_POWER_CONNECTED);
+                  f.addAction(Intent.ACTION_POWER_DISCONNECTED);
                   if (Build.VERSION.SDK_INT >= 33) registerReceiver(rx, f, Context.RECEIVER_NOT_EXPORTED);
                   else registerReceiver(rx, f);
                   h.post(this::recover);
               }
 
               @Override public int onStartCommand(Intent intent, int flags, int startId) {
-                  try { startForeground(2, notification()); } catch (Throwable ignored) { }
+                  try { startForeground(2, build(null, null, null)); basicShown = true; } catch (Throwable ignored) { }
+                  h.post(this::applyFeatures);
                   return START_STICKY;
               }
 
               @Override public void onDestroy() {
                   try { unregisterReceiver(rx); } catch (Throwable ignored) { }
+                  try {
+                      if (netCb != null) getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netCb);
+                  } catch (Throwable ignored) { }
                   if (ht != null) ht.quitSafely();
                   super.onDestroy();
               }
@@ -1456,19 +1521,141 @@ jobs:
                   try { if (wl.isHeld()) wl.release(); } catch (Throwable ignored) { }
               }
 
+              // ------------------------------------------------------------ features
+
+              private void applyFeatures() {
+                  try {
+                      SharedPreferences cfg = Prefs.get(this);
+                      boolean want = cfg.getBoolean("wifi_auto", false);
+                      ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+                      if (want && netCb == null) {
+                          cfg.edit().putLong("wifi_conn_since", 0).putLong("wifi_lost_since", 0).apply();
+                          netCb = new ConnectivityManager.NetworkCallback() {
+                              @Override public void onAvailable(Network n) { h.post(() -> wifiState(true)); }
+                              @Override public void onLost(Network n) { h.post(() -> wifiState(false)); }
+                          };
+                          NetworkRequest req = new NetworkRequest.Builder()
+                                  .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                                  .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                                  .build();
+                          try { cm.registerNetworkCallback(req, netCb); } catch (Throwable t) { netCb = null; }
+                      } else if (!want && netCb != null) {
+                          try { cm.unregisterNetworkCallback(netCb); } catch (Throwable ignored) { }
+                          netCb = null;
+                      }
+                      if (!want) WifiAuto.eval(this);
+                      kick();
+                  } catch (Throwable ignored) { }
+              }
+
+              private void wifiState(boolean up) {
+                  SharedPreferences p = Prefs.get(this);
+                  long now = System.currentTimeMillis();
+                  if (up) {
+                      if (p.getLong("wifi_conn_since", 0) == 0) p.edit().putLong("wifi_conn_since", now).putLong("wifi_lost_since", 0).apply();
+                  } else {
+                      p.edit().putLong("wifi_conn_since", 0).putLong("wifi_lost_since", now).apply();
+                  }
+                  WifiAuto.eval(this);
+              }
+
+              // ------------------------------------------------------------ notification ticker
+
+              private final Runnable tickRun = new Runnable() {
+                  @Override public void run() {
+                      boolean again = false;
+                      try { again = doTick(); } catch (Throwable ignored) { }
+                      if (again) h.postDelayed(this, 1000L);
+                      else ticking = false;
+                  }
+              };
+
+              private void kick() {
+                  if (!ticking) {
+                      ticking = true;
+                      h.post(tickRun);
+                  }
+              }
+
+              private void resetNotification() {
+                  if (basicShown) return;
+                  try { nm.notify(2, build(null, null, null)); basicShown = true; } catch (Throwable ignored) { }
+              }
+
+              private Icon speedIcon(double bps) {
+                  String[] p = Fmt.speed(bps);
+                  int s = 96;
+                  Bitmap bm = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
+                  Canvas cv = new Canvas(bm);
+                  Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  pt.setColor(0xFFFFFFFF);
+                  pt.setTypeface(Typeface.DEFAULT_BOLD);
+                  pt.setTextAlign(Paint.Align.CENTER);
+                  pt.setTextSize(58);
+                  while (pt.measureText(p[0]) > s - 4 && pt.getTextSize() > 20) pt.setTextSize(pt.getTextSize() - 2);
+                  cv.drawText(p[0], s / 2f, 50, pt);
+                  pt.setTextSize(34);
+                  cv.drawText(p[1], s / 2f, 90, pt);
+                  return Icon.createWithBitmap(bm);
+              }
+
+              /** Returns true if the ticker should keep running. */
+              private boolean doTick() {
+                  SharedPreferences cfg = Prefs.get(this);
+                  boolean speed = cfg.getBoolean("show_speed", false);
+                  boolean cur = cfg.getBoolean("show_current", false);
+                  BatInfo b = cur ? Power.info(this) : null;
+                  boolean showCur = cur && b != null && b.charging && !Double.isNaN(b.ma);
+                  if (!unlocked || (!speed && !showCur)) {
+                      lastT = 0;
+                      resetNotification();
+                      // Unlocking or connecting a charger restarts the ticker.
+                      return false;
+                  }
+                  long rx = TrafficStats.getTotalRxBytes();
+                  long tx = TrafficStats.getTotalTxBytes();
+                  long t = SystemClock.elapsedRealtime();
+                  double rxs = 0, txs = 0;
+                  if (lastT > 0 && t > lastT && rx >= 0 && tx >= 0) {
+                      long dt = t - lastT;
+                      rxs = Math.max(0, (rx - lastRx) * 1000.0 / dt);
+                      txs = Math.max(0, (tx - lastTx) * 1000.0 / dt);
+                  }
+                  lastRx = rx;
+                  lastTx = tx;
+                  lastT = t;
+                  CharSequence left = speed ? "↓ " + Fmt.line(rxs) + "   ↑ " + Fmt.line(txs) : null;
+                  CharSequence right = showCur ? "⚡ " + String.format(Locale.US, "%.0f", b.ma) + " мА" : null;
+                  nm.notify(2, build(left, right, speed ? speedIcon(rxs + txs) : null));
+                  basicShown = false;
+                  return true;
+              }
+
+              // ------------------------------------------------------------ screen events and lock sessions
+
               private void handle(String a, long now, long el, long up) {
                   try {
-                      if (!Prefs.get(this).getBoolean("mon_enabled", true)) return;
+                      SharedPreferences cfg = Prefs.get(this);
                       SharedPreferences m = getSharedPreferences("mon", MODE_PRIVATE);
+                      boolean mon = cfg.getBoolean("mon_enabled", true);
                       boolean open = m.getBoolean("open", false);
                       if (Intent.ACTION_SCREEN_OFF.equals(a)) {
-                          if (!open) startSession(m, now, el, up);
+                          unlocked = false;
+                          if (cfg.getLong("idle_since", 0) == 0) cfg.edit().putLong("idle_since", now).apply();
+                          resetNotification();
+                          Scheduler.sync(this);
+                          if (mon && !open) startSession(m, now, el, up);
+                      } else if (Intent.ACTION_USER_PRESENT.equals(a) || (Intent.ACTION_SCREEN_ON.equals(a) && !locked())) {
+                          unlocked = true;
+                          cfg.edit().putLong("idle_since", 0).apply();
+                          Scheduler.sync(this);
+                          if (mon && open) endSession(m, now, el, up);
+                          kick();
                       } else if (Intent.ACTION_POWER_CONNECTED.equals(a)) {
                           if (open) m.edit().putBoolean("charged", true).apply();
-                      } else if (Intent.ACTION_SCREEN_ON.equals(a)) {
-                          if (open && !locked()) endSession(m, now, el, up);
-                      } else if (Intent.ACTION_USER_PRESENT.equals(a)) {
-                          if (open) endSession(m, now, el, up);
+                          kick();
+                      } else if (Intent.ACTION_POWER_DISCONNECTED.equals(a)) {
+                          kick();
                       }
                   } catch (Throwable ignored) {
                   } finally {
@@ -1478,6 +1665,12 @@ jobs:
 
               private void recover() {
                   try {
+                      PowerManager pm = getSystemService(PowerManager.class);
+                      unlocked = pm.isInteractive() && !locked();
+                      SharedPreferences cfg = Prefs.get(this);
+                      if (unlocked) cfg.edit().putLong("idle_since", 0).apply();
+                      else if (cfg.getLong("idle_since", 0) == 0) cfg.edit().putLong("idle_since", System.currentTimeMillis()).apply();
+                      kick();
                       SharedPreferences m = getSharedPreferences("mon", MODE_PRIVATE);
                       if (!m.getBoolean("open", false)) return;
                       long el = SystemClock.elapsedRealtime();
@@ -1485,8 +1678,7 @@ jobs:
                           m.edit().putBoolean("open", false).apply();
                           return;
                       }
-                      PowerManager pm = getSystemService(PowerManager.class);
-                      if (pm.isInteractive() && !locked()) endSession(m, System.currentTimeMillis(), el, SystemClock.uptimeMillis());
+                      if (unlocked) endSession(m, System.currentTimeMillis(), el, SystemClock.uptimeMillis());
                   } catch (Throwable ignored) { }
               }
 
@@ -1887,7 +2079,8 @@ jobs:
 
           /** Battery-control windows: swipeable pages with a tab strip on top (like BBS Reloaded). */
           final class BatteryUi {
-              private static final String[] TITLES = {"Мережа", "Журнал", "Період", "Огляд", "Налаштування"};
+              private static final String[] TITLES_TOP = {"Мережа", "Батарея"};
+              private static final String[] TITLES_SUB = {"Журнал", "Період", "Огляд", "Струм", "Налаштування"};
               private static final int[] MIN_VALUES = {10, 15, 20, 30, 45, 60, 90, 120};
               private static final int[] KEEP_VALUES = {3, 7, 14, 30, 60};
               private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
@@ -1895,12 +2088,8 @@ jobs:
               private final Activity act;
               private final SharedPreferences prefs;
               private final View[] pages = new View[5];
-              private final TextView[] tabText = new TextView[5];
-              private final View[] tabLine = new View[5];
               private final List<Button> buttons = new ArrayList<>();
-              private HorizontalScrollView tabScroll;
-              private LinearLayout tabRow;
-              private ViewPager pager;
+              private Tabs top, sub;
 
               private LinearLayout logList;
               private TextView logHint;
@@ -1971,98 +2160,128 @@ jobs:
 
               // ---------------------------------------------------------------- pager
 
-              View build(View networkPage) {
-                  pages[0] = networkPage;
-                  pages[1] = buildLog();
-                  pages[2] = buildRange();
-                  pages[3] = buildOverview();
-                  pages[4] = buildSettings();
+              /** A tab strip on top of a swipeable ViewPager. */
+              private final class Tabs {
+                  final TextView[] tt;
+                  final View[] tl;
+                  final HorizontalScrollView scroll;
+                  final LinearLayout row;
+                  final LinearLayout root;
+                  ViewPager pager;
 
-                  LinearLayout root = new LinearLayout(act);
-                  root.setOrientation(LinearLayout.VERTICAL);
-                  root.setBackgroundColor(0xFFF7F8FA);
+                  Tabs(String[] titles, final View[] pgs, float sp, int bg, final java.util.function.IntConsumer onSel) {
+                      tt = new TextView[titles.length];
+                      tl = new View[titles.length];
+                      root = new LinearLayout(act);
+                      root.setOrientation(LinearLayout.VERTICAL);
+                      root.setBackgroundColor(0xFFF7F8FA);
+                      scroll = new HorizontalScrollView(act);
+                      scroll.setHorizontalScrollBarEnabled(false);
+                      scroll.setFillViewport(true);
+                      scroll.setBackgroundColor(bg);
+                      row = new LinearLayout(act);
+                      row.setOrientation(LinearLayout.HORIZONTAL);
+                      boolean even = titles.length <= 3;
+                      for (int i = 0; i < titles.length; i++) {
+                          LinearLayout tab = new LinearLayout(act);
+                          tab.setOrientation(LinearLayout.VERTICAL);
+                          TextView t = Ui.tv(act, titles[i], sp, 0xFF5F6368, false);
+                          t.setGravity(android.view.Gravity.CENTER);
+                          t.setPadding(dp(16), dp(sp > 16 ? 14 : 10), dp(16), dp(8));
+                          View line = new View(act);
+                          tab.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                          tab.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
+                          tt[i] = t;
+                          tl[i] = line;
+                          final int idx = i;
+                          tab.setOnClickListener(v -> pager.setCurrentItem(idx, true));
+                          if (even) row.addView(tab, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                          else row.addView(tab);
+                      }
+                      scroll.addView(row);
+                      root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-                  tabScroll = new HorizontalScrollView(act);
-                  tabScroll.setHorizontalScrollBarEnabled(false);
-                  tabScroll.setBackgroundColor(0xFFFFFFFF);
-                  tabRow = new LinearLayout(act);
-                  tabRow.setOrientation(LinearLayout.HORIZONTAL);
-                  for (int i = 0; i < TITLES.length; i++) {
-                      LinearLayout tab = new LinearLayout(act);
-                      tab.setOrientation(LinearLayout.VERTICAL);
-                      TextView t = Ui.tv(act, TITLES[i], 15, 0xFF5F6368, false);
-                      t.setPadding(dp(16), dp(12), dp(16), dp(8));
-                      View line = new View(act);
-                      tab.addView(t);
-                      tab.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
-                      tabText[i] = t;
-                      tabLine[i] = line;
-                      final int idx = i;
-                      tab.setOnClickListener(v -> pager.setCurrentItem(idx, true));
-                      tabRow.addView(tab);
+                      pager = new ViewPager(act);
+                      pager.setAdapter(new PagerAdapter() {
+                          @Override public int getCount() { return pgs.length; }
+                          @Override public boolean isViewFromObject(View view, Object object) { return view == object; }
+                          @Override public Object instantiateItem(ViewGroup container, int position) {
+                              View v = pgs[position];
+                              container.addView(v);
+                              return v;
+                          }
+                          @Override public void destroyItem(ViewGroup container, int position, Object object) {
+                              container.removeView((View) object);
+                          }
+                      });
+                      pager.setOffscreenPageLimit(pgs.length - 1);
+                      pager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+                          @Override public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) { }
+                          @Override public void onPageSelected(int position) {
+                              select(position);
+                              onSel.accept(position);
+                          }
+                          @Override public void onPageScrollStateChanged(int state) { }
+                      });
+                      root.addView(pager, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+                      select(0);
                   }
-                  tabScroll.addView(tabRow);
-                  root.addView(tabScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-                  pager = new ViewPager(act);
-                  pager.setAdapter(new PagerAdapter() {
-                      @Override public int getCount() { return pages.length; }
-                      @Override public boolean isViewFromObject(View view, Object object) { return view == object; }
-                      @Override public Object instantiateItem(ViewGroup container, int position) {
-                          View v = pages[position];
-                          container.addView(v);
-                          return v;
+                  void select(int p) {
+                      int acc = accent();
+                      for (int i = 0; i < tt.length; i++) {
+                          boolean on = i == p;
+                          tt[i].setTextColor(on ? acc : 0xFF5F6368);
+                          tt[i].setTypeface(null, on ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                          tl[i].setBackgroundColor(on ? acc : 0x00000000);
                       }
-                      @Override public void destroyItem(ViewGroup container, int position, Object object) {
-                          container.removeView((View) object);
-                      }
+                      final View child = row.getChildAt(p);
+                      if (child != null) scroll.post(() -> scroll.smoothScrollTo(Math.max(0, child.getLeft() - dp(48)), 0));
+                  }
+              }
+
+              View build(View networkPage) {
+                  pages[0] = buildLog();
+                  pages[1] = buildRange();
+                  pages[2] = buildOverview();
+                  pages[3] = buildCurrent();
+                  pages[4] = buildSettings();
+                  sub = new Tabs(TITLES_SUB, pages, 14, 0xFFEEF1F4, p -> refreshSub());
+                  top = new Tabs(TITLES_TOP, new View[]{networkPage, sub.root}, 17, 0xFFFFFFFF, p -> {
+                      if (p == 1) refreshSub();
+                      else stopCurrent();
                   });
-                  pager.setOffscreenPageLimit(4);
-                  pager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-                      @Override public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) { }
-                      @Override public void onPageSelected(int position) {
-                          selectTab(position);
-                          refreshPage(position);
-                      }
-                      @Override public void onPageScrollStateChanged(int state) { }
-                  });
-                  root.addView(pager, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-                  selectTab(0);
+                  top.pager.setOffscreenPageLimit(1);
 
                   if (prefs.getBoolean("mon_enabled", true) && !prefs.getBoolean("asked_notif", false)) {
                       prefs.edit().putBoolean("asked_notif", true).apply();
                       askNotif();
                   }
-                  return root;
-              }
-
-              private void selectTab(int p) {
-                  int acc = accent();
-                  for (int i = 0; i < tabText.length; i++) {
-                      boolean on = i == p;
-                      tabText[i].setTextColor(on ? acc : 0xFF5F6368);
-                      tabText[i].setTypeface(null, on ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-                      tabLine[i].setBackgroundColor(on ? acc : 0x00000000);
-                  }
-                  View child = tabRow.getChildAt(p);
-                  if (child != null) tabScroll.post(() -> tabScroll.smoothScrollTo(Math.max(0, child.getLeft() - dp(48)), 0));
+                  return top.root;
               }
 
               /** Called from the activity's onResume. */
               void refresh() {
-                  if (pager == null) return;
+                  if (top == null) return;
                   ColorStateList cs = ColorStateList.valueOf(accent());
                   for (Button b : buttons) b.setBackgroundTintList(cs);
                   chart.accent = accent();
-                  selectTab(pager.getCurrentItem());
-                  refreshPage(pager.getCurrentItem());
+                  top.select(top.pager.getCurrentItem());
+                  sub.select(sub.pager.getCurrentItem());
+                  if (top.pager.getCurrentItem() == 1) refreshSub();
               }
 
-              private void refreshPage(int p) {
-                  if (p == 1) loadLog();
-                  else if (p == 2) loadRange();
-                  else if (p == 3) loadOverview();
-                  else if (p == 4) loadSettings();
+              /** Called from the activity's onPause. */
+              void pause() { stopCurrent(); }
+
+              private void refreshSub() {
+                  int p = sub.pager.getCurrentItem();
+                  if (p != 3) stopCurrent();
+                  if (p == 0) loadLog();
+                  else if (p == 1) loadRange();
+                  else if (p == 2) loadOverview();
+                  else if (p == 3) startCurrent();
+                  else loadSettings();
               }
 
               private void askNotif() {
@@ -2310,6 +2529,151 @@ jobs:
                   }
               }
 
+              // ---------------------------------------------------------------- current page
+
+              private TextView curValue, curMin, curMax;
+              private LinearLayout curRows;
+              private Switch swShowCur;
+              private boolean loadingCur, curOn;
+              private double minMa = Double.NaN, maxMa = Double.NaN;
+              private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+              private final Runnable curTick = new Runnable() {
+                  @Override public void run() {
+                      if (!curOn) return;
+                      updateCurrent();
+                      uiHandler.postDelayed(this, 1000L);
+                  }
+              };
+
+              private View buildCurrent() {
+                  LinearLayout col = col();
+                  swShowCur = new Switch(act);
+                  swShowCur.setText("Показувати струм заряду у сповіщенні під час зарядки");
+                  swShowCur.setTextSize(15);
+                  swShowCur.setPadding(0, 0, 0, dp(10));
+                  col.addView(swShowCur);
+
+                  LinearLayout head = new LinearLayout(act);
+                  head.setOrientation(LinearLayout.VERTICAL);
+                  android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+                  g.setColor(0xFF111418);
+                  g.setCornerRadius(dp(14));
+                  head.setBackground(g);
+                  head.setPadding(dp(14), dp(16), dp(14), dp(14));
+                  curValue = Ui.tv(act, "—", 44, accent(), true);
+                  curValue.setGravity(android.view.Gravity.CENTER);
+                  head.addView(curValue);
+                  LinearLayout mm = new LinearLayout(act);
+                  mm.setOrientation(LinearLayout.HORIZONTAL);
+                  curMin = Ui.tv(act, "мін: —", 15, 0xFFB0B6BE, false);
+                  curMax = Ui.tv(act, "макс: —", 15, 0xFFB0B6BE, false);
+                  curMax.setGravity(android.view.Gravity.END);
+                  TextView reset = Ui.tv(act, "✕", 18, 0xFFFFFFFF, true);
+                  reset.setGravity(android.view.Gravity.CENTER);
+                  reset.setOnClickListener(v -> {
+                      minMa = Double.NaN;
+                      maxMa = Double.NaN;
+                      updateCurrent();
+                  });
+                  mm.addView(curMin, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                  mm.addView(reset, new LinearLayout.LayoutParams(dp(44), ViewGroup.LayoutParams.WRAP_CONTENT));
+                  mm.addView(curMax, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                  head.addView(mm, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 10, 0, 0));
+                  col.addView(head);
+
+                  curRows = Ui.card(act);
+                  col.addView(curRows, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 12, 0, 0));
+
+                  swShowCur.setOnCheckedChangeListener((v, on) -> {
+                      if (loadingCur) return;
+                      prefs.edit().putBoolean("show_current", on).apply();
+                      if (on) askNotif();
+                      MonitorService.ensure(act.getApplicationContext());
+                  });
+                  return scroll(col);
+              }
+
+              private void startCurrent() {
+                  loadingCur = true;
+                  swShowCur.setChecked(prefs.getBoolean("show_current", false));
+                  loadingCur = false;
+                  curValue.setTextColor(accent());
+                  if (!curOn) {
+                      curOn = true;
+                      uiHandler.post(curTick);
+                  }
+              }
+
+              private void stopCurrent() {
+                  curOn = false;
+                  uiHandler.removeCallbacks(curTick);
+              }
+
+              private void kv(String k, String v) {
+                  LinearLayout r = new LinearLayout(act);
+                  r.setOrientation(LinearLayout.HORIZONTAL);
+                  r.setPadding(0, dp(5), 0, dp(5));
+                  TextView a = Ui.tv(act, k, 15, accent(), true);
+                  TextView b = Ui.tv(act, v, 15, 0xFF202124, false);
+                  b.setGravity(android.view.Gravity.END);
+                  r.addView(a, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                  r.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                  curRows.addView(r);
+              }
+
+              private static String statusText(int s) {
+                  switch (s) {
+                      case 2: return "Заряджання";
+                      case 3: return "Розрядження";
+                      case 4: return "Не заряджається";
+                      case 5: return "Заряджена";
+                      default: return "Невідомо";
+                  }
+              }
+
+              private static String healthText(int h) {
+                  switch (h) {
+                      case 2: return "В нормі";
+                      case 3: return "Перегрів";
+                      case 4: return "Непридатна";
+                      case 5: return "Перенапруга";
+                      case 7: return "Холодна";
+                      default: return "Невідомо";
+                  }
+              }
+
+              private void updateCurrent() {
+                  BatInfo b = Power.info(act);
+                  if (Double.isNaN(b.ma)) {
+                      curValue.setText("— мА");
+                  } else {
+                      curValue.setText(String.format(Locale.US, "%+.0f мА", b.ma));
+                      if (Double.isNaN(minMa) || b.ma < minMa) minMa = b.ma;
+                      if (Double.isNaN(maxMa) || b.ma > maxMa) maxMa = b.ma;
+                  }
+                  curMin.setText("мін: " + (Double.isNaN(minMa) ? "—" : String.format(Locale.US, "%.0f мА", minMa)));
+                  curMax.setText("макс: " + (Double.isNaN(maxMa) ? "—" : String.format(Locale.US, "%.0f мА", maxMa)));
+
+                  curRows.removeAllViews();
+                  kv("Статус:", statusText(b.status));
+                  String src = b.plugged == 0 ? "Батареї" : b.plugged == 1 ? "Мережа (AC)" : b.plugged == 2 ? "USB" : b.plugged == 4 ? "Бездротова" : "Зарядка";
+                  kv("Зарядка від:", src);
+                  kv("Заряд:", b.level + "%");
+                  kv("Стан:", healthText(b.health));
+                  if (!b.tech.isEmpty()) kv("Тип:", b.tech);
+                  if (b.designMah > 0) kv("Ємність (паспорт):", String.format(Locale.US, "%.0f мАг", b.designMah));
+                  if (b.ccUah > 0) kv("Зараз у батареї:", String.format(Locale.US, "%.0f мАг", b.ccUah / 1000.0));
+                  if (b.ccUah > 0 && b.level > 5) kv("Ємність (оцінка):", String.format(Locale.US, "≈ %.0f мАг", b.ccUah / 1000.0 * 100.0 / b.level));
+                  kv("Температура:", String.format(Locale.US, "%.1f °C", b.temp / 10.0));
+                  kv("Напруга:", String.format(Locale.US, "%.2f В", b.volt / 1000.0));
+                  if (!Double.isNaN(b.ma)) kv("Потужність:", String.format(Locale.US, "%.1f Вт", Math.abs(b.ma) * b.volt / 1000000.0));
+                  kv(" ", " ");
+                  kv("Виробник:", android.os.Build.MANUFACTURER);
+                  kv("Модель:", android.os.Build.MODEL);
+                  kv("Версія Android:", android.os.Build.VERSION.RELEASE);
+                  kv("Номер збірки:", android.os.Build.DISPLAY);
+              }
+
               // ---------------------------------------------------------------- settings page
 
               private View buildSettings() {
@@ -2531,6 +2895,164 @@ jobs:
                       return true;
                   }
                   return super.onOptionsItemSelected(item);
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/MainActivity.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.TimePickerDialog;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.res.ColorStateList;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.CheckBox;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.Switch;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import rikka.shizuku.Shizuku;
+
+          public class MainActivity extends Activity {
+              private SharedPreferences prefs;
+              private CheckBox cbWifi, cbData, cbNotifications, cbSpeed, cbAuto;
+              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission;
+              private Switch swEnabled;
+              private TextView tvStatus;
+              private boolean loading;
+              private BatteryUi ui;
+              private final String[] themeNames = {"Бірюзова", "Синя", "Фіолетова", "Смарагдова", "Бурштинова"};
+              private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
+              private int color() { return themeColors[Math.floorMod(prefs.getInt("theme", 0), themeColors.length)]; }
+              private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
+              private TextView label(String text) {
+                  TextView t = new TextView(this); t.setText(text); t.setTextSize(18); t.setTextColor(0xFF202124);
+                  t.setPadding(0, dp(18), 0, dp(6)); return t;
+              }
+              private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
+              private Button makeButton(String text) {
+                  Button b = new Button(this); b.setText(text); b.setAllCaps(false);
+                  b.setBackgroundTintList(ColorStateList.valueOf(color())); b.setTextColor(0xFFFFFFFF); return b;
+              }
+              private LinearLayout timeRow(Button a, Button b) {
+                  LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+                  lp.setMargins(dp(3), 0, dp(3), 0); row.addView(a, lp); row.addView(b, lp); return row;
+              }
+              @Override protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  prefs = Prefs.get(this);
+                  // Migrate the original single schedule to both new schedules without losing user settings.
+                  SharedPreferences.Editor migration = prefs.edit();
+                  if (!prefs.contains("weekday_start")) migration.putInt("weekday_start", prefs.getInt("start", 22 * 60));
+                  if (!prefs.contains("weekday_end")) migration.putInt("weekday_end", prefs.getInt("end", 6 * 60));
+                  if (!prefs.contains("weekend_start")) migration.putInt("weekend_start", prefs.getInt("start", 22 * 60));
+                  if (!prefs.contains("weekend_end")) migration.putInt("weekend_end", prefs.getInt("end", 6 * 60));
+                  migration.apply();
+
+                  LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(20), dp(8), dp(20), dp(24));
+                  root.setBackgroundColor(0xFFF7F8FA);
+                  root.addView(label("Що вимикати"));
+                  cbWifi = new CheckBox(this); cbWifi.setText("Wi-Fi"); root.addView(cbWifi);
+                  cbData = new CheckBox(this); cbData.setText("Мобільні дані"); root.addView(cbData);
+
+                  root.addView(label("Графік на будні (понеділок – п’ятниця)"));
+                  btnWeekdayFrom = makeButton("Початок"); btnWeekdayTo = makeButton("Завершення");
+                  root.addView(timeRow(btnWeekdayFrom, btnWeekdayTo));
+                  root.addView(label("Графік на вихідні (субота – неділя)"));
+                  btnWeekendFrom = makeButton("Початок"); btnWeekendTo = makeButton("Завершення");
+                  root.addView(timeRow(btnWeekendFrom, btnWeekendTo));
+
+                  swEnabled = new Switch(this); swEnabled.setText("Розклад увімкнено"); swEnabled.setTextSize(18);
+                  swEnabled.setPadding(0, dp(20), 0, dp(8)); root.addView(swEnabled);
+                  cbNotifications = new CheckBox(this); cbNotifications.setText("Нагадувати за 5 хвилин до початку");
+                  root.addView(cbNotifications);
+                  cbSpeed = new CheckBox(this); cbSpeed.setText("Показувати швидкість інтернету (рядок стану і сповіщення)"); root.addView(cbSpeed);
+                  cbAuto = new CheckBox(this); cbAuto.setText("Вимикати мобільні дані на стабільному Wi‑Fi (5 хв), повертати без Wi‑Fi"); root.addView(cbAuto);
+                  btnTheme = makeButton("Колірна схема"); root.addView(btnTheme);
+                  tvStatus = new TextView(this); tvStatus.setPadding(0, dp(12), 0, dp(4)); tvStatus.setTextColor(0xFF30343A); root.addView(tvStatus);
+                  btnPermission = makeButton("Дати дозвіл Shizuku"); root.addView(btnPermission);
+                  ScrollView sv = new ScrollView(this); sv.addView(root);
+                  ui = new BatteryUi(this); setContentView(ui.build(sv));
+
+                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  cbNotifications.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("notifications", on).apply(); if (on) requestNotificationPermissionIfNeeded(); runSync(); } });
+                  cbSpeed.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_speed", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  cbAuto.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("wifi_auto", on).apply(); MonitorService.ensure(getApplicationContext()); runSync(); } });
+                  btnWeekdayFrom.setOnClickListener(v -> pick("weekday_start"));
+                  btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
+                  btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
+                  btnWeekendTo.setOnClickListener(v -> pick("weekend_end"));
+                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); });
+                  btnPermission.setOnClickListener(v -> { try { Shizuku.requestPermission(100); } catch (Throwable t) { toast("Спершу запустіть Shizuku"); } });
+                  render();
+              }
+              @Override protected void onPause() { super.onPause(); if (ui != null) ui.pause(); }
+              @Override protected void onResume() {
+                  super.onResume(); render(); runSync();
+                  MonitorService.ensure(getApplicationContext());
+                  if (ui != null) ui.refresh();
+              }
+              private void requestNotificationPermissionIfNeeded() {
+                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                      requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+              }
+              private void changed() {
+                  boolean w = cbWifi.isChecked(), d = cbData.isChecked(), en = swEnabled.isChecked();
+                  if (en && !w && !d) {
+                      en = false; loading = true; swEnabled.setChecked(false); loading = false;
+                      toast("Оберіть, що вимикати: Wi-Fi або мобільні дані");
+                  }
+                  prefs.edit().putBoolean("wifi", w).putBoolean("data", d).putBoolean("enabled", en).apply();
+                  if (en && cbNotifications.isChecked()) requestNotificationPermissionIfNeeded();
+                  MonitorService.ensure(getApplicationContext());
+                  runSync(); render();
+              }
+              private void pick(String key) {
+                  int cur = prefs.getInt(key, key.endsWith("start") ? 22 * 60 : 6 * 60);
+                  new TimePickerDialog(this, (view, h, m) -> {
+                      int value = h * 60 + m;
+                      String otherKey = key.endsWith("start") ? key.replace("start", "end") : key.replace("end", "start");
+                      if (value == prefs.getInt(otherKey, key.endsWith("start") ? 6 * 60 : 22 * 60)) { toast("Початок і кінець не можуть збігатися"); return; }
+                      prefs.edit().putInt(key, value).apply(); runSync(); render();
+                  }, cur / 60, cur % 60, true).show();
+              }
+              private void runSync() {
+                  final Context app = getApplicationContext();
+                  new Thread(() -> { Scheduler.sync(app); runOnUiThread(this::render); }).start();
+              }
+              private void render() {
+                  if (prefs == null || cbWifi == null) return;
+                  loading = true;
+                  cbWifi.setChecked(prefs.getBoolean("wifi", false)); cbData.setChecked(prefs.getBoolean("data", false));
+                  swEnabled.setChecked(prefs.getBoolean("enabled", false)); cbNotifications.setChecked(prefs.getBoolean("notifications", true));
+                  cbSpeed.setChecked(prefs.getBoolean("show_speed", false)); cbAuto.setChecked(prefs.getBoolean("wifi_auto", false));
+                  loading = false;
+                  btnWeekdayFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekday_start", 22 * 60)));
+                  btnWeekdayTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekday_end", 6 * 60)));
+                  btnWeekendFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekend_start", 22 * 60)));
+                  btnWeekendTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekend_end", 6 * 60)));
+                  btnTheme.setText("Колірна схема: " + themeNames[prefs.getInt("theme", 0) % themeNames.length]);
+                  int c = color();
+                  btnWeekdayFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekdayTo.setBackgroundTintList(ColorStateList.valueOf(c));
+                  btnWeekendFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekendTo.setBackgroundTintList(ColorStateList.valueOf(c));
+                  btnTheme.setBackgroundTintList(ColorStateList.valueOf(c)); btnPermission.setBackgroundTintList(ColorStateList.valueOf(c));
+                  boolean binder = false, granted = false;
+                  try { binder = Shizuku.pingBinder(); granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable ignored) {}
+                  String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад запрацює." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
+                  if (prefs.getBoolean("active", false)) s += "\nЗараз зв’язок вимкнено за розкладом.";
+                  tvStatus.setText(s); btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
               }
           }
           EOF
