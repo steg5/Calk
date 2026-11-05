@@ -192,9 +192,26 @@ jobs:
               android:height="24dp"
               android:viewportWidth="24"
               android:viewportHeight="24">
+              <group
+                  android:scaleX="0.72"
+                  android:scaleY="0.72"
+                  android:translateX="0.5"
+                  android:translateY="0.5">
+                  <path
+                      android:fillColor="#FFFFFF"
+                      android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
+              </group>
               <path
-                  android:fillColor="#FFFFFF"
-                  android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="1.7"
+                  android:strokeLineCap="round"
+                  android:pathData="M15.88,17.88A3,3 0 0 1 20.12,17.88" />
+              <path
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="1.7"
+                  android:strokeLineCap="round"
+                  android:pathData="M13.76,15.76A6,6 0 0 1 22.24,15.76" />
+              <path android:fillColor="#FFFFFF" android:pathData="M18,20m-1.4,0a1.4,1.4 0 1,0 2.8,0a1.4,1.4 0 1,0 -2.8,0" />
           </vector>
           EOF
 
@@ -1409,6 +1426,7 @@ jobs:
 
           public class MonitorService extends Service {
               private static final String CH = "monitor_v2";
+              private static final String CH_MIN = "monitor_min";
               private HandlerThread ht;
               private Handler h;
               private BroadcastReceiver rx;
@@ -1442,7 +1460,7 @@ jobs:
 
               private Notification build(CharSequence left, CharSequence right, Icon icon) {
                   PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-                  Notification.Builder b = new Notification.Builder(this, CH)
+                  Notification.Builder b = new Notification.Builder(this, (left == null && right == null) ? CH_MIN : CH)
                           .setOngoing(true)
                           .setOnlyAlertOnce(true)
                           .setShowWhen(false)
@@ -1467,6 +1485,10 @@ jobs:
                   NotificationChannel ch = new NotificationChannel(CH, "Фонова робота", NotificationManager.IMPORTANCE_LOW);
                   ch.setShowBadge(false);
                   nm.createNotificationChannel(ch);
+                  // Idle state uses a minimal channel: no icon in the status bar, only in the shade.
+                  NotificationChannel chMin = new NotificationChannel(CH_MIN, "Фонова робота (без значка)", NotificationManager.IMPORTANCE_MIN);
+                  chMin.setShowBadge(false);
+                  nm.createNotificationChannel(chMin);
                   startForeground(2, build(null, null, null));
 
                   ht = new HandlerThread("nightnet-monitor");
