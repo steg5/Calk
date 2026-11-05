@@ -79,6 +79,7 @@ jobs:
           dependencies {
               implementation("dev.rikka.shizuku:api:13.1.5")
               implementation("dev.rikka.shizuku:provider:13.1.5")
+              implementation("androidx.viewpager:viewpager:1.0.0")
           }
           EOF
 
@@ -87,6 +88,13 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+              <uses-permission android:name="android.permission.DUMP" />
+              <uses-permission android:name="android.permission.BATTERY_STATS" />
+              <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
 
               <application
                   android:allowBackup="false"
@@ -103,6 +111,20 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+
+                  <activity
+                      android:name=".SessionActivity"
+                      android:exported="false"
+                      android:screenOrientation="portrait" />
+
+                  <service
+                      android:name=".MonitorService"
+                      android:exported="false"
+                      android:foregroundServiceType="specialUse">
+                      <property
+                          android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                          android:value="battery_monitoring" />
+                  </service>
 
                   <receiver
                       android:name=".AlarmReceiver"
@@ -165,6 +187,7 @@ jobs:
           public class AlarmReceiver extends BroadcastReceiver {
               @Override
               public void onReceive(Context context, Intent intent) {
+                  MonitorService.ensure(context.getApplicationContext());
                   final PendingResult result = goAsync();
                   final Context app = context.getApplicationContext();
                   final String action = intent == null ? null : intent.getAction();
@@ -210,7 +233,7 @@ jobs:
 
           final class Radio {
               static final int OK = 0, NOT_READY = 1, FAILED = 2;
-              private static boolean ready(int waitMs) {
+              static boolean ready(int waitMs) {
                   long end = System.currentTimeMillis() + waitMs;
                   try {
                       while (!Shizuku.pingBinder()) {
@@ -219,6 +242,13 @@ jobs:
                       }
                       return Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
                   } catch (Throwable t) { return false; }
+              }
+              static Process spawn(String... cmd) {
+                  try {
+                      Method m = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
+                      m.setAccessible(true);
+                      return (Process) m.invoke(null, cmd, null, null);
+                  } catch (Throwable t) { return null; }
               }
               private static boolean run(String... cmd) {
                   try {
@@ -348,6 +378,7 @@ jobs:
                       int result = Radio.on(c);
                       if (result == Radio.OK) active = false;
                   }
+                  if (active != p.getBoolean("active", false)) p.edit().putLong("flip_ts", System.currentTimeMillis()).apply();
                   p.edit().putBoolean("active", active).apply();
                   if (preNotice && activeStart == null && p.getBoolean("notifications", true)) showPreNotice(c, p);
                   if (activeStart != null || !preNotice || !p.getBoolean("notifications", true)) nm.cancel(NOTIFICATION_ID);
@@ -403,6 +434,7 @@ jobs:
               private Switch swEnabled;
               private TextView tvStatus;
               private boolean loading;
+              private BatteryUi ui;
               private final String[] themeNames = {"Бірюзова", "Синя", "Фіолетова", "Смарагдова", "Бурштинова"};
               private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
               private int color() { return themeColors[Math.floorMod(prefs.getInt("theme", 0), themeColors.length)]; }
@@ -457,7 +489,8 @@ jobs:
                   Button testOff = makeButton("Вимкнути зараз");
                   Button testOn = makeButton("Увімкнути назад");
                   root.addView(testOff); root.addView(testOn);
-                  ScrollView sv = new ScrollView(this); sv.addView(root); setContentView(sv);
+                  ScrollView sv = new ScrollView(this); sv.addView(root);
+                  ui = new BatteryUi(this); setContentView(ui.build(sv));
 
                   cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
                   cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
@@ -472,7 +505,11 @@ jobs:
                   testOff.setOnClickListener(v -> test(false)); testOn.setOnClickListener(v -> test(true));
                   render();
               }
-              @Override protected void onResume() { super.onResume(); render(); runSync(); }
+              @Override protected void onResume() {
+                  super.onResume(); render(); runSync();
+                  MonitorService.ensure(getApplicationContext());
+                  if (ui != null) ui.refresh();
+              }
               private void requestNotificationPermissionIfNeeded() {
                   if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
@@ -530,6 +567,1970 @@ jobs:
                   if (prefs.getBoolean("active", false)) s += "\nЗараз зв’язок вимкнено за розкладом.";
                   s += "\nСповіщення необов’язкові: без них розклад працює.";
                   tvStatus.setText(s); btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/Store.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.content.ContentValues;
+          import android.content.Context;
+          import android.database.Cursor;
+          import android.database.sqlite.SQLiteDatabase;
+          import android.database.sqlite.SQLiteOpenHelper;
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.zip.GZIPInputStream;
+          import java.util.zip.GZIPOutputStream;
+          import org.json.JSONObject;
+
+          final class Sess {
+              long id, st, en, el, up, snapA, snapB;
+              int stLvl, enLvl;
+              long stCc, enCc;
+              boolean sched;
+              long durMs() { return en - st; }
+              double deepPct() {
+                  if (el <= 0) return 0;
+                  double d = 100.0 * (el - up) / el;
+                  return Math.max(0, Math.min(100, d));
+              }
+              int drop() { return stLvl - enLvl; }
+              double perHour() {
+                  double h = durMs() / 3600000.0;
+                  return h <= 0 ? 0 : drop() / h;
+              }
+              double mah() {
+                  if (stCc > 0 && enCc > 0 && stCc >= enCc) return (stCc - enCc) / 1000.0;
+                  return -1;
+              }
+          }
+
+          final class SnapRow {
+              long ts, el, up, cc;
+              int level;
+              boolean charging;
+              Snap data;
+          }
+
+          final class Db extends SQLiteOpenHelper {
+              private static Db inst;
+
+              static synchronized Db get(Context c) {
+                  if (inst == null) inst = new Db(c.getApplicationContext());
+                  return inst;
+              }
+
+              private Db(Context c) { super(c, "battery.db", null, 1); }
+
+              @Override public void onCreate(SQLiteDatabase d) {
+                  d.execSQL("CREATE TABLE snaps(ts INTEGER PRIMARY KEY, level INTEGER, cc INTEGER, el INTEGER, up INTEGER, charging INTEGER, data BLOB)");
+                  d.execSQL("CREATE TABLE sess(id INTEGER PRIMARY KEY AUTOINCREMENT, st INTEGER, en INTEGER, st_lvl INTEGER, en_lvl INTEGER, st_cc INTEGER, en_cc INTEGER, el_ms INTEGER, up_ms INTEGER, sched INTEGER, snap_a INTEGER, snap_b INTEGER)");
+              }
+
+              @Override public void onUpgrade(SQLiteDatabase d, int o, int n) { }
+
+              private static byte[] pack(Snap s) {
+                  if (s == null) return null;
+                  try {
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      GZIPOutputStream g = new GZIPOutputStream(bo);
+                      g.write(s.toJson().toString().getBytes("UTF-8"));
+                      g.close();
+                      return bo.toByteArray();
+                  } catch (Throwable t) { return null; }
+              }
+
+              private static Snap unpack(byte[] b) {
+                  if (b == null) return null;
+                  try {
+                      GZIPInputStream gi = new GZIPInputStream(new ByteArrayInputStream(b));
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int n;
+                      while ((n = gi.read(buf)) > 0) bo.write(buf, 0, n);
+                      gi.close();
+                      return Snap.fromJson(new JSONObject(bo.toString("UTF-8")));
+                  } catch (Throwable t) { return null; }
+              }
+
+              synchronized void putSnap(SnapRow r) {
+                  ContentValues v = new ContentValues();
+                  v.put("ts", r.ts);
+                  v.put("level", r.level);
+                  v.put("cc", r.cc);
+                  v.put("el", r.el);
+                  v.put("up", r.up);
+                  v.put("charging", r.charging ? 1 : 0);
+                  byte[] blob = pack(r.data);
+                  if (blob != null) v.put("data", blob);
+                  getWritableDatabase().insertWithOnConflict("snaps", null, v, SQLiteDatabase.CONFLICT_REPLACE);
+              }
+
+              private static SnapRow snapOf(Cursor c) {
+                  SnapRow r = new SnapRow();
+                  r.ts = c.getLong(0);
+                  r.level = c.getInt(1);
+                  r.cc = c.getLong(2);
+                  r.el = c.getLong(3);
+                  r.up = c.getLong(4);
+                  r.charging = c.getInt(5) != 0;
+                  r.data = c.isNull(6) ? null : unpack(c.getBlob(6));
+                  return r;
+              }
+
+              private SnapRow oneSnap(String where, long arg, String order) {
+                  Cursor c = getReadableDatabase().rawQuery(
+                          "SELECT ts,level,cc,el,up,charging,data FROM snaps WHERE " + where + " ORDER BY " + order + " LIMIT 1",
+                          new String[]{String.valueOf(arg)});
+                  try {
+                      if (!c.moveToFirst()) return null;
+                      return snapOf(c);
+                  } finally { c.close(); }
+              }
+
+              long lastSnapTs() {
+                  Cursor c = getReadableDatabase().rawQuery("SELECT MAX(ts) FROM snaps WHERE data IS NOT NULL", null);
+                  try {
+                      return c.moveToFirst() && !c.isNull(0) ? c.getLong(0) : 0;
+                  } finally { c.close(); }
+              }
+
+              SnapRow snapAt(long ts) { return oneSnap("ts=?", ts, "ts ASC"); }
+
+              SnapRow nearest(long ts) {
+                  SnapRow before = oneSnap("ts<=? AND data IS NOT NULL", ts, "ts DESC");
+                  SnapRow after = oneSnap("ts>=? AND data IS NOT NULL", ts, "ts ASC");
+                  if (before == null) return after;
+                  if (after == null) return before;
+                  return (ts - before.ts) <= (after.ts - ts) ? before : after;
+              }
+
+              boolean chargedBetween(long a, long b) {
+                  Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM snaps WHERE ts BETWEEN ? AND ? AND charging=1",
+                          new String[]{String.valueOf(a), String.valueOf(b)});
+                  try {
+                      return c.moveToFirst() && c.getInt(0) > 0;
+                  } finally { c.close(); }
+              }
+
+              List<long[]> levels(long from, long to) {
+                  List<long[]> out = new ArrayList<>();
+                  Cursor c = getReadableDatabase().rawQuery("SELECT ts,level FROM snaps WHERE ts BETWEEN ? AND ? ORDER BY ts",
+                          new String[]{String.valueOf(from), String.valueOf(to)});
+                  try {
+                      while (c.moveToNext()) out.add(new long[]{c.getLong(0), c.getLong(1)});
+                  } finally { c.close(); }
+                  return out;
+              }
+
+              synchronized long putSession(Sess s) {
+                  ContentValues v = new ContentValues();
+                  v.put("st", s.st);
+                  v.put("en", s.en);
+                  v.put("st_lvl", s.stLvl);
+                  v.put("en_lvl", s.enLvl);
+                  v.put("st_cc", s.stCc);
+                  v.put("en_cc", s.enCc);
+                  v.put("el_ms", s.el);
+                  v.put("up_ms", s.up);
+                  v.put("sched", s.sched ? 1 : 0);
+                  v.put("snap_a", s.snapA);
+                  v.put("snap_b", s.snapB);
+                  return getWritableDatabase().insert("sess", null, v);
+              }
+
+              private static final String SESS_COLS = "id,st,en,st_lvl,en_lvl,st_cc,en_cc,el_ms,up_ms,sched,snap_a,snap_b";
+
+              private static Sess sessOf(Cursor c) {
+                  Sess s = new Sess();
+                  s.id = c.getLong(0);
+                  s.st = c.getLong(1);
+                  s.en = c.getLong(2);
+                  s.stLvl = c.getInt(3);
+                  s.enLvl = c.getInt(4);
+                  s.stCc = c.getLong(5);
+                  s.enCc = c.getLong(6);
+                  s.el = c.getLong(7);
+                  s.up = c.getLong(8);
+                  s.sched = c.getInt(9) != 0;
+                  s.snapA = c.getLong(10);
+                  s.snapB = c.getLong(11);
+                  return s;
+              }
+
+              List<Sess> sessions(long from, long to, int limit) {
+                  List<Sess> out = new ArrayList<>();
+                  Cursor c = getReadableDatabase().rawQuery(
+                          "SELECT " + SESS_COLS + " FROM sess WHERE en>=? AND st<=? ORDER BY st DESC LIMIT " + limit,
+                          new String[]{String.valueOf(from), String.valueOf(to)});
+                  try {
+                      while (c.moveToNext()) out.add(sessOf(c));
+                  } finally { c.close(); }
+                  return out;
+              }
+
+              Sess session(long id) {
+                  Cursor c = getReadableDatabase().rawQuery("SELECT " + SESS_COLS + " FROM sess WHERE id=?", new String[]{String.valueOf(id)});
+                  try {
+                      return c.moveToFirst() ? sessOf(c) : null;
+                  } finally { c.close(); }
+              }
+
+              synchronized void prune(long before) {
+                  SQLiteDatabase d = getWritableDatabase();
+                  d.delete("snaps", "ts<?", new String[]{String.valueOf(before)});
+                  d.delete("sess", "en<?", new String[]{String.valueOf(before)});
+              }
+
+              synchronized void clear() {
+                  SQLiteDatabase d = getWritableDatabase();
+                  d.delete("snaps", null, null);
+                  d.delete("sess", null, null);
+              }
+
+              int[] counts() {
+                  int[] r = new int[2];
+                  SQLiteDatabase d = getReadableDatabase();
+                  Cursor c = d.rawQuery("SELECT COUNT(*) FROM snaps", null);
+                  try { if (c.moveToFirst()) r[0] = c.getInt(0); } finally { c.close(); }
+                  c = d.rawQuery("SELECT COUNT(*) FROM sess", null);
+                  try { if (c.moveToFirst()) r[1] = c.getInt(0); } finally { c.close(); }
+                  return r;
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/Dump.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.content.ContentValues;
+          import android.content.Context;
+          import android.net.Uri;
+          import android.os.Environment;
+          import android.provider.MediaStore;
+          import java.io.BufferedReader;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.util.HashMap;
+          import java.util.Iterator;
+          import java.util.Map;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+          import org.json.JSONArray;
+          import org.json.JSONException;
+          import org.json.JSONObject;
+
+          /** Cumulative counters taken from "dumpsys batterystats". Differences of two snapshots give usage in between. */
+          final class Snap {
+              final HashMap<String, Double> power = new HashMap<>();   // uid or "#Component" -> mAh
+              final HashMap<String, long[]> wake = new HashMap<>();    // "uid|name" -> {ms, count}
+              final HashMap<String, long[]> kernel = new HashMap<>();  // name -> {ms, count}
+              final HashMap<String, long[]> reasons = new HashMap<>(); // name -> {ms, count}
+              boolean denied;
+              int lines;
+
+              boolean empty() { return power.isEmpty() && wake.isEmpty() && kernel.isEmpty() && reasons.isEmpty(); }
+
+              JSONObject toJson() throws JSONException {
+                  JSONObject o = new JSONObject();
+                  JSONObject p = new JSONObject();
+                  for (Map.Entry<String, Double> e : power.entrySet()) p.put(e.getKey(), e.getValue().doubleValue());
+                  o.put("p", p);
+                  o.put("w", packMap(wake));
+                  o.put("k", packMap(kernel));
+                  o.put("r", packMap(reasons));
+                  return o;
+              }
+
+              private static JSONObject packMap(Map<String, long[]> m) throws JSONException {
+                  JSONObject o = new JSONObject();
+                  for (Map.Entry<String, long[]> e : m.entrySet()) {
+                      JSONArray a = new JSONArray();
+                      a.put(e.getValue()[0]);
+                      a.put(e.getValue()[1]);
+                      o.put(e.getKey(), a);
+                  }
+                  return o;
+              }
+
+              private static void unpackMap(JSONObject o, Map<String, long[]> out) throws JSONException {
+                  if (o == null) return;
+                  Iterator<String> it = o.keys();
+                  while (it.hasNext()) {
+                      String k = it.next();
+                      JSONArray a = o.getJSONArray(k);
+                      out.put(k, new long[]{a.getLong(0), a.getLong(1)});
+                  }
+              }
+
+              static Snap fromJson(JSONObject o) throws JSONException {
+                  Snap s = new Snap();
+                  JSONObject p = o.optJSONObject("p");
+                  if (p != null) {
+                      Iterator<String> it = p.keys();
+                      while (it.hasNext()) {
+                          String k = it.next();
+                          s.power.put(k, p.getDouble(k));
+                      }
+                  }
+                  unpackMap(o.optJSONObject("w"), s.wake);
+                  unpackMap(o.optJSONObject("k"), s.kernel);
+                  unpackMap(o.optJSONObject("r"), s.reasons);
+                  return s;
+              }
+          }
+
+          final class Dump {
+              static volatile String lastSource = "";
+              private static long directDeniedAt = 0;
+              private static long shizukuDownAt = 0;
+
+              static void resetBackoff() { directDeniedAt = 0; shizukuDownAt = 0; }
+
+              private static final String TIME = "((?:\\d+d )?(?:\\d+h )?(?:\\d+m )?(?:\\d+s )?(?:\\d+ms)?)";
+              private static final Pattern POWER = Pattern.compile("^\\s+(Uid\\s+\\S+|[^:(]+?):\\s*([0-9]+(?:[.,][0-9]+)?)");
+              private static final Pattern WAKE = Pattern.compile("^Wake lock (.+?): " + TIME + "\\s*(?:[a-z]+ )?\\((\\d+) times\\)");
+              private static final Pattern KERNEL = Pattern.compile("^Kernel Wake lock (.+?): " + TIME + "\\s*(?:[a-z]+ )?\\((\\d+) times\\)");
+              private static final Pattern REASON = Pattern.compile("^Wakeup reason (.+?): " + TIME + "\\s*(?:[a-z]+ )?\\((\\d+) times\\)");
+              private static final Pattern UIDTOK = Pattern.compile("^(?:u\\d+[ais]\\d+|\\d+)$");
+              private static final Pattern TOK = Pattern.compile("(\\d+)(ms|d|h|m|s)");
+
+              static long parseTime(String s) {
+                  Matcher m = TOK.matcher(s);
+                  long t = 0;
+                  while (m.find()) {
+                      long n = Long.parseLong(m.group(1));
+                      String u = m.group(2);
+                      if (u.equals("d")) t += n * 86400000L;
+                      else if (u.equals("h")) t += n * 3600000L;
+                      else if (u.equals("m")) t += n * 60000L;
+                      else if (u.equals("s")) t += n * 1000L;
+                      else t += n;
+                  }
+                  return t;
+              }
+
+              private static void addAbs(Map<String, long[]> map, String key, long ms, long cnt) {
+                  if (ms <= 0 && cnt <= 0) return;
+                  if (!map.containsKey(key)) map.put(key, new long[]{ms, cnt});
+              }
+
+              static Snap parse(BufferedReader br) throws IOException {
+                  Snap s = new Snap();
+                  String line;
+                  int powerIndent = -1;
+                  boolean powerSeen = false;
+                  String curUid = null;
+                  while ((line = br.readLine()) != null) {
+                      s.lines++;
+                      if (s.lines <= 20 && line.contains("Permission Denial")) {
+                          s.denied = true;
+                          return s;
+                      }
+                      if (line.isEmpty()) {
+                          powerIndent = -1;
+                          continue;
+                      }
+                      int ind = 0;
+                      while (ind < line.length() && line.charAt(ind) == ' ') ind++;
+
+                      if (powerIndent >= 0) {
+                          if (ind > powerIndent) {
+                              Matcher m = POWER.matcher(line);
+                              if (m.find()) {
+                                  String label = m.group(1).trim();
+                                  if (!label.startsWith("Capacity")) {
+                                      double v;
+                                      try { v = Double.parseDouble(m.group(2).replace(',', '.')); } catch (NumberFormatException e) { v = 0; }
+                                      if (v > 0.0005) {
+                                          String key = label.startsWith("Uid ") ? label.substring(4).trim() : "#" + label;
+                                          if (!s.power.containsKey(key)) s.power.put(key, v);
+                                      }
+                                  }
+                              }
+                              continue;
+                          }
+                          powerIndent = -1;
+                      }
+                      if (line.indexOf("Estimated power use (mAh)") >= 0) {
+                          if (!powerSeen) {
+                              powerSeen = true;
+                              powerIndent = ind;
+                          }
+                          continue;
+                      }
+
+                      String t = line.trim();
+                      if (t.endsWith(":")) {
+                          String tok = t.substring(0, t.length() - 1);
+                          if (UIDTOK.matcher(tok).matches()) curUid = tok;
+                          else if (ind <= 2) curUid = null;
+                          continue;
+                      }
+                      if (t.startsWith("Wake lock ")) {
+                          if (curUid != null) {
+                              Matcher m = WAKE.matcher(t);
+                              if (m.find()) addAbs(s.wake, curUid + "|" + m.group(1), parseTime(m.group(2)), Long.parseLong(m.group(3)));
+                          }
+                      } else if (t.startsWith("Kernel Wake lock ")) {
+                          Matcher m = KERNEL.matcher(t);
+                          if (m.find()) addAbs(s.kernel, m.group(1), parseTime(m.group(2)), Long.parseLong(m.group(3)));
+                      } else if (t.startsWith("Wakeup reason ")) {
+                          Matcher m = REASON.matcher(t);
+                          if (m.find()) addAbs(s.reasons, m.group(1), parseTime(m.group(2)), Long.parseLong(m.group(3)));
+                      }
+                  }
+                  return s;
+              }
+
+              private static Process start(boolean shizuku) throws Exception {
+                  if (shizuku) return Radio.spawn("/system/bin/dumpsys", "batterystats");
+                  return Runtime.getRuntime().exec(new String[]{"/system/bin/dumpsys", "batterystats"});
+              }
+
+              private static void drain(InputStream in) {
+                  try {
+                      byte[] b = new byte[4096];
+                      while (in.read(b) >= 0) { }
+                  } catch (Throwable ignored) { }
+              }
+
+              private static Snap run(boolean shizuku) {
+                  Process p = null;
+                  try {
+                      p = start(shizuku);
+                      if (p == null) return null;
+                      final Process fp = p;
+                      new Thread(() -> drain(fp.getErrorStream())).start();
+                      BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"), 1 << 16);
+                      Snap s = parse(br);
+                      br.close();
+                      return s;
+                  } catch (Throwable t) {
+                      return null;
+                  } finally {
+                      if (p != null) {
+                          try { p.destroy(); } catch (Throwable ignored) { }
+                      }
+                  }
+              }
+
+              /** Takes a snapshot: first directly (if adb permissions were granted), then through Shizuku. */
+              static Snap take() {
+                  long now = System.currentTimeMillis();
+                  if (now - directDeniedAt > 30 * 60 * 1000L) {
+                      Snap s = run(false);
+                      if (s != null && !s.denied && !s.empty()) {
+                          lastSource = "напряму (adb-дозволи)";
+                          return s;
+                      }
+                      directDeniedAt = now;
+                  }
+                  if (now - shizukuDownAt > 5 * 60 * 1000L) {
+                      if (Radio.ready(1500)) {
+                          Snap s = run(true);
+                          if (s != null && !s.denied && !s.empty()) {
+                              lastSource = "через Shizuku";
+                              return s;
+                          }
+                      }
+                      shizukuDownAt = now;
+                  }
+                  lastSource = "";
+                  return null;
+              }
+
+              /** Saves the raw "dumpsys batterystats" output to Downloads, for diagnostics. */
+              static String saveRaw(Context c) {
+                  for (int mode = 0; mode < 2; mode++) {
+                      boolean shiz = mode == 1;
+                      if (shiz && !Radio.ready(3000)) break;
+                      Uri uri = null;
+                      Process p = null;
+                      try {
+                          p = start(shiz);
+                          if (p == null) continue;
+                          uri = Files.download(c, "nightnet_batterystats.txt", "text/plain");
+                          if (uri == null) return "Не вдалося створити файл у Завантаженнях.";
+                          OutputStream os = c.getContentResolver().openOutputStream(uri);
+                          InputStream in = p.getInputStream();
+                          final InputStream err = p.getErrorStream();
+                          new Thread(() -> drain(err)).start();
+                          byte[] buf = new byte[65536];
+                          long total = 0;
+                          int n;
+                          String head = null;
+                          while ((n = in.read(buf)) > 0) {
+                              if (head == null) head = new String(buf, 0, Math.min(n, 300), "UTF-8");
+                              os.write(buf, 0, n);
+                              total += n;
+                          }
+                          os.close();
+                          if (total > 2000 && (head == null || !head.contains("Permission Denial"))) {
+                              return "Збережено у Завантаження: nightnet_batterystats.txt (" + (total / 1024) + " КБ)";
+                          }
+                          c.getContentResolver().delete(uri, null, null);
+                      } catch (Throwable t) {
+                          try { if (uri != null) c.getContentResolver().delete(uri, null, null); } catch (Throwable ignored) { }
+                      } finally {
+                          if (p != null) {
+                              try { p.destroy(); } catch (Throwable ignored) { }
+                          }
+                      }
+                  }
+                  return "Не вдалося отримати дані: немає доступу (Shizuku або adb-дозволи).";
+              }
+          }
+
+          final class Files {
+              static Uri download(Context c, String name, String mime) {
+                  ContentValues v = new ContentValues();
+                  v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                  v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                  v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                  return c.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/Detail.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.content.Context;
+          import android.content.pm.PackageManager;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Comparator;
+          import java.util.HashMap;
+          import java.util.List;
+          import java.util.Map;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          /** Difference of two snapshots: who drained the battery and who kept the phone awake. */
+          final class Detail {
+              static final class Row {
+                  String key;
+                  String sub;
+                  double v;
+                  long ms;
+                  long cnt;
+              }
+
+              final List<Row> apps = new ArrayList<>();
+              final List<Row> wake = new ArrayList<>();
+              final List<Row> kernel = new ArrayList<>();
+              final List<Row> reasons = new ArrayList<>();
+              double totalMah;
+              boolean reset;
+              boolean charged;
+              long fromTs, toTs;
+              int fromLvl, toLvl;
+              String note;
+
+              private static final Comparator<Row> BY_TIME = (x, y) -> {
+                  if (x.ms != y.ms) return Long.compare(y.ms, x.ms);
+                  return Long.compare(y.cnt, x.cnt);
+              };
+              private static final Comparator<Row> BY_COUNT = (x, y) -> {
+                  if (x.cnt != y.cnt) return Long.compare(y.cnt, x.cnt);
+                  return Long.compare(y.ms, x.ms);
+              };
+
+              private static void diffMap(Map<String, long[]> a, Map<String, long[]> b, List<Row> out, Detail d, boolean split) {
+                  for (Map.Entry<String, long[]> e : b.entrySet()) {
+                      long[] pb = e.getValue();
+                      long[] pa = a.get(e.getKey());
+                      long ms = pb[0] - (pa == null ? 0 : pa[0]);
+                      long cnt = pb[1] - (pa == null ? 0 : pa[1]);
+                      if (ms < 0 || cnt < 0) {
+                          d.reset = true;
+                          continue;
+                      }
+                      if (ms <= 0 && cnt <= 0) continue;
+                      Row r = new Row();
+                      String key = e.getKey();
+                      if (split) {
+                          int i = key.indexOf('|');
+                          if (i > 0) {
+                              r.key = key.substring(0, i);
+                              r.sub = key.substring(i + 1);
+                          } else {
+                              r.key = key;
+                          }
+                      } else {
+                          r.key = key;
+                      }
+                      r.ms = ms;
+                      r.cnt = cnt;
+                      out.add(r);
+                  }
+              }
+
+              static Detail diff(Snap a, Snap b) {
+                  Detail d = new Detail();
+                  for (Map.Entry<String, Double> e : b.power.entrySet()) {
+                      Double prev = a.power.get(e.getKey());
+                      double v = e.getValue() - (prev == null ? 0 : prev);
+                      if (v < -0.05) {
+                          d.reset = true;
+                          continue;
+                      }
+                      if (v > 0.001) {
+                          Row r = new Row();
+                          r.key = e.getKey();
+                          r.v = v;
+                          d.apps.add(r);
+                          d.totalMah += v;
+                      }
+                  }
+                  diffMap(a.wake, b.wake, d.wake, d, true);
+                  diffMap(a.kernel, b.kernel, d.kernel, d, false);
+                  diffMap(a.reasons, b.reasons, d.reasons, d, false);
+                  Collections.sort(d.apps, (x, y) -> Double.compare(y.v, x.v));
+                  Collections.sort(d.wake, BY_TIME);
+                  Collections.sort(d.kernel, BY_TIME);
+                  Collections.sort(d.reasons, BY_COUNT);
+                  return d;
+              }
+
+              static Detail forSession(Context c, Sess s) {
+                  if (s.snapA <= 0 || s.snapB <= 0) return null;
+                  Db db = Db.get(c);
+                  SnapRow a = db.snapAt(s.snapA);
+                  SnapRow b = db.snapAt(s.snapB);
+                  if (a == null || b == null || a.data == null || b.data == null) return null;
+                  Detail d = diff(a.data, b.data);
+                  d.fromTs = a.ts;
+                  d.toTs = b.ts;
+                  d.fromLvl = a.level;
+                  d.toLvl = b.level;
+                  return d;
+              }
+
+              /** Must be called from a background thread: may take a live snapshot. */
+              static Detail forRange(Context c, long from, long to) {
+                  Db db = Db.get(c);
+                  long now = System.currentTimeMillis();
+                  if (to >= now - 120000L) Snapper.ensure(c, 20000L);
+                  SnapRow a = db.nearest(from);
+                  SnapRow b = db.nearest(Math.min(to, now));
+                  Detail d;
+                  if (a == null || b == null || a.data == null || b.data == null || a.ts >= b.ts) {
+                      d = new Detail();
+                      d.note = "У цьому проміжку немає двох знімків статистики. Знімки робляться при кожному вимкненні екрана і розблокуванні, тож дані з'являться після першого використання телефона з увімкненим моніторингом.";
+                      return d;
+                  }
+                  d = diff(a.data, b.data);
+                  d.fromTs = a.ts;
+                  d.toTs = b.ts;
+                  d.fromLvl = a.level;
+                  d.toLvl = b.level;
+                  d.charged = db.chargedBetween(a.ts, b.ts);
+                  if (Math.abs(a.ts - from) > 20 * 60000L || Math.abs(b.ts - to) > 20 * 60000L) {
+                      d.note = "Межі зсунуто до найближчих знімків статистики (вони робляться при вимкненні екрана і розблокуванні).";
+                  }
+                  return d;
+              }
+          }
+
+          final class Names {
+              private static final HashMap<String, String> cache = new HashMap<>();
+              private static final Pattern APP = Pattern.compile("^u(\\d+)a(\\d+)$");
+
+              static synchronized String label(Context c, String key) {
+                  String v = cache.get(key);
+                  if (v != null) return v;
+                  v = resolve(c, key);
+                  cache.put(key, v);
+                  return v;
+              }
+
+              private static String component(String n) {
+                  switch (n) {
+                      case "Screen": return "Екран";
+                      case "Idle": return "Стан очікування (idle)";
+                      case "Cell standby": return "Мобільна мережа (очікування)";
+                      case "Mobile radio": return "Мобільний радіомодуль";
+                      case "Cell": return "Мобільна мережа";
+                      case "Wifi": return "Wi‑Fi";
+                      case "Bluetooth": return "Bluetooth";
+                      case "Phone calls": return "Дзвінки";
+                      case "Camera": return "Камера";
+                      case "Flashlight": return "Ліхтарик";
+                      case "Over-counted": return "Перерахунок (over-counted)";
+                      case "Unaccounted": return "Не віднесено (unaccounted)";
+                      default: return n;
+                  }
+              }
+
+              private static String resolve(Context c, String key) {
+                  if (key.startsWith("#")) return component(key.substring(1));
+                  int uid;
+                  Matcher m = APP.matcher(key);
+                  if (m.matches()) {
+                      uid = Integer.parseInt(m.group(1)) * 100000 + 10000 + Integer.parseInt(m.group(2));
+                  } else {
+                      try {
+                          uid = Integer.parseInt(key);
+                      } catch (NumberFormatException e) {
+                          return key;
+                      }
+                  }
+                  if (uid == 0) return "Ядро Android (root)";
+                  if (uid == 1000) return "Система Android (system)";
+                  if (uid == 1001) return "Радіомодуль / телефонія";
+                  if (uid == 2000) return "Shell (adb / Shizuku)";
+                  try {
+                      PackageManager pm = c.getPackageManager();
+                      String[] pk = pm.getPackagesForUid(uid);
+                      if (pk != null && pk.length > 0) {
+                          String name = pm.getApplicationLabel(pm.getApplicationInfo(pk[0], 0)).toString();
+                          return pk.length > 1 ? name + " (+" + (pk.length - 1) + ")" : name;
+                      }
+                  } catch (Throwable ignored) { }
+                  return uid < 10000 ? "Системний процес (uid " + uid + ")" : key;
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/MonitorService.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.app.KeyguardManager;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.SharedPreferences;
+          import android.os.BatteryManager;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.HandlerThread;
+          import android.os.IBinder;
+          import android.os.PowerManager;
+          import android.os.SystemClock;
+
+          final class Power {
+              static int level(Context c) {
+                  try {
+                      BatteryManager bm = c.getSystemService(BatteryManager.class);
+                      return bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+                  } catch (Throwable t) { return 0; }
+              }
+
+              /** Charge counter in microampere-hours, or 0 if the phone does not report it. */
+              static long cc(Context c) {
+                  try {
+                      BatteryManager bm = c.getSystemService(BatteryManager.class);
+                      long v = bm.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
+                      return v > 0 ? v : 0;
+                  } catch (Throwable t) { return 0; }
+              }
+
+              static boolean charging(Context c) {
+                  try {
+                      Intent i = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                      return i != null && i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
+                  } catch (Throwable t) { return false; }
+              }
+          }
+
+          final class Snapper {
+              /** Returns the timestamp of a snapshot not older than maxAgeMs, taking a new one if needed (0 on failure). */
+              static synchronized long ensure(Context c, long maxAgeMs) {
+                  long last = Db.get(c).lastSnapTs();
+                  if (last > 0 && System.currentTimeMillis() - last <= maxAgeMs) return last;
+                  return take(c);
+              }
+
+              static synchronized long take(Context c) {
+                  Snap s = Dump.take();
+                  if (s == null) return 0;
+                  SnapRow r = new SnapRow();
+                  r.ts = System.currentTimeMillis();
+                  r.level = Power.level(c);
+                  r.cc = Power.cc(c);
+                  r.el = SystemClock.elapsedRealtime();
+                  r.up = SystemClock.uptimeMillis();
+                  r.charging = Power.charging(c);
+                  r.data = s;
+                  Db.get(c).putSnap(r);
+                  return r.ts;
+              }
+          }
+
+          public class MonitorService extends Service {
+              private static final String CH = "monitor";
+              private HandlerThread ht;
+              private Handler h;
+              private BroadcastReceiver rx;
+              private PowerManager.WakeLock wl;
+
+              static void ensure(Context c) {
+                  try {
+                      Intent i = new Intent(c, MonitorService.class);
+                      if (!Prefs.get(c).getBoolean("mon_enabled", true)) {
+                          c.stopService(i);
+                          return;
+                      }
+                      c.startForegroundService(i);
+                  } catch (Throwable ignored) { }
+              }
+
+              @Override public IBinder onBind(Intent intent) { return null; }
+
+              private Notification notification() {
+                  PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+                  return new Notification.Builder(this, CH)
+                          .setSmallIcon(R.drawable.ic_stat)
+                          .setContentTitle("Моніторинг батареї")
+                          .setOngoing(true)
+                          .setContentIntent(pi)
+                          .build();
+              }
+
+              @Override public void onCreate() {
+                  super.onCreate();
+                  NotificationManager nm = getSystemService(NotificationManager.class);
+                  NotificationChannel ch = new NotificationChannel(CH, "Моніторинг батареї", NotificationManager.IMPORTANCE_MIN);
+                  ch.setShowBadge(false);
+                  nm.createNotificationChannel(ch);
+                  startForeground(2, notification());
+
+                  ht = new HandlerThread("nightnet-monitor");
+                  ht.start();
+                  h = new Handler(ht.getLooper());
+                  PowerManager pm = getSystemService(PowerManager.class);
+                  wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nightnet:snap");
+
+                  rx = new BroadcastReceiver() {
+                      @Override public void onReceive(Context c, Intent i) {
+                          if (i == null || i.getAction() == null) return;
+                          final String a = i.getAction();
+                          final long now = System.currentTimeMillis();
+                          final long el = SystemClock.elapsedRealtime();
+                          final long up = SystemClock.uptimeMillis();
+                          try { wl.acquire(90000L); } catch (Throwable ignored) { }
+                          h.post(() -> handle(a, now, el, up));
+                      }
+                  };
+                  IntentFilter f = new IntentFilter();
+                  f.addAction(Intent.ACTION_SCREEN_OFF);
+                  f.addAction(Intent.ACTION_SCREEN_ON);
+                  f.addAction(Intent.ACTION_USER_PRESENT);
+                  f.addAction(Intent.ACTION_POWER_CONNECTED);
+                  if (Build.VERSION.SDK_INT >= 33) registerReceiver(rx, f, Context.RECEIVER_NOT_EXPORTED);
+                  else registerReceiver(rx, f);
+                  h.post(this::recover);
+              }
+
+              @Override public int onStartCommand(Intent intent, int flags, int startId) {
+                  try { startForeground(2, notification()); } catch (Throwable ignored) { }
+                  return START_STICKY;
+              }
+
+              @Override public void onDestroy() {
+                  try { unregisterReceiver(rx); } catch (Throwable ignored) { }
+                  if (ht != null) ht.quitSafely();
+                  super.onDestroy();
+              }
+
+              private boolean locked() {
+                  KeyguardManager km = getSystemService(KeyguardManager.class);
+                  return km != null && km.isKeyguardLocked();
+              }
+
+              private void releaseLock() {
+                  try { if (wl.isHeld()) wl.release(); } catch (Throwable ignored) { }
+              }
+
+              private void handle(String a, long now, long el, long up) {
+                  try {
+                      if (!Prefs.get(this).getBoolean("mon_enabled", true)) return;
+                      SharedPreferences m = getSharedPreferences("mon", MODE_PRIVATE);
+                      boolean open = m.getBoolean("open", false);
+                      if (Intent.ACTION_SCREEN_OFF.equals(a)) {
+                          if (!open) startSession(m, now, el, up);
+                      } else if (Intent.ACTION_POWER_CONNECTED.equals(a)) {
+                          if (open) m.edit().putBoolean("charged", true).apply();
+                      } else if (Intent.ACTION_SCREEN_ON.equals(a)) {
+                          if (open && !locked()) endSession(m, now, el, up);
+                      } else if (Intent.ACTION_USER_PRESENT.equals(a)) {
+                          if (open) endSession(m, now, el, up);
+                      }
+                  } catch (Throwable ignored) {
+                  } finally {
+                      releaseLock();
+                  }
+              }
+
+              private void recover() {
+                  try {
+                      SharedPreferences m = getSharedPreferences("mon", MODE_PRIVATE);
+                      if (!m.getBoolean("open", false)) return;
+                      long el = SystemClock.elapsedRealtime();
+                      if (el < m.getLong("st_el", 0)) {
+                          m.edit().putBoolean("open", false).apply();
+                          return;
+                      }
+                      PowerManager pm = getSystemService(PowerManager.class);
+                      if (pm.isInteractive() && !locked()) endSession(m, System.currentTimeMillis(), el, SystemClock.uptimeMillis());
+                  } catch (Throwable ignored) { }
+              }
+
+              private void startSession(SharedPreferences m, long now, long el, long up) {
+                  if (Power.charging(this)) return;
+                  int lvl = Power.level(this);
+                  long cc = Power.cc(this);
+                  boolean sched = Prefs.get(this).getBoolean("active", false);
+                  long snap = Snapper.ensure(this, 20000L);
+                  m.edit().putBoolean("open", true).putBoolean("charged", false)
+                          .putLong("st", now).putLong("st_el", el).putLong("st_up", up)
+                          .putInt("st_lvl", lvl).putLong("st_cc", cc)
+                          .putLong("snap_a", snap).putBoolean("sched0", sched).apply();
+              }
+
+              private void endSession(SharedPreferences m, long now, long el, long up) {
+                  long st = m.getLong("st", 0);
+                  long stEl = m.getLong("st_el", 0);
+                  long stUp = m.getLong("st_up", 0);
+                  boolean charged = m.getBoolean("charged", false) || Power.charging(this);
+                  int lvl = Power.level(this);
+                  long cc = Power.cc(this);
+                  SharedPreferences cfg = Prefs.get(this);
+                  m.edit().putBoolean("open", false).apply();
+
+                  long minMs = cfg.getInt("min_minutes", 30) * 60000L;
+                  if (st <= 0 || el < stEl || charged || now - st < minMs) {
+                      // Not a log entry, but keep a snapshot so that any time range can still be analysed.
+                      if (!charged) Snapper.ensure(this, 180000L);
+                      return;
+                  }
+                  long snapB = Snapper.take(this);
+                  Sess s = new Sess();
+                  s.st = st;
+                  s.en = now;
+                  s.stLvl = m.getInt("st_lvl", 0);
+                  s.enLvl = lvl;
+                  s.stCc = m.getLong("st_cc", 0);
+                  s.enCc = cc;
+                  s.el = el - stEl;
+                  s.up = up - stUp;
+                  s.sched = m.getBoolean("sched0", false) || cfg.getBoolean("active", false) || cfg.getLong("flip_ts", 0) >= st;
+                  s.snapA = m.getLong("snap_a", 0);
+                  s.snapB = snapB;
+                  Db db = Db.get(this);
+                  db.putSession(s);
+                  db.prune(now - cfg.getInt("keep_days", 14) * 86400000L);
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/Views.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.content.Context;
+          import android.content.res.ColorStateList;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Date;
+          import java.util.List;
+          import java.util.Locale;
+
+          final class Ui {
+              static int dp(Context c, float v) { return (int) (v * c.getResources().getDisplayMetrics().density + 0.5f); }
+
+              static TextView tv(Context c, String s, float sp, int color, boolean bold) {
+                  TextView t = new TextView(c);
+                  t.setText(s);
+                  t.setTextSize(sp);
+                  t.setTextColor(color);
+                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  return t;
+              }
+
+              static Button btn(Context c, String s, int color) {
+                  Button b = new Button(c);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  b.setBackgroundTintList(ColorStateList.valueOf(color));
+                  b.setTextColor(0xFFFFFFFF);
+                  return b;
+              }
+
+              static LinearLayout card(Context c) {
+                  LinearLayout l = new LinearLayout(c);
+                  l.setOrientation(LinearLayout.VERTICAL);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(0xFFFFFFFF);
+                  g.setCornerRadius(dp(c, 12));
+                  g.setStroke(dp(c, 1), 0xFFE3E6EB);
+                  l.setBackground(g);
+                  l.setPadding(dp(c, 14), dp(c, 10), dp(c, 14), dp(c, 10));
+                  return l;
+              }
+
+              static LinearLayout.LayoutParams lp(Context c, int w, int h, int l, int t, int r, int b) {
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w, h);
+                  p.setMargins(dp(c, l), dp(c, t), dp(c, r), dp(c, b));
+                  return p;
+              }
+
+              static String dur(long ms) {
+                  long m = Math.max(0, ms / 60000L);
+                  long h = m / 60;
+                  m = m % 60;
+                  if (h == 0) return m + " хв";
+                  return h + " г " + m + " хв";
+              }
+
+              static String durSec(long ms) {
+                  if (ms < 1000) return ms + " мс";
+                  long s = ms / 1000;
+                  if (s < 60) return s + " с";
+                  long m = s / 60;
+                  s = s % 60;
+                  if (m < 60) return m + " хв " + s + " с";
+                  long h = m / 60;
+                  m = m % 60;
+                  return h + " г " + m + " хв";
+              }
+
+              static String when(long ms) { return new SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(new Date(ms)); }
+
+              static int deepColor(double pct) { return pct >= 85 ? 0xFF1E8E3E : pct >= 60 ? 0xFFB06000 : 0xFFC62828; }
+
+              static String f1(double v) { return String.format(Locale.US, "%.1f", v); }
+
+              static String signed(int drop) { return drop > 0 ? "−" + drop + "%" : drop == 0 ? "0%" : "+" + (-drop) + "%"; }
+          }
+
+          /** Lists "who drained the battery" and "who kept the phone awake" for a Detail. */
+          final class DetailView extends LinearLayout {
+              private final Context c;
+
+              DetailView(Context c) {
+                  super(c);
+                  this.c = c;
+                  setOrientation(VERTICAL);
+              }
+
+              void message(String s) {
+                  removeAllViews();
+                  TextView t = Ui.tv(c, s, 15, 0xFF5F6368, false);
+                  t.setPadding(0, Ui.dp(c, 12), 0, 0);
+                  addView(t);
+              }
+
+              private LinearLayout box(String title) {
+                  LinearLayout b = Ui.card(c);
+                  b.addView(Ui.tv(c, title, 16, 0xFF202124, true));
+                  addView(b, Ui.lp(c, LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, 0, 10, 0, 0));
+                  return b;
+              }
+
+              private TextView small(String s) {
+                  TextView t = Ui.tv(c, s, 12, 0xFF5F6368, false);
+                  t.setPadding(0, Ui.dp(c, 6), 0, 0);
+                  return t;
+              }
+
+              private TextView sub(String s) {
+                  TextView t = Ui.tv(c, s, 13, 0xFF5F6368, true);
+                  t.setPadding(0, Ui.dp(c, 10), 0, 0);
+                  return t;
+              }
+
+              private View row(String title, String subtitle, String right, double pct, int accent) {
+                  LinearLayout r = new LinearLayout(c);
+                  r.setOrientation(VERTICAL);
+                  r.setPadding(0, Ui.dp(c, 6), 0, Ui.dp(c, 4));
+                  LinearLayout top = new LinearLayout(c);
+                  top.setOrientation(HORIZONTAL);
+                  top.addView(Ui.tv(c, title, 15, 0xFF202124, false), new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+                  TextView b = Ui.tv(c, right, 14, 0xFF30343A, true);
+                  b.setGravity(Gravity.END);
+                  top.addView(b, Ui.lp(c, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, 8, 0, 0, 0));
+                  r.addView(top);
+                  if (subtitle != null) r.addView(Ui.tv(c, subtitle, 12, 0xFF5F6368, false));
+                  if (pct >= 0) {
+                      float p = (float) Math.max(0.5, Math.min(100, pct));
+                      LinearLayout bar = new LinearLayout(c);
+                      bar.setOrientation(HORIZONTAL);
+                      View f = new View(c);
+                      f.setBackgroundColor(accent);
+                      View e = new View(c);
+                      e.setBackgroundColor(0xFFE3E6EB);
+                      bar.addView(f, new LayoutParams(0, Ui.dp(c, 4), p));
+                      bar.addView(e, new LayoutParams(0, Ui.dp(c, 4), 100f - p));
+                      r.addView(bar, Ui.lp(c, LayoutParams.MATCH_PARENT, Ui.dp(c, 4), 0, 4, 0, 0));
+                  }
+                  return r;
+              }
+
+              void show(Detail d, int accent, int appLimit, int wakeLimit) {
+                  removeAllViews();
+                  if (d == null) {
+                      message("Немає даних для цього запису: статистику батареї не вдалося зчитати (перевірте доступ у вкладці «Налаштування»).");
+                      return;
+                  }
+                  if (d.fromTs > 0) {
+                      addView(Ui.tv(c, "Знімки статистики: " + Ui.when(d.fromTs) + " → " + Ui.when(d.toTs), 13, 0xFF5F6368, false));
+                      int drop = d.fromLvl - d.toLvl;
+                      addView(Ui.tv(c, "Рівень заряду: " + d.fromLvl + "% → " + d.toLvl + "% (" + Ui.signed(drop) + ")", 14, 0xFF202124, true));
+                  }
+                  if (d.note != null) {
+                      TextView n = Ui.tv(c, d.note, 13, 0xFFB06000, false);
+                      n.setPadding(0, Ui.dp(c, 6), 0, 0);
+                      addView(n);
+                  }
+                  if (d.charged) {
+                      TextView n = Ui.tv(c, "У цьому проміжку була зарядка: Android міг скинути статистику, цифри можуть бути неточні.", 13, 0xFFB06000, false);
+                      n.setPadding(0, Ui.dp(c, 6), 0, 0);
+                      addView(n);
+                  }
+                  if (d.reset) {
+                      TextView n = Ui.tv(c, "Статистику Android скинуто між знімками, частину значень пропущено.", 13, 0xFFB06000, false);
+                      n.setPadding(0, Ui.dp(c, 6), 0, 0);
+                      addView(n);
+                  }
+                  if (d.fromTs == 0) return;
+
+                  LinearLayout apps = box("Розряд по застосунках і процесах");
+                  if (d.apps.isEmpty() || d.totalMah <= 0) {
+                      apps.addView(small("Android не зафіксував споживання за цей проміжок."));
+                  } else {
+                      int n = 0;
+                      for (Detail.Row r : d.apps) {
+                          if (n++ >= appLimit) break;
+                          double share = 100.0 * r.v / d.totalMah;
+                          apps.addView(row(Names.label(c, r.key), null,
+                                  Ui.f1(share) + "% · " + String.format(Locale.US, "%.2f", r.v) + " мАг", share, accent));
+                      }
+                      apps.addView(small("Відсотки — частка в сумарному споживанні за проміжок, яке Android оцінює за моделлю (це оцінка, а не точне вимірювання)."));
+                  }
+
+                  LinearLayout wk = box("Хто будив телефон і не давав заснути");
+                  boolean any = false;
+                  if (!d.wake.isEmpty()) {
+                      any = true;
+                      wk.addView(sub("Wakelock'и застосунків"));
+                      int n = 0;
+                      for (Detail.Row r : d.wake) {
+                          if (n++ >= wakeLimit) break;
+                          wk.addView(row(Names.label(c, r.key), r.sub, Ui.durSec(r.ms) + " · " + r.cnt + "×", -1, accent));
+                      }
+                  }
+                  if (!d.kernel.isEmpty()) {
+                      any = true;
+                      wk.addView(sub("Wakelock'и ядра"));
+                      int n = 0;
+                      for (Detail.Row r : d.kernel) {
+                          if (n++ >= wakeLimit) break;
+                          wk.addView(row(r.key, null, Ui.durSec(r.ms) + " · " + r.cnt + "×", -1, accent));
+                      }
+                  }
+                  if (!d.reasons.isEmpty()) {
+                      any = true;
+                      wk.addView(sub("Причини пробудження"));
+                      int n = 0;
+                      for (Detail.Row r : d.reasons) {
+                          if (n++ >= wakeLimit) break;
+                          wk.addView(row(r.key, null, r.cnt + "×" + (r.ms > 0 ? " · " + Ui.durSec(r.ms) : ""), -1, accent));
+                      }
+                  }
+                  if (!any) wk.addView(small("Android не зафіксував wakelock'ів за цей проміжок (або формат виводу не розпізнано: збережіть діагностику в «Налаштування»)."));
+              }
+          }
+
+          /** Battery level line with coloured bands for long lock periods. */
+          final class LevelChart extends View {
+              private long from, to;
+              private long[] ts = new long[0];
+              private int[] lvl = new int[0];
+              private List<Sess> sess = new ArrayList<>();
+              private final Paint grid = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint txt = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint band = new Paint();
+              int accent = 0xFF168C83;
+
+              LevelChart(Context c) {
+                  super(c);
+                  float d = c.getResources().getDisplayMetrics().density;
+                  grid.setColor(0xFFE3E6EB);
+                  grid.setStrokeWidth(d);
+                  txt.setColor(0xFF5F6368);
+                  txt.setTextSize(11 * d);
+                  line.setStyle(Paint.Style.STROKE);
+                  line.setStrokeWidth(2 * d);
+                  line.setStrokeJoin(Paint.Join.ROUND);
+              }
+
+              void set(long from, long to, long[] ts, int[] lvl, List<Sess> sess) {
+                  this.from = from;
+                  this.to = to;
+                  this.ts = ts;
+                  this.lvl = lvl;
+                  this.sess = sess;
+                  invalidate();
+              }
+
+              private float x(long t, float l, float cw) { return l + (float) (t - from) / (float) (to - from) * cw; }
+
+              @Override protected void onDraw(Canvas cv) {
+                  super.onDraw(cv);
+                  float d = getResources().getDisplayMetrics().density;
+                  float w = getWidth(), h = getHeight();
+                  float l = 36 * d, r = 8 * d, t = 8 * d, b = 22 * d;
+                  float cw = w - l - r, ch = h - t - b;
+                  if (to <= from || cw <= 0 || ch <= 0) return;
+
+                  txt.setTextAlign(Paint.Align.LEFT);
+                  for (int p = 0; p <= 100; p += 25) {
+                      float y = t + (100 - p) / 100f * ch;
+                      cv.drawLine(l, y, w - r, y, grid);
+                      cv.drawText(p + "%", 2 * d, y + 4 * d, txt);
+                  }
+                  for (Sess s : sess) {
+                      float x1 = x(Math.max(s.st, from), l, cw);
+                      float x2 = x(Math.min(s.en, to), l, cw);
+                      if (x2 <= x1) continue;
+                      band.setColor((Ui.deepColor(s.deepPct()) & 0x00FFFFFF) | 0x33000000);
+                      cv.drawRect(x1, t, x2, t + ch, band);
+                  }
+                  Path path = new Path();
+                  boolean first = true;
+                  int points = 0;
+                  for (int i = 0; i < ts.length; i++) {
+                      if (ts[i] < from || ts[i] > to) continue;
+                      float px = x(ts[i], l, cw);
+                      float py = t + (100 - lvl[i]) / 100f * ch;
+                      if (first) {
+                          path.moveTo(px, py);
+                          first = false;
+                      } else {
+                          path.lineTo(px, py);
+                      }
+                      points++;
+                  }
+                  if (points >= 2) {
+                      line.setColor(accent);
+                      cv.drawPath(path, line);
+                  } else {
+                      txt.setTextAlign(Paint.Align.CENTER);
+                      cv.drawText("Недостатньо даних", l + cw / 2, t + ch / 2, txt);
+                  }
+                  SimpleDateFormat f = new SimpleDateFormat((to - from) <= 36L * 3600000L ? "HH:mm" : "dd.MM", Locale.getDefault());
+                  for (int i = 0; i <= 3; i++) {
+                      long tt = from + (to - from) * i / 3;
+                      txt.setTextAlign(i == 0 ? Paint.Align.LEFT : i == 3 ? Paint.Align.RIGHT : Paint.Align.CENTER);
+                      cv.drawText(f.format(new Date(tt)), l + cw * i / 3f, h - 5 * d, txt);
+                  }
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/BatteryUi.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.app.DatePickerDialog;
+          import android.app.TimePickerDialog;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.res.ColorStateList;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.Button;
+          import android.widget.HorizontalScrollView;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.Switch;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import androidx.viewpager.widget.PagerAdapter;
+          import androidx.viewpager.widget.ViewPager;
+          import java.io.OutputStream;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Calendar;
+          import java.util.List;
+          import java.util.Locale;
+
+          /** Battery-control windows: swipeable pages with a tab strip on top (like BBS Reloaded). */
+          final class BatteryUi {
+              private static final String[] TITLES = {"Мережа", "Журнал", "Період", "Огляд", "Налаштування"};
+              private static final int[] MIN_VALUES = {10, 15, 20, 30, 45, 60, 90, 120};
+              private static final int[] KEEP_VALUES = {3, 7, 14, 30, 60};
+              private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
+
+              private final Activity act;
+              private final SharedPreferences prefs;
+              private final View[] pages = new View[5];
+              private final TextView[] tabText = new TextView[5];
+              private final View[] tabLine = new View[5];
+              private final List<Button> buttons = new ArrayList<>();
+              private HorizontalScrollView tabScroll;
+              private LinearLayout tabRow;
+              private ViewPager pager;
+
+              private LinearLayout logList;
+              private TextView logHint;
+
+              private long rFrom, rTo;
+              private Button btnFrom, btnTo;
+              private DetailView rangeDetail;
+              private int rangeSeq;
+
+              private LevelChart chart;
+              private LinearLayout ovStats;
+              private DetailView ovDetail;
+              private long ovHours = 24;
+              private int ovSeq;
+
+              private Switch swMon;
+              private Button btnMin, btnKeep;
+              private TextView tvAccess, tvCounts;
+              private boolean loadingSet;
+
+              BatteryUi(Activity act) {
+                  this.act = act;
+                  this.prefs = Prefs.get(act);
+              }
+
+              private int accent() { return themeColors[Math.floorMod(prefs.getInt("theme", 0), themeColors.length)]; }
+
+              private int dp(float v) { return Ui.dp(act, v); }
+
+              private void toast(String s) { Toast.makeText(act, s, Toast.LENGTH_LONG).show(); }
+
+              private Button mk(String text) {
+                  Button b = Ui.btn(act, text, accent());
+                  buttons.add(b);
+                  return b;
+              }
+
+              private LinearLayout col() {
+                  LinearLayout l = new LinearLayout(act);
+                  l.setOrientation(LinearLayout.VERTICAL);
+                  l.setPadding(dp(16), dp(12), dp(16), dp(24));
+                  return l;
+              }
+
+              private ScrollView scroll(View content) {
+                  ScrollView s = new ScrollView(act);
+                  s.setBackgroundColor(0xFFF7F8FA);
+                  s.addView(content);
+                  return s;
+              }
+
+              private TextView title(String s) {
+                  TextView t = Ui.tv(act, s, 18, 0xFF202124, true);
+                  t.setPadding(0, dp(4), 0, dp(6));
+                  return t;
+              }
+
+              private LinearLayout hrow(Button... bs) {
+                  LinearLayout row = new LinearLayout(act);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  for (Button b : bs) {
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                      lp.setMargins(dp(2), 0, dp(2), 0);
+                      row.addView(b, lp);
+                  }
+                  return row;
+              }
+
+              // ---------------------------------------------------------------- pager
+
+              View build(View networkPage) {
+                  pages[0] = networkPage;
+                  pages[1] = buildLog();
+                  pages[2] = buildRange();
+                  pages[3] = buildOverview();
+                  pages[4] = buildSettings();
+
+                  LinearLayout root = new LinearLayout(act);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(0xFFF7F8FA);
+
+                  tabScroll = new HorizontalScrollView(act);
+                  tabScroll.setHorizontalScrollBarEnabled(false);
+                  tabScroll.setBackgroundColor(0xFFFFFFFF);
+                  tabRow = new LinearLayout(act);
+                  tabRow.setOrientation(LinearLayout.HORIZONTAL);
+                  for (int i = 0; i < TITLES.length; i++) {
+                      LinearLayout tab = new LinearLayout(act);
+                      tab.setOrientation(LinearLayout.VERTICAL);
+                      TextView t = Ui.tv(act, TITLES[i], 15, 0xFF5F6368, false);
+                      t.setPadding(dp(16), dp(12), dp(16), dp(8));
+                      View line = new View(act);
+                      tab.addView(t);
+                      tab.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
+                      tabText[i] = t;
+                      tabLine[i] = line;
+                      final int idx = i;
+                      tab.setOnClickListener(v -> pager.setCurrentItem(idx, true));
+                      tabRow.addView(tab);
+                  }
+                  tabScroll.addView(tabRow);
+                  root.addView(tabScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  pager = new ViewPager(act);
+                  pager.setAdapter(new PagerAdapter() {
+                      @Override public int getCount() { return pages.length; }
+                      @Override public boolean isViewFromObject(View view, Object object) { return view == object; }
+                      @Override public Object instantiateItem(ViewGroup container, int position) {
+                          View v = pages[position];
+                          container.addView(v);
+                          return v;
+                      }
+                      @Override public void destroyItem(ViewGroup container, int position, Object object) {
+                          container.removeView((View) object);
+                      }
+                  });
+                  pager.setOffscreenPageLimit(4);
+                  pager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+                      @Override public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) { }
+                      @Override public void onPageSelected(int position) {
+                          selectTab(position);
+                          refreshPage(position);
+                      }
+                      @Override public void onPageScrollStateChanged(int state) { }
+                  });
+                  root.addView(pager, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+                  selectTab(0);
+
+                  if (prefs.getBoolean("mon_enabled", true) && !prefs.getBoolean("asked_notif", false)) {
+                      prefs.edit().putBoolean("asked_notif", true).apply();
+                      askNotif();
+                  }
+                  return root;
+              }
+
+              private void selectTab(int p) {
+                  int acc = accent();
+                  for (int i = 0; i < tabText.length; i++) {
+                      boolean on = i == p;
+                      tabText[i].setTextColor(on ? acc : 0xFF5F6368);
+                      tabText[i].setTypeface(null, on ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                      tabLine[i].setBackgroundColor(on ? acc : 0x00000000);
+                  }
+                  View child = tabRow.getChildAt(p);
+                  if (child != null) tabScroll.post(() -> tabScroll.smoothScrollTo(Math.max(0, child.getLeft() - dp(48)), 0));
+              }
+
+              /** Called from the activity's onResume. */
+              void refresh() {
+                  if (pager == null) return;
+                  ColorStateList cs = ColorStateList.valueOf(accent());
+                  for (Button b : buttons) b.setBackgroundTintList(cs);
+                  chart.accent = accent();
+                  selectTab(pager.getCurrentItem());
+                  refreshPage(pager.getCurrentItem());
+              }
+
+              private void refreshPage(int p) {
+                  if (p == 1) loadLog();
+                  else if (p == 2) loadRange();
+                  else if (p == 3) loadOverview();
+                  else if (p == 4) loadSettings();
+              }
+
+              private void askNotif() {
+                  if (Build.VERSION.SDK_INT >= 33 && act.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                      act.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 2);
+                  }
+              }
+
+              // ---------------------------------------------------------------- log page
+
+              private View buildLog() {
+                  LinearLayout col = col();
+                  col.addView(title("Журнал блокувань"));
+                  logHint = Ui.tv(act, "", 13, 0xFF5F6368, false);
+                  logHint.setPadding(0, 0, 0, dp(8));
+                  col.addView(logHint);
+                  logList = new LinearLayout(act);
+                  logList.setOrientation(LinearLayout.VERTICAL);
+                  col.addView(logList);
+                  return scroll(col);
+              }
+
+              private void loadLog() {
+                  new Thread(() -> {
+                      final List<Sess> list = Db.get(act).sessions(0, Long.MAX_VALUE, 300);
+                      act.runOnUiThread(() -> showLog(list));
+                  }).start();
+              }
+
+              private void showLog(List<Sess> list) {
+                  int minMin = prefs.getInt("min_minutes", 30);
+                  boolean on = prefs.getBoolean("mon_enabled", true);
+                  logHint.setText(on
+                          ? "Записуються блокування екрана довші за " + minMin + " хв (без зарядки). Тапніть запис, щоб побачити, що розряджало батарею і не давало заснути."
+                          : "Моніторинг вимкнено. Увімкніть його у вкладці «Налаштування».");
+                  logList.removeAllViews();
+                  if (list.isEmpty()) {
+                      logList.addView(Ui.tv(act, "Записів ще немає. Вони з'являться після першого блокування екрана довше за " + minMin + " хв.", 15, 0xFF30343A, false));
+                      return;
+                  }
+                  for (final Sess s : list) {
+                      LinearLayout card = Ui.card(act);
+                      card.addView(Ui.tv(act, Ui.when(s.st) + "  →  " + Ui.when(s.en), 16, 0xFF202124, true));
+                      card.addView(Ui.tv(act, "Заблоковано: " + Ui.dur(s.durMs()), 14, 0xFF30343A, false));
+                      String drain = "Розряд: " + Ui.signed(s.drop()) + " (" + String.format(Locale.US, "%.2f", s.perHour()) + " %/год)";
+                      double mah = s.mah();
+                      if (mah >= 0) drain += " · " + String.format(Locale.US, "%.0f", mah) + " мАг";
+                      card.addView(Ui.tv(act, drain, 14, 0xFF30343A, false));
+                      int deep = (int) Math.round(s.deepPct());
+                      card.addView(Ui.tv(act, "Глибокий сон: " + deep + "%", 14, Ui.deepColor(s.deepPct()), true));
+                      if (s.sched) card.addView(Ui.tv(act, "Мережа була вимкнена за розкладом", 13, accent(), false));
+                      if (s.snapA <= 0 || s.snapB <= 0) card.addView(Ui.tv(act, "Деталей немає: статистику не вдалося зчитати", 12, 0xFF5F6368, false));
+                      card.setOnClickListener(v -> {
+                          Intent i = new Intent(act, SessionActivity.class);
+                          i.putExtra("id", s.id);
+                          act.startActivity(i);
+                      });
+                      logList.addView(card, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 0, 0, 10));
+                  }
+              }
+
+              // ---------------------------------------------------------------- range page
+
+              private View buildRange() {
+                  LinearLayout col = col();
+                  col.addView(title("Вибір проміжку часу"));
+                  btnFrom = mk("");
+                  btnTo = mk("");
+                  col.addView(hrow(btnFrom, btnTo));
+                  Button pNight = mk("Ніч");
+                  Button p6 = mk("6 год");
+                  Button p24 = mk("24 год");
+                  Button p7 = mk("7 днів");
+                  col.addView(hrow(pNight, p6, p24, p7), Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 4, 0, 0));
+                  rangeDetail = new DetailView(act);
+                  col.addView(rangeDetail);
+
+                  rTo = prefs.getLong("r_to", 0);
+                  rFrom = prefs.getLong("r_from", 0);
+                  if (rTo <= rFrom) setPreset(0);
+
+                  btnFrom.setOnClickListener(v -> pickDateTime(true));
+                  btnTo.setOnClickListener(v -> pickDateTime(false));
+                  pNight.setOnClickListener(v -> { setPreset(0); rangeChanged(); });
+                  p6.setOnClickListener(v -> { setPreset(1); rangeChanged(); });
+                  p24.setOnClickListener(v -> { setPreset(2); rangeChanged(); });
+                  p7.setOnClickListener(v -> { setPreset(3); rangeChanged(); });
+                  updateRangeButtons();
+                  return scroll(col);
+              }
+
+              private void setPreset(int kind) {
+                  long now = System.currentTimeMillis();
+                  if (kind == 0) {
+                      Calendar c = Calendar.getInstance();
+                      c.set(Calendar.HOUR_OF_DAY, 8);
+                      c.set(Calendar.MINUTE, 0);
+                      c.set(Calendar.SECOND, 0);
+                      c.set(Calendar.MILLISECOND, 0);
+                      long end = Math.min(c.getTimeInMillis(), now);
+                      rTo = end;
+                      rFrom = end - 10L * 3600000L;
+                  } else {
+                      long span = kind == 1 ? 6L * 3600000L : kind == 2 ? 24L * 3600000L : 7L * 24L * 3600000L;
+                      rTo = now;
+                      rFrom = now - span;
+                  }
+              }
+
+              private void pickDateTime(final boolean from) {
+                  final Calendar c = Calendar.getInstance();
+                  c.setTimeInMillis(from ? rFrom : rTo);
+                  new DatePickerDialog(act, (dv, y, mo, d) -> {
+                      new TimePickerDialog(act, (tv, h, m) -> {
+                          Calendar n = Calendar.getInstance();
+                          n.set(y, mo, d, h, m, 0);
+                          n.set(Calendar.MILLISECOND, 0);
+                          if (from) rFrom = n.getTimeInMillis();
+                          else rTo = n.getTimeInMillis();
+                          rangeChanged();
+                      }, c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show();
+                  }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+              }
+
+              private void rangeChanged() {
+                  if (rTo <= rFrom) {
+                      toast("Кінець проміжку має бути пізніше за початок");
+                      updateRangeButtons();
+                      return;
+                  }
+                  prefs.edit().putLong("r_from", rFrom).putLong("r_to", rTo).apply();
+                  loadRange();
+              }
+
+              private void updateRangeButtons() {
+                  btnFrom.setText("Від: " + Ui.when(rFrom));
+                  btnTo.setText("До: " + Ui.when(rTo));
+              }
+
+              private void loadRange() {
+                  updateRangeButtons();
+                  if (rTo <= rFrom) return;
+                  final int seq = ++rangeSeq;
+                  rangeDetail.message("Обчислення…");
+                  final long f = rFrom, t = rTo;
+                  new Thread(() -> {
+                      final Detail d = Detail.forRange(act.getApplicationContext(), f, t);
+                      act.runOnUiThread(() -> {
+                          if (seq == rangeSeq) rangeDetail.show(d, accent(), 25, 15);
+                      });
+                  }).start();
+              }
+
+              // ---------------------------------------------------------------- overview page
+
+              private View buildOverview() {
+                  LinearLayout col = col();
+                  col.addView(title("Огляд"));
+                  Button b12 = mk("12 год");
+                  Button b24 = mk("24 год");
+                  Button b72 = mk("3 дні");
+                  Button b168 = mk("7 днів");
+                  col.addView(hrow(b12, b24, b72, b168));
+                  chart = new LevelChart(act);
+                  col.addView(chart, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, dp(220), 0, 8, 0, 0));
+                  col.addView(Ui.tv(act, "Фон графіка — блокування: зелений (глибокий сон ≥ 85%), жовтий (60–85%), червоний (< 60%).", 12, 0xFF5F6368, false));
+                  ovStats = Ui.card(act);
+                  col.addView(ovStats, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 10, 0, 0));
+                  ovDetail = new DetailView(act);
+                  col.addView(ovDetail);
+                  b12.setOnClickListener(v -> { ovHours = 12; loadOverview(); });
+                  b24.setOnClickListener(v -> { ovHours = 24; loadOverview(); });
+                  b72.setOnClickListener(v -> { ovHours = 72; loadOverview(); });
+                  b168.setOnClickListener(v -> { ovHours = 168; loadOverview(); });
+                  return scroll(col);
+              }
+
+              private static final class Agg {
+                  int n;
+                  long dur, el, deep;
+                  int drop;
+                  void add(Sess s) {
+                      n++;
+                      dur += s.durMs();
+                      el += s.el;
+                      deep += Math.max(0, s.el - s.up);
+                      drop += s.drop();
+                  }
+                  double perHour() { return dur <= 0 ? 0 : drop / (dur / 3600000.0); }
+                  double deepPct() { return el <= 0 ? 0 : 100.0 * deep / el; }
+                  String text() {
+                      return n + " зап. · " + String.format(Locale.US, "%.2f", perHour()) + " %/год · глибокий сон " + Math.round(deepPct()) + "%";
+                  }
+              }
+
+              private void loadOverview() {
+                  final int seq = ++ovSeq;
+                  final long to = System.currentTimeMillis();
+                  final long from = to - ovHours * 3600000L;
+                  chart.accent = accent();
+                  ovDetail.message("Обчислення…");
+                  new Thread(() -> {
+                      Db db = Db.get(act);
+                      List<long[]> lv = db.levels(from, to);
+                      final long[] ts = new long[lv.size()];
+                      final int[] lvl = new int[lv.size()];
+                      for (int i = 0; i < ts.length; i++) {
+                          ts[i] = lv.get(i)[0];
+                          lvl[i] = (int) lv.get(i)[1];
+                      }
+                      final List<Sess> ss = db.sessions(from, to, 500);
+                      final Detail d = Detail.forRange(act.getApplicationContext(), from, to);
+                      act.runOnUiThread(() -> {
+                          if (seq != ovSeq) return;
+                          chart.set(from, to, ts, lvl, ss);
+                          showStats(ss);
+                          ovDetail.show(d, accent(), 8, 8);
+                      });
+                  }).start();
+              }
+
+              private void showStats(List<Sess> ss) {
+                  ovStats.removeAllViews();
+                  ovStats.addView(Ui.tv(act, "Підсумок за період", 16, 0xFF202124, true));
+                  if (ss.isEmpty()) {
+                      ovStats.addView(Ui.tv(act, "Довгих блокувань за цей період немає.", 14, 0xFF30343A, false));
+                      return;
+                  }
+                  Agg all = new Agg(), on = new Agg(), off = new Agg();
+                  Sess worst = null;
+                  for (Sess s : ss) {
+                      all.add(s);
+                      if (s.sched) on.add(s);
+                      else off.add(s);
+                      if (s.el > 0 && (worst == null || s.deepPct() < worst.deepPct())) worst = s;
+                  }
+                  ovStats.addView(Ui.tv(act, "Довгих блокувань: " + all.n + " (сумарно " + Ui.dur(all.dur) + ")", 14, 0xFF30343A, false));
+                  ovStats.addView(Ui.tv(act, "У середньому: " + String.format(Locale.US, "%.2f", all.perHour()) + " %/год, глибокий сон " + Math.round(all.deepPct()) + "%", 14, Ui.deepColor(all.deepPct()), true));
+                  if (worst != null) {
+                      ovStats.addView(Ui.tv(act, "Найгірший запис: " + Ui.when(worst.st) + ", глибокий сон " + Math.round(worst.deepPct()) + "%", 14, 0xFF30343A, false));
+                  }
+                  if (on.n > 0 && off.n > 0) {
+                      ovStats.addView(Ui.tv(act, "З вимкненою мережею (розклад): " + on.text(), 13, 0xFF30343A, false));
+                      ovStats.addView(Ui.tv(act, "Без розкладу: " + off.text(), 13, 0xFF30343A, false));
+                  }
+              }
+
+              // ---------------------------------------------------------------- settings page
+
+              private View buildSettings() {
+                  LinearLayout col = col();
+                  col.addView(title("Налаштування моніторингу"));
+
+                  swMon = new Switch(act);
+                  swMon.setText("Моніторинг батареї (фоновий збір даних)");
+                  swMon.setTextSize(16);
+                  swMon.setPadding(0, dp(8), 0, dp(8));
+                  col.addView(swMon);
+
+                  btnMin = mk("");
+                  btnKeep = mk("");
+                  col.addView(btnMin);
+                  col.addView(btnKeep);
+
+                  col.addView(title("Доступ до статистики"));
+                  tvAccess = Ui.tv(act, "Натисніть «Перевірити доступ».", 14, 0xFF30343A, false);
+                  col.addView(tvAccess);
+                  Button btnCheck = mk("Перевірити доступ");
+                  col.addView(btnCheck, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 6, 0, 0));
+
+                  TextView adb = Ui.tv(act,
+                          "Дані читаються через Shizuku. Без root Shizuku вимикається після перезавантаження телефона, тому надійніше один раз виконати на ПК (телефон по USB з увімкненим налагодженням):\n\n"
+                                  + "adb shell pm grant com.example.nightnet android.permission.DUMP\n"
+                                  + "adb shell pm grant com.example.nightnet android.permission.BATTERY_STATS\n"
+                                  + "adb shell appops set com.example.nightnet GET_USAGE_STATS allow\n\n"
+                                  + "Після цього застосунок читає статистику сам, без Shizuku.",
+                          12, 0xFF30343A, false);
+                  adb.setTextIsSelectable(true);
+                  adb.setPadding(0, dp(10), 0, dp(6));
+                  col.addView(adb);
+
+                  col.addView(title("Дані"));
+                  tvCounts = Ui.tv(act, "", 13, 0xFF5F6368, false);
+                  col.addView(tvCounts);
+                  Button btnCsv = mk("Експорт журналу (CSV у Завантаження)");
+                  Button btnRaw = mk("Зберегти сирий вивід dumpsys (діагностика)");
+                  Button btnClear = mk("Очистити журнал і знімки");
+                  col.addView(btnCsv, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 6, 0, 0));
+                  col.addView(btnRaw);
+                  col.addView(btnClear);
+
+                  swMon.setOnCheckedChangeListener((v, on) -> {
+                      if (loadingSet) return;
+                      prefs.edit().putBoolean("mon_enabled", on).apply();
+                      if (on) askNotif();
+                      MonitorService.ensure(act.getApplicationContext());
+                  });
+                  btnMin.setOnClickListener(v -> {
+                      prefs.edit().putInt("min_minutes", nextValue(MIN_VALUES, prefs.getInt("min_minutes", 30))).apply();
+                      loadSettings();
+                  });
+                  btnKeep.setOnClickListener(v -> {
+                      prefs.edit().putInt("keep_days", nextValue(KEEP_VALUES, prefs.getInt("keep_days", 14))).apply();
+                      loadSettings();
+                  });
+                  btnCheck.setOnClickListener(v -> checkAccess());
+                  btnCsv.setOnClickListener(v -> exportCsv());
+                  btnRaw.setOnClickListener(v -> new Thread(() -> {
+                      final String r = Dump.saveRaw(act.getApplicationContext());
+                      act.runOnUiThread(() -> toast(r));
+                  }).start());
+                  btnClear.setOnClickListener(v -> new AlertDialog.Builder(act)
+                          .setMessage("Видалити весь журнал і всі збережені знімки статистики?")
+                          .setPositiveButton("Видалити", (dlg, w) -> new Thread(() -> {
+                              Db.get(act).clear();
+                              act.runOnUiThread(() -> { toast("Очищено"); loadSettings(); });
+                          }).start())
+                          .setNegativeButton("Скасувати", null)
+                          .show());
+                  return scroll(col);
+              }
+
+              private static int nextValue(int[] vals, int cur) {
+                  for (int v : vals) if (v > cur) return v;
+                  return vals[0];
+              }
+
+              private void loadSettings() {
+                  loadingSet = true;
+                  swMon.setChecked(prefs.getBoolean("mon_enabled", true));
+                  loadingSet = false;
+                  btnMin.setText("Мінімальна тривалість запису: " + prefs.getInt("min_minutes", 30) + " хв (тап — змінити)");
+                  btnKeep.setText("Зберігати історію: " + prefs.getInt("keep_days", 14) + " дн. (тап — змінити)");
+                  new Thread(() -> {
+                      final int[] cnt = Db.get(act).counts();
+                      act.runOnUiThread(() -> tvCounts.setText("У базі: " + cnt[0] + " знімків статистики, " + cnt[1] + " записів журналу."));
+                  }).start();
+              }
+
+              private void checkAccess() {
+                  tvAccess.setText("Перевірка…");
+                  new Thread(() -> {
+                      Dump.resetBackoff();
+                      Snap s = Dump.take();
+                      final String msg;
+                      if (s == null) {
+                          msg = "Доступу немає. Запустіть Shizuku і дайте йому дозвіл цьому застосунку (вкладка «Мережа»), або виконайте adb-команди нижче.";
+                      } else {
+                          msg = "Доступ є (" + Dump.lastSource + "). Розпізнано: застосунків і компонентів — " + s.power.size()
+                                  + ", wakelock'ів застосунків — " + s.wake.size() + ", wakelock'ів ядра — " + s.kernel.size()
+                                  + ", причин пробудження — " + s.reasons.size() + ".";
+                      }
+                      act.runOnUiThread(() -> tvAccess.setText(msg));
+                  }).start();
+              }
+
+              private void exportCsv() {
+                  new Thread(() -> {
+                      String r;
+                      try {
+                          List<Sess> list = Db.get(act).sessions(0, Long.MAX_VALUE, 100000);
+                          Uri u = Files.download(act, "nightnet_battery_log.csv", "text/csv");
+                          if (u == null) throw new IllegalStateException("no uri");
+                          OutputStream os = act.getContentResolver().openOutputStream(u);
+                          SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+                          StringBuilder sb = new StringBuilder("start,end,duration_min,level_start,level_end,drop_percent,percent_per_hour,deep_sleep_percent,mah,schedule\n");
+                          for (Sess s : list) {
+                              sb.append(f.format(new java.util.Date(s.st))).append(',')
+                                      .append(f.format(new java.util.Date(s.en))).append(',')
+                                      .append(s.durMs() / 60000L).append(',')
+                                      .append(s.stLvl).append(',').append(s.enLvl).append(',').append(s.drop()).append(',')
+                                      .append(String.format(Locale.US, "%.2f", s.perHour())).append(',')
+                                      .append(String.format(Locale.US, "%.1f", s.deepPct())).append(',')
+                                      .append(s.mah() >= 0 ? String.format(Locale.US, "%.0f", s.mah()) : "").append(',')
+                                      .append(s.sched ? 1 : 0).append('\n');
+                          }
+                          os.write(sb.toString().getBytes("UTF-8"));
+                          os.close();
+                          r = "Збережено у Завантаження: nightnet_battery_log.csv";
+                      } catch (Throwable t) {
+                          r = "Не вдалося зберегти файл";
+                      }
+                      final String m = r;
+                      act.runOnUiThread(() -> toast(m));
+                  }).start();
+              }
+          }
+          EOF
+
+          cat > src/main/java/com/example/nightnet/SessionActivity.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.MenuItem;
+          import android.view.ViewGroup;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import java.util.Locale;
+
+          public class SessionActivity extends Activity {
+              private LinearLayout head;
+              private DetailView detail;
+              private int accent;
+
+              @Override protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setTitle("Деталі запису");
+                  if (getActionBar() != null) getActionBar().setDisplayHomeAsUpEnabled(true);
+                  int[] colors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
+                  accent = colors[Math.floorMod(Prefs.get(this).getInt("theme", 0), colors.length)];
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 24));
+                  head = Ui.card(this);
+                  head.addView(Ui.tv(this, "Завантаження…", 15, 0xFF30343A, false));
+                  root.addView(head, Ui.lp(this, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 0, 0, 0));
+                  detail = new DetailView(this);
+                  root.addView(detail);
+                  ScrollView sv = new ScrollView(this);
+                  sv.setBackgroundColor(0xFFF7F8FA);
+                  sv.addView(root);
+                  setContentView(sv);
+
+                  final long id = getIntent().getLongExtra("id", 0);
+                  new Thread(() -> {
+                      final Sess s = Db.get(getApplicationContext()).session(id);
+                      final Detail d = s == null ? null : Detail.forSession(getApplicationContext(), s);
+                      runOnUiThread(() -> bind(s, d));
+                  }).start();
+              }
+
+              private TextView line(String s, float sp, int color, boolean bold) {
+                  TextView t = Ui.tv(this, s, sp, color, bold);
+                  t.setPadding(0, Ui.dp(this, 2), 0, 0);
+                  return t;
+              }
+
+              private void bind(Sess s, Detail d) {
+                  head.removeAllViews();
+                  if (s == null) {
+                      head.addView(line("Запис не знайдено (можливо, його вже видалено).", 15, 0xFF30343A, false));
+                      detail.removeAllViews();
+                      return;
+                  }
+                  head.addView(line(Ui.when(s.st) + "  →  " + Ui.when(s.en), 17, 0xFF202124, true));
+                  head.addView(line("Заблоковано: " + Ui.dur(s.durMs()), 14, 0xFF30343A, false));
+                  String drain = "Заряд: " + s.stLvl + "% → " + s.enLvl + "% (" + Ui.signed(s.drop()) + ", "
+                          + String.format(Locale.US, "%.2f", s.perHour()) + " %/год)";
+                  double mah = s.mah();
+                  if (mah >= 0) drain += " · " + String.format(Locale.US, "%.0f", mah) + " мАг";
+                  head.addView(line(drain, 14, 0xFF30343A, false));
+                  long deepMs = Math.max(0, s.el - s.up);
+                  head.addView(line("Глибокий сон: " + Math.round(s.deepPct()) + "% часу (" + Ui.dur(deepMs) + " з " + Ui.dur(s.el) + ")",
+                          14, Ui.deepColor(s.deepPct()), true));
+                  head.addView(line("Не в глибокому сні: " + Ui.dur(Math.max(0, s.el - deepMs)), 14, 0xFF30343A, false));
+                  if (s.sched) head.addView(line("Мережа була вимкнена за розкладом", 13, accent, false));
+                  detail.show(d, accent, 30, 20);
+              }
+
+              @Override public boolean onOptionsItemSelected(MenuItem item) {
+                  if (item.getItemId() == android.R.id.home) {
+                      finish();
+                      return true;
+                  }
+                  return super.onOptionsItemSelected(item);
               }
           }
           EOF
