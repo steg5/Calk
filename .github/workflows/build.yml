@@ -25,7 +25,39 @@ jobs:
 
       - name: Create app files
         run: |
-          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable src/main/res/layout
+          mkdir -p src/main/java/com/example/nightnet src/main/res/drawable src/main/res/layout src/main/res/raw
+
+          base64 -d > src/main/res/raw/silence.wav <<'EOF'
+          UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          EOF
 
           cat > settings.gradle.kts <<'EOF'
           pluginManagement {
@@ -1265,6 +1297,100 @@ jobs:
           }
           EOF
 
+          cat > src/main/java/com/example/nightnet/Usage.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.usage.NetworkStats;
+          import android.app.usage.NetworkStatsManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.net.ConnectivityManager;
+          import android.net.TrafficStats;
+          import android.app.Notification;
+          import java.util.Calendar;
+          import java.util.Locale;
+
+          /** Mobile data used in the current monthly period, and a one-time warning at a chosen limit. */
+          final class Usage {
+              /** Start of the current period: the most recent billing day at 00:00. */
+              static long periodStart(SharedPreferences p, long nowMs) {
+                  int day = Math.max(1, Math.min(31, p.getInt("bill_day", 1)));
+                  Calendar now = Calendar.getInstance();
+                  now.setTimeInMillis(nowMs);
+                  Calendar st = (Calendar) now.clone();
+                  st.set(Calendar.DAY_OF_MONTH, Math.min(day, st.getActualMaximum(Calendar.DAY_OF_MONTH)));
+                  st.set(Calendar.HOUR_OF_DAY, 0);
+                  st.set(Calendar.MINUTE, 0);
+                  st.set(Calendar.SECOND, 0);
+                  st.set(Calendar.MILLISECOND, 0);
+                  if (st.after(now)) {
+                      st.set(Calendar.DAY_OF_MONTH, 1);
+                      st.add(Calendar.MONTH, -1);
+                      st.set(Calendar.DAY_OF_MONTH, Math.min(day, st.getActualMaximum(Calendar.DAY_OF_MONTH)));
+                  }
+                  return st.getTimeInMillis();
+              }
+
+              /** Own counter, used if the system statistics are not available. Resets when a new period begins. */
+              private static void poll(SharedPreferences p, long start) {
+                  long cur = Math.max(0, TrafficStats.getMobileRxBytes()) + Math.max(0, TrafficStats.getMobileTxBytes());
+                  long last = p.getLong("use_last", -1);
+                  long acc = p.getLong("use_acc", 0);
+                  if (p.getLong("use_period", 0) != start) acc = 0;
+                  if (last >= 0) acc += cur >= last ? cur - last : cur;
+                  p.edit().putLong("use_last", cur).putLong("use_acc", acc).putLong("use_period", start).apply();
+              }
+
+              static synchronized long monthBytes(Context c) {
+                  SharedPreferences p = Prefs.get(c);
+                  long now = System.currentTimeMillis();
+                  long start = periodStart(p, now);
+                  poll(p, start);
+                  try {
+                      NetworkStatsManager nsm = c.getSystemService(NetworkStatsManager.class);
+                      NetworkStats.Bucket b = nsm.querySummaryForDevice(ConnectivityManager.TYPE_MOBILE, null, start, now);
+                      return b.getRxBytes() + b.getTxBytes();
+                  } catch (Throwable t) {
+                      return p.getLong("use_acc", 0);
+                  }
+              }
+
+              static String fmt(long bytes) {
+                  double mb = bytes / 1048576.0;
+                  if (mb < 1000) return String.format(Locale.US, "%.0f МБ", mb);
+                  return String.format(Locale.US, "%.2f ГБ", mb / 1024.0);
+              }
+
+              static void checkLimit(Context c) {
+                  try {
+                      SharedPreferences p = Prefs.get(c);
+                      if (!p.getBoolean("limit_on", false)) return;
+                      long limit = (long) (p.getFloat("limit_gb", 3.8f) * 1073741824.0);
+                      long start = periodStart(p, System.currentTimeMillis());
+                      if (p.getLong("limit_notified", 0) == start) return;
+                      long used = monthBytes(c);
+                      if (used < limit) return;
+                      NotificationManager nm = c.getSystemService(NotificationManager.class);
+                      nm.createNotificationChannel(new NotificationChannel("limit", "Ліміт трафіку", NotificationManager.IMPORTANCE_DEFAULT));
+                      PendingIntent pi = PendingIntent.getActivity(c, 0, new Intent(c, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+                      Notification n = new Notification.Builder(c, "limit")
+                              .setSmallIcon(R.drawable.ic_stat)
+                              .setContentTitle("Ліміт мобільного трафіку")
+                              .setContentText("Використано " + fmt(used) + " за цей місяць")
+                              .setContentIntent(pi)
+                              .setAutoCancel(true)
+                              .build();
+                      nm.notify(3, n);
+                      p.edit().putLong("limit_notified", start).apply();
+                  } catch (Throwable ignored) { }
+              }
+          }
+          EOF
+
           cat > src/main/java/com/example/nightnet/MonitorService.java <<'EOF'
           package com.example.nightnet;
 
@@ -1425,7 +1551,8 @@ jobs:
           }
 
           public class MonitorService extends Service {
-              private static final String CH = "monitor_v2";
+              private static final String CH = "monitor_v3";
+              private static final String CH_CUR = "monitor_cur";
               private static final String CH_MIN = "monitor_min";
               private HandlerThread ht;
               private Handler h;
@@ -1433,16 +1560,21 @@ jobs:
               private PowerManager.WakeLock wl;
               private NotificationManager nm;
               private ConnectivityManager.NetworkCallback netCb;
+              private boolean curShown;
               private boolean unlocked;
               private boolean ticking;
               private boolean basicShown = true;
               private long lastRx, lastTx, lastT;
+              private long usageAt;
+              private String usageText;
+              private String lastBasic = "";
 
               static boolean needed(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   return p.getBoolean("mon_enabled", true) || p.getBoolean("show_speed", false)
                           || p.getBoolean("show_current", false) || p.getBoolean("wifi_auto", false)
-                          || p.getBoolean("enabled", false);
+                          || p.getBoolean("enabled", false)
+                          || p.getBoolean("show_usage", false) || p.getBoolean("limit_on", false);
               }
 
               static void ensure(Context c) {
@@ -1458,9 +1590,10 @@ jobs:
 
               @Override public IBinder onBind(Intent intent) { return null; }
 
-              private Notification build(CharSequence left, CharSequence right, Icon icon) {
+              /** quiet = minimal channel (no status bar icon); otherwise the icon is shown in the status bar. */
+              private Notification build(CharSequence left, CharSequence right, Icon icon, boolean quiet) {
                   PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-                  Notification.Builder b = new Notification.Builder(this, (left == null && right == null) ? CH_MIN : CH)
+                  Notification.Builder b = new Notification.Builder(this, quiet ? CH_MIN : CH)
                           .setOngoing(true)
                           .setOnlyAlertOnce(true)
                           .setShowWhen(false)
@@ -1472,8 +1605,6 @@ jobs:
                       rv.setTextViewText(R.id.left, left == null ? "" : left);
                       rv.setTextViewText(R.id.right, right == null ? "" : right);
                       b.setStyle(new Notification.DecoratedCustomViewStyle()).setCustomContentView(rv);
-                  } else {
-                      b.setContentTitle("Мої налаштування").setContentText("Працює у фоні");
                   }
                   return b.build();
               }
@@ -1481,15 +1612,30 @@ jobs:
               @Override public void onCreate() {
                   super.onCreate();
                   nm = getSystemService(NotificationManager.class);
-                  try { nm.deleteNotificationChannel("monitor"); } catch (Throwable ignored) { }
-                  NotificationChannel ch = new NotificationChannel(CH, "Фонова робота", NotificationManager.IMPORTANCE_LOW);
+                  try { nm.deleteNotificationChannel("monitor"); nm.deleteNotificationChannel("monitor_v2"); } catch (Throwable ignored) { }
+                  // Normal importance with an inaudible sound: the system treats it as a non-silent notification
+                  // and keeps its icon in the status bar even when "hide silent notifications" is on.
+                  android.net.Uri silent = android.net.Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.silence);
+                  android.media.AudioAttributes aa = new android.media.AudioAttributes.Builder()
+                          .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                          .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+                  NotificationChannel ch = new NotificationChannel(CH, "Швидкість у рядку стану", NotificationManager.IMPORTANCE_DEFAULT);
                   ch.setShowBadge(false);
+                  ch.setSound(silent, aa);
+                  ch.enableVibration(false);
+                  ch.enableLights(false);
                   nm.createNotificationChannel(ch);
+                  NotificationChannel chCur = new NotificationChannel(CH_CUR, "Струм заряду у рядку стану", NotificationManager.IMPORTANCE_DEFAULT);
+                  chCur.setShowBadge(false);
+                  chCur.setSound(silent, aa);
+                  chCur.enableVibration(false);
+                  chCur.enableLights(false);
+                  nm.createNotificationChannel(chCur);
                   // Idle state uses a minimal channel: no icon in the status bar, only in the shade.
                   NotificationChannel chMin = new NotificationChannel(CH_MIN, "Фонова робота (без значка)", NotificationManager.IMPORTANCE_MIN);
                   chMin.setShowBadge(false);
                   nm.createNotificationChannel(chMin);
-                  startForeground(2, build(null, null, null));
+                  startForeground(2, build(null, null, null, true));
 
                   ht = new HandlerThread("nightnet-monitor");
                   ht.start();
@@ -1520,7 +1666,7 @@ jobs:
               }
 
               @Override public int onStartCommand(Intent intent, int flags, int startId) {
-                  try { startForeground(2, build(null, null, null)); basicShown = true; } catch (Throwable ignored) { }
+                  try { startForeground(2, build(null, null, null, true)); basicShown = true; lastBasic = ""; } catch (Throwable ignored) { }
                   h.post(this::applyFeatures);
                   return START_STICKY;
               }
@@ -1530,6 +1676,7 @@ jobs:
                   try {
                       if (netCb != null) getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netCb);
                   } catch (Throwable ignored) { }
+                  try { nm.cancel(4); } catch (Throwable ignored) { }
                   if (ht != null) ht.quitSafely();
                   super.onDestroy();
               }
@@ -1566,6 +1713,7 @@ jobs:
                           netCb = null;
                       }
                       if (!want) WifiAuto.eval(this);
+                      showBasic(true);
                       kick();
                   } catch (Throwable ignored) { }
               }
@@ -1599,26 +1747,64 @@ jobs:
                   }
               }
 
-              private void resetNotification() {
-                  if (basicShown) return;
-                  try { nm.notify(2, build(null, null, null)); basicShown = true; } catch (Throwable ignored) { }
+              private String usageLine() {
+                  if (!Prefs.get(this).getBoolean("show_usage", false)) return null;
+                  long now = SystemClock.elapsedRealtime();
+                  if (usageText == null || usageAt == 0 || now - usageAt > 30000L) {
+                      usageText = "Трафік за місяць: " + Usage.fmt(Usage.monthBytes(this));
+                      usageAt = now;
+                      Usage.checkLimit(this);
+                  }
+                  return usageText;
               }
 
-              private Icon speedIcon(double bps) {
-                  String[] p = Fmt.speed(bps);
+              private void resetNotification() { showBasic(false); }
+
+              /** Idle notification: no icon in the status bar, only the monthly usage line (if enabled). */
+              private void showBasic(boolean refresh) {
+                  try {
+                      if (refresh) usageAt = 0;
+                      String t = usageLine();
+                      String key = t == null ? "" : t;
+                      if (basicShown && key.equals(lastBasic)) return;
+                      nm.notify(2, build(t, null, null, true));
+                      basicShown = true;
+                      lastBasic = key;
+                  } catch (Throwable ignored) { }
+              }
+
+              private Icon textIcon(String num, String unit, boolean thin) {
                   int s = 96;
                   Bitmap bm = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888);
                   Canvas cv = new Canvas(bm);
                   Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
                   pt.setColor(0xFFFFFFFF);
-                  pt.setTypeface("kB/s".equals(p[1]) ? Typeface.create("sans-serif-thin", Typeface.NORMAL) : Typeface.DEFAULT_BOLD);
+                  pt.setTypeface(thin ? Typeface.create("sans-serif-thin", Typeface.NORMAL) : Typeface.DEFAULT_BOLD);
                   pt.setTextAlign(Paint.Align.CENTER);
                   pt.setTextSize(58);
-                  while (pt.measureText(p[0]) > s - 4 && pt.getTextSize() > 20) pt.setTextSize(pt.getTextSize() - 2);
-                  cv.drawText(p[0], s / 2f, 50, pt);
+                  while (pt.measureText(num) > s - 4 && pt.getTextSize() > 20) pt.setTextSize(pt.getTextSize() - 2);
+                  cv.drawText(num, s / 2f, 50, pt);
                   pt.setTextSize(34);
-                  cv.drawText(p[1], s / 2f, 90, pt);
+                  cv.drawText(unit, s / 2f, 90, pt);
                   return Icon.createWithBitmap(bm);
+              }
+
+              private Icon speedIcon(double bps) {
+                  String[] p = Fmt.speed(bps);
+                  return textIcon(p[0], p[1], "kB/s".equals(p[1]));
+              }
+
+              private Notification curNote(double ma) {
+                  PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+                  String n = String.format(Locale.US, "%.0f", ma);
+                  return new Notification.Builder(this, CH_CUR)
+                          .setSmallIcon(textIcon(n, "mA", false))
+                          .setContentTitle("Струм заряду: " + n + " мА")
+                          .setOngoing(true)
+                          .setOnlyAlertOnce(true)
+                          .setShowWhen(false)
+                          .setContentIntent(pi)
+                          .build();
               }
 
               /** Returns true if the ticker should keep running. */
@@ -1626,35 +1812,36 @@ jobs:
                   SharedPreferences cfg = Prefs.get(this);
                   boolean speed = cfg.getBoolean("show_speed", false);
                   boolean cur = cfg.getBoolean("show_current", false);
-                  BatInfo b = cur ? Power.info(this) : null;
-                  boolean showCur = cur && b != null && b.charging && !Double.isNaN(b.ma);
+                  BatInfo b = (unlocked && cur) ? Power.info(this) : null;
+                  boolean showCur = b != null && b.charging && !Double.isNaN(b.ma);
+                  // The charging current has its own status bar icon next to the speed icon.
+                  if (showCur) {
+                      nm.notify(4, curNote(b.ma));
+                      curShown = true;
+                  } else if (curShown) {
+                      nm.cancel(4);
+                      curShown = false;
+                  }
                   if (!unlocked || (!speed && !showCur)) {
                       lastT = 0;
-                      resetNotification();
+                      showBasic(false);
                       // Unlocking or connecting a charger restarts the ticker.
                       return false;
                   }
                   long rx = TrafficStats.getTotalRxBytes();
-                  long tx = TrafficStats.getTotalTxBytes();
                   long t = SystemClock.elapsedRealtime();
                   double rxs = 0;
-                  if (lastT > 0 && t > lastT && rx >= 0) {
-                      long dt = t - lastT;
-                      rxs = Math.max(0, (rx - lastRx) * 1000.0 / dt);
-                  }
+                  if (lastT > 0 && t > lastT && rx >= 0) rxs = Math.max(0, (rx - lastRx) * 1000.0 / (t - lastT));
                   lastRx = rx;
-                  lastTx = tx;
                   lastT = t;
                   // Speeds below 10 kB/s are noise: treat them as no traffic and show nothing.
-                  boolean showSpeed = speed && rxs >= 10 * 1024;
-                  CharSequence left = showSpeed ? "↓ " + Fmt.line(rxs) : null;
-                  CharSequence right = showCur ? "⚡ " + String.format(Locale.US, "%.0f", b.ma) + " мА" : null;
-                  if (left == null && right == null) {
-                      resetNotification();
-                  } else {
-                      nm.notify(2, build(left, right, showSpeed ? speedIcon(rxs) : null));
-                      basicShown = false;
+                  if (!(speed && rxs >= 10 * 1024)) {
+                      showBasic(false);
+                      return true;
                   }
+                  // Speed goes only into the status bar icon; the text holds the monthly usage.
+                  nm.notify(2, build(usageLine(), null, speedIcon(rxs), false));
+                  basicShown = false;
                   return true;
               }
 
@@ -1669,7 +1856,7 @@ jobs:
                       if (Intent.ACTION_SCREEN_OFF.equals(a)) {
                           unlocked = false;
                           if (cfg.getLong("idle_since", 0) == 0) cfg.edit().putLong("idle_since", now).apply();
-                          resetNotification();
+                          showBasic(true);
                           Scheduler.sync(this);
                           if (mon && !open) startSession(m, now, el, up);
                       } else if (Intent.ACTION_USER_PRESENT.equals(a) || (Intent.ACTION_SCREEN_ON.equals(a) && !locked())) {
@@ -1677,6 +1864,7 @@ jobs:
                           cfg.edit().putLong("idle_since", 0).apply();
                           Scheduler.sync(this);
                           if (mon && open) endSession(m, now, el, up);
+                          Usage.checkLimit(this);
                           kick();
                       } else if (Intent.ACTION_POWER_CONNECTED.equals(a)) {
                           if (open) m.edit().putBoolean("charged", true).apply();
@@ -1760,7 +1948,12 @@ jobs:
           cat > src/main/java/com/example/nightnet/Views.java <<'EOF'
           package com.example.nightnet;
 
+          import android.app.Activity;
+          import android.app.AlertDialog;
           import android.content.Context;
+          import android.text.InputType;
+          import android.widget.EditText;
+          import android.widget.NumberPicker;
           import android.content.res.ColorStateList;
           import android.graphics.Canvas;
           import android.graphics.Paint;
@@ -2068,6 +2261,32 @@ jobs:
                       txt.setTextAlign(i == 0 ? Paint.Align.LEFT : i == 3 ? Paint.Align.RIGHT : Paint.Align.CENTER);
                       cv.drawText(f.format(new Date(tt)), l + cw * i / 3f, h - 5 * d, txt);
                   }
+              }
+          }
+
+          final class Dlg {
+              static void pickInt(Activity a, String title, int min, int max, int cur, final java.util.function.IntConsumer ok) {
+                  final NumberPicker np = new NumberPicker(a);
+                  np.setMinValue(min);
+                  np.setMaxValue(max);
+                  np.setValue(Math.max(min, Math.min(max, cur)));
+                  new AlertDialog.Builder(a).setTitle(title).setView(np)
+                          .setPositiveButton("Гаразд", (dlg, w) -> ok.accept(np.getValue()))
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              static void pickDecimal(Activity a, String title, float cur, final java.util.function.Consumer<Float> ok) {
+                  final EditText et = new EditText(a);
+                  et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                  et.setText(String.format(Locale.US, "%.1f", cur));
+                  new AlertDialog.Builder(a).setTitle(title).setView(et)
+                          .setPositiveButton("Гаразд", (dlg, w) -> {
+                              try {
+                                  float v = Float.parseFloat(et.getText().toString().replace(',', '.'));
+                                  if (v > 0) ok.accept(v);
+                              } catch (NumberFormatException ignored) { }
+                          })
+                          .setNegativeButton("Скасувати", null).show();
               }
           }
           EOF
@@ -2958,8 +3177,8 @@ jobs:
 
           public class MainActivity extends Activity {
               private SharedPreferences prefs;
-              private CheckBox cbWifi, cbData, cbNotifications, cbSpeed, cbAuto;
-              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission;
+              private CheckBox cbWifi, cbData, cbNotifications, cbSpeed, cbAuto, cbUsage, cbLimit;
+              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission, btnBill, btnLimit;
               private Switch swEnabled;
               private TextView tvStatus;
               private boolean loading;
@@ -3013,6 +3232,10 @@ jobs:
                   root.addView(cbNotifications);
                   cbSpeed = new CheckBox(this); cbSpeed.setText("Показувати швидкість інтернету (рядок стану і сповіщення)"); root.addView(cbSpeed);
                   cbAuto = new CheckBox(this); cbAuto.setText("Вимикати мобільні дані на стабільному Wi‑Fi (5 хв), повертати без Wi‑Fi"); root.addView(cbAuto);
+                  cbUsage = new CheckBox(this); cbUsage.setText("Показувати використаний мобільний трафік за місяць у сповіщенні"); root.addView(cbUsage);
+                  btnBill = makeButton("День"); root.addView(btnBill);
+                  cbLimit = new CheckBox(this); cbLimit.setText("Сповістити один раз, коли трафік за місяць досягне порога"); root.addView(cbLimit);
+                  btnLimit = makeButton("Поріг"); root.addView(btnLimit);
                   btnTheme = makeButton("Колірна схема"); root.addView(btnTheme);
                   tvStatus = new TextView(this); tvStatus.setPadding(0, dp(12), 0, dp(4)); tvStatus.setTextColor(0xFF30343A); root.addView(tvStatus);
                   btnPermission = makeButton("Дати дозвіл Shizuku"); root.addView(btnPermission);
@@ -3025,6 +3248,10 @@ jobs:
                   cbNotifications.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("notifications", on).apply(); if (on) requestNotificationPermissionIfNeeded(); runSync(); } });
                   cbSpeed.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_speed", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
                   cbAuto.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("wifi_auto", on).apply(); MonitorService.ensure(getApplicationContext()); runSync(); } });
+                  cbUsage.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_usage", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  cbLimit.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("limit_on", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  btnBill.setOnClickListener(v -> Dlg.pickInt(this, "Рахувати трафік з числа", 1, 31, prefs.getInt("bill_day", 1), day -> { prefs.edit().putInt("bill_day", day).apply(); render(); MonitorService.ensure(getApplicationContext()); }));
+                  btnLimit.setOnClickListener(v -> Dlg.pickDecimal(this, "Поріг сповіщення, ГБ", prefs.getFloat("limit_gb", 3.8f), gb -> { prefs.edit().putFloat("limit_gb", gb).putLong("limit_notified", 0).apply(); render(); }));
                   btnWeekdayFrom.setOnClickListener(v -> pick("weekday_start"));
                   btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
                   btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
@@ -3073,6 +3300,7 @@ jobs:
                   cbWifi.setChecked(prefs.getBoolean("wifi", false)); cbData.setChecked(prefs.getBoolean("data", false));
                   swEnabled.setChecked(prefs.getBoolean("enabled", false)); cbNotifications.setChecked(prefs.getBoolean("notifications", true));
                   cbSpeed.setChecked(prefs.getBoolean("show_speed", false)); cbAuto.setChecked(prefs.getBoolean("wifi_auto", false));
+                  cbUsage.setChecked(prefs.getBoolean("show_usage", false)); cbLimit.setChecked(prefs.getBoolean("limit_on", false));
                   loading = false;
                   btnWeekdayFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekday_start", 22 * 60)));
                   btnWeekdayTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekday_end", 6 * 60)));
@@ -3083,6 +3311,9 @@ jobs:
                   btnWeekdayFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekdayTo.setBackgroundTintList(ColorStateList.valueOf(c));
                   btnWeekendFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekendTo.setBackgroundTintList(ColorStateList.valueOf(c));
                   btnTheme.setBackgroundTintList(ColorStateList.valueOf(c)); btnPermission.setBackgroundTintList(ColorStateList.valueOf(c));
+                  btnBill.setBackgroundTintList(ColorStateList.valueOf(c)); btnLimit.setBackgroundTintList(ColorStateList.valueOf(c));
+                  btnBill.setText("Рахувати трафік з " + prefs.getInt("bill_day", 1) + "-го числа (змінити)");
+                  btnLimit.setText("Поріг сповіщення: " + String.format(java.util.Locale.US, "%.1f", prefs.getFloat("limit_gb", 3.8f)) + " ГБ (змінити)");
                   boolean binder = false, granted = false;
                   try { binder = Shizuku.pingBinder(); granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable ignored) {}
                   String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад запрацює." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
