@@ -1373,7 +1373,7 @@ jobs:
                           unit = "GB/s";
                       }
                   }
-                  String num = v < 0.05 ? "0" : v < 10 ? String.format(Locale.US, "%.1f", v) : String.format(Locale.US, "%.0f", v);
+                  String num = kb < 10 ? "0" : v < 10 ? String.format(Locale.US, "%.1f", v) : String.format(Locale.US, "%.0f", v);
                   return new String[]{num, unit};
               }
 
@@ -1589,7 +1589,7 @@ jobs:
                   Canvas cv = new Canvas(bm);
                   Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
                   pt.setColor(0xFFFFFFFF);
-                  pt.setTypeface(Typeface.DEFAULT_BOLD);
+                  pt.setTypeface("kB/s".equals(p[1]) ? Typeface.create("sans-serif-thin", Typeface.NORMAL) : Typeface.DEFAULT_BOLD);
                   pt.setTextAlign(Paint.Align.CENTER);
                   pt.setTextSize(58);
                   while (pt.measureText(p[0]) > s - 4 && pt.getTextSize() > 20) pt.setTextSize(pt.getTextSize() - 2);
@@ -1615,19 +1615,24 @@ jobs:
                   long rx = TrafficStats.getTotalRxBytes();
                   long tx = TrafficStats.getTotalTxBytes();
                   long t = SystemClock.elapsedRealtime();
-                  double rxs = 0, txs = 0;
-                  if (lastT > 0 && t > lastT && rx >= 0 && tx >= 0) {
+                  double rxs = 0;
+                  if (lastT > 0 && t > lastT && rx >= 0) {
                       long dt = t - lastT;
                       rxs = Math.max(0, (rx - lastRx) * 1000.0 / dt);
-                      txs = Math.max(0, (tx - lastTx) * 1000.0 / dt);
                   }
                   lastRx = rx;
                   lastTx = tx;
                   lastT = t;
-                  CharSequence left = speed ? "↓ " + Fmt.line(rxs) + "   ↑ " + Fmt.line(txs) : null;
+                  // Speeds below 10 kB/s are noise: treat them as no traffic and show nothing.
+                  boolean showSpeed = speed && rxs >= 10 * 1024;
+                  CharSequence left = showSpeed ? "↓ " + Fmt.line(rxs) : null;
                   CharSequence right = showCur ? "⚡ " + String.format(Locale.US, "%.0f", b.ma) + " мА" : null;
-                  nm.notify(2, build(left, right, speed ? speedIcon(rxs + txs) : null));
-                  basicShown = false;
+                  if (left == null && right == null) {
+                      resetNotification();
+                  } else {
+                      nm.notify(2, build(left, right, showSpeed ? speedIcon(rxs) : null));
+                      basicShown = false;
+                  }
                   return true;
               }
 
@@ -2080,7 +2085,7 @@ jobs:
           /** Battery-control windows: swipeable pages with a tab strip on top (like BBS Reloaded). */
           final class BatteryUi {
               private static final String[] TITLES_TOP = {"Мережа", "Батарея"};
-              private static final String[] TITLES_SUB = {"Журнал", "Період", "Огляд", "Струм", "Налаштування"};
+              private static final String[] TITLES_SUB = {"Струм", "Журнал", "Період", "Огляд", "Налаштування"};
               private static final int[] MIN_VALUES = {10, 15, 20, 30, 45, 60, 90, 120};
               private static final int[] KEEP_VALUES = {3, 7, 14, 30, 60};
               private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
@@ -2241,10 +2246,10 @@ jobs:
               }
 
               View build(View networkPage) {
-                  pages[0] = buildLog();
-                  pages[1] = buildRange();
-                  pages[2] = buildOverview();
-                  pages[3] = buildCurrent();
+                  pages[0] = buildCurrent();
+                  pages[1] = buildLog();
+                  pages[2] = buildRange();
+                  pages[3] = buildOverview();
                   pages[4] = buildSettings();
                   sub = new Tabs(TITLES_SUB, pages, 14, 0xFFEEF1F4, p -> refreshSub());
                   top = new Tabs(TITLES_TOP, new View[]{networkPage, sub.root}, 17, 0xFFFFFFFF, p -> {
@@ -2265,6 +2270,14 @@ jobs:
                   if (top == null) return;
                   ColorStateList cs = ColorStateList.valueOf(accent());
                   for (Button b : buttons) b.setBackgroundTintList(cs);
+                  int[][] st = {{android.R.attr.state_checked}, {}};
+                  ColorStateList thumb = new ColorStateList(st, new int[]{accent(), 0xFF9AA0A6});
+                  ColorStateList track = new ColorStateList(st, new int[]{(accent() & 0x00FFFFFF) | 0x80000000, 0x55888888});
+                  swMon.setThumbTintList(thumb);
+                  swMon.setTrackTintList(track);
+                  swShowCur.setThumbTintList(thumb);
+                  swShowCur.setTrackTintList(track);
+                  curValue.setTextColor(accent());
                   chart.accent = accent();
                   top.select(top.pager.getCurrentItem());
                   sub.select(sub.pager.getCurrentItem());
@@ -2276,11 +2289,11 @@ jobs:
 
               private void refreshSub() {
                   int p = sub.pager.getCurrentItem();
-                  if (p != 3) stopCurrent();
-                  if (p == 0) loadLog();
-                  else if (p == 1) loadRange();
-                  else if (p == 2) loadOverview();
-                  else if (p == 3) startCurrent();
+                  if (p != 0) stopCurrent();
+                  if (p == 0) startCurrent();
+                  else if (p == 1) loadLog();
+                  else if (p == 2) loadRange();
+                  else if (p == 3) loadOverview();
                   else loadSettings();
               }
 
@@ -2994,7 +3007,7 @@ jobs:
                   btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
                   btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
                   btnWeekendTo.setOnClickListener(v -> pick("weekend_end"));
-                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); });
+                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); if (ui != null) ui.refresh(); });
                   btnPermission.setOnClickListener(v -> { try { Shizuku.requestPermission(100); } catch (Throwable t) { toast("Спершу запустіть Shizuku"); } });
                   render();
               }
