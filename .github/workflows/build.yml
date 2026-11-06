@@ -1,4 +1,4 @@
-name: Car probe
+name: ELM probe
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ jobs:
 
       - name: Write project
         run: |
-          mkdir -p app/src/main/java/com/example/carprobe
+          mkdir -p app/src/main/java/com/example/elmprobe
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -35,7 +35,7 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = 'CarProbe'
+          rootProject.name = 'ElmProbe'
           include ':app'
           EOF
 
@@ -55,11 +55,11 @@ jobs:
               id 'com.android.application'
           }
           android {
-              namespace 'com.example.carprobe'
+              namespace 'com.example.elmprobe'
               compileSdk 34
               defaultConfig {
-                  applicationId "com.example.carprobe"
-                  minSdk 21
+                  applicationId "com.example.elmprobe"
+                  minSdk 23
                   targetSdk 26
                   versionCode 1
                   versionName "1.0"
@@ -78,9 +78,13 @@ jobs:
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="com.tw.carinfoservice.permission.USE_AIDL"/>
+              <uses-permission android:name="android.permission.BLUETOOTH"/>
+              <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
               <application
-                  android:label="CarProbe"
+                  android:label="ElmProbe"
                   android:allowBackup="false">
                   <activity
                       android:name=".MainActivity"
@@ -95,213 +99,514 @@ jobs:
           </manifest>
           EOF
 
-          cat > app/src/main/java/com/example/carprobe/MainActivity.java <<'EOF'
-          package com.example.carprobe;
+          cat > app/src/main/java/com/example/elmprobe/MainActivity.java <<'EOF'
+          package com.example.elmprobe;
 
           import android.app.Activity;
+          import android.bluetooth.BluetoothAdapter;
+          import android.bluetooth.BluetoothDevice;
+          import android.bluetooth.BluetoothSocket;
           import android.content.ClipData;
           import android.content.ClipboardManager;
-          import android.content.ComponentName;
           import android.content.Context;
-          import android.content.Intent;
-          import android.content.ServiceConnection;
+          import android.content.SharedPreferences;
           import android.graphics.Typeface;
+          import android.net.ConnectivityManager;
+          import android.net.Network;
+          import android.net.NetworkCapabilities;
           import android.os.Bundle;
-          import android.os.IBinder;
-          import android.os.Parcel;
           import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.ArrayAdapter;
           import android.widget.Button;
+          import android.widget.EditText;
           import android.widget.LinearLayout;
+          import android.widget.RadioButton;
+          import android.widget.RadioGroup;
           import android.widget.ScrollView;
+          import android.widget.Spinner;
           import android.widget.TextView;
           import android.widget.Toast;
 
-          import java.util.Arrays;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.InetSocketAddress;
+          import java.net.Socket;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Date;
+          import java.util.LinkedHashMap;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.Map;
+          import java.util.Set;
+          import java.util.TreeSet;
+          import java.util.UUID;
 
           public class MainActivity extends Activity {
 
-              static final String DESC = "com.tw.carinfoservice.CarServiceAidl";
-              static final String ACTION = "com.tw.carinfoservice.CarService.Bind";
-              static final String PKG = "com.tw.carinfoservice";
+              static final UUID SPP = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
-              // transaction code = 4 + index (1 register, 2 unregister, 3 requestData)
-              static final int FIRST = 4;
-              static final String[][] ITEMS = {
-                  {"ElectricVoltage", "f"},
-                  {"Headlight", "i"},
-                  {"DrivingTime", "i"},
-                  {"TotalMileage", "I"},
-                  {"RechargeMileage", "I"},
-                  {"AvgFuel", "f"},
-                  {"InstantFuel", "f"},
-                  {"Gear", "i"},
-                  {"MainSeatBelt", "i"},
-                  {"CoPilotSeatBelt", "i"},
-                  {"Handbrake", "i"},
-                  {"LeftTurn", "i"},
-                  {"RightTurn", "i"},
-                  {"DoubleFlash", "i"},
-                  {"Speed", "I"},
-                  {"EngineRPM", "i"},
-                  {"WaterTemp", "F"},
-                  {"AmbientTemp", "F"},
-                  {"OilTemp", "F"},
-                  {"OilVolume", "f"},
-                  {"Electricity", "f"},
-                  {"Charging", "i"},
-                  {"VoltageWarning", "i"},
-                  {"CarReverse", "i"},
-                  {"Door", "i"},
-                  {"OriginalCarVoltage", "f"},
-                  {"TransTemp", "f"},
-                  {"IntakeTemp", "f"},
-                  {"IntakePressure", "f"},
-                  {"Turbocharged", "i"},
-                  {"DrivingMode", "i"},
-                  {"OffSign", "i"},
-                  {"OnSign", "i"},
-                  {"TirePressure", "F"},
-                  {"Throttle", "i"},
-                  {"SteeringAngle", "i"}
+              static final String[][] WANT = {
+                  {"010C", "Оберти"},
+                  {"010D", "Швидкість"},
+                  {"0105", "Охолоджувальна рідина"},
+                  {"010B", "MAP (тиск впуску)"},
+                  {"010F", "Темп. впуску"},
+                  {"0111", "Дросель"},
+                  {"0104", "Навантаження двигуна"},
+                  {"0110", "MAF"},
+                  {"0133", "Атм. тиск"},
+                  {"0123", "Тиск палива (рейка)"},
+                  {"012C", "EGR задане"},
+                  {"012D", "EGR похибка"},
+                  {"015C", "Темп. оливи"},
+                  {"015E", "Витрата палива"},
+                  {"0142", "Напруга ECU"}
               };
 
+              RadioButton rbBt, rbWifi;
+              Spinner spDev;
+              EditText etHost, etPort;
+              Button btnGo, btnCopy;
               TextView tv;
-              volatile IBinder svc;
+              final List<BluetoothDevice> devs = new ArrayList<BluetoothDevice>();
+              SharedPreferences prefs;
+
               volatile boolean running;
+              volatile String lastFull = "";
+              Thread worker;
+              BluetoothSocket btSock;
+              Socket ipSock;
+              InputStream in;
+              OutputStream out;
 
-              ServiceConnection conn = new ServiceConnection() {
-                  @Override
-                  public void onServiceConnected(ComponentName name, IBinder service) {
-                      svc = service;
-                      startLoop();
-                  }
-
-                  @Override
-                  public void onServiceDisconnected(ComponentName name) {
-                      svc = null;
-                      running = false;
-                      show("Service disconnected");
-                  }
-              };
+              final Object lock = new Object();
+              final LinkedHashMap<String, String> values = new LinkedHashMap<String, String>();
+              final StringBuilder logSb = new StringBuilder();
+              String status = "Не підключено";
+              final SimpleDateFormat tf = new SimpleDateFormat("HH:mm:ss", Locale.US);
 
               @Override
               protected void onCreate(Bundle b) {
                   super.onCreate(b);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  prefs = getSharedPreferences("elm", MODE_PRIVATE);
+
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
                   root.setPadding(16, 16, 16, 16);
 
-                  Button copy = new Button(this);
-                  copy.setText("Копіювати");
-                  copy.setOnClickListener(new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                          cm.setPrimaryClip(ClipData.newPlainText("car", tv.getText()));
-                          Toast.makeText(MainActivity.this, "Скопійовано", Toast.LENGTH_SHORT).show();
-                      }
-                  });
-                  root.addView(copy);
+                  RadioGroup rg = new RadioGroup(this);
+                  rg.setOrientation(RadioGroup.HORIZONTAL);
+                  rbBt = new RadioButton(this);
+                  rbBt.setText("Bluetooth");
+                  rbBt.setId(View.generateViewId());
+                  rbWifi = new RadioButton(this);
+                  rbWifi.setText("Wi-Fi");
+                  rbWifi.setId(View.generateViewId());
+                  rg.addView(rbBt);
+                  rg.addView(rbWifi);
+                  root.addView(rg);
+
+                  spDev = new Spinner(this);
+                  root.addView(spDev);
+
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  etHost = new EditText(this);
+                  etHost.setHint("IP адаптера");
+                  etHost.setSingleLine(true);
+                  etHost.setText(prefs.getString("host", "192.168.0.10"));
+                  etPort = new EditText(this);
+                  etPort.setHint("порт");
+                  etPort.setSingleLine(true);
+                  etPort.setText(prefs.getString("port", "35000"));
+                  row.addView(etHost, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
+                  row.addView(etPort, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  root.addView(row);
+
+                  LinearLayout btns = new LinearLayout(this);
+                  btns.setOrientation(LinearLayout.HORIZONTAL);
+                  btnGo = new Button(this);
+                  btnGo.setText("Підключити");
+                  btnCopy = new Button(this);
+                  btnCopy.setText("Копіювати");
+                  btns.addView(btnGo, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  btns.addView(btnCopy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  root.addView(btns);
 
                   ScrollView sv = new ScrollView(this);
                   tv = new TextView(this);
                   tv.setTypeface(Typeface.MONOSPACE);
-                  tv.setTextSize(15);
-                  tv.setText("Підключення...");
+                  tv.setTextSize(14);
+                  tv.setText("Обери тип адаптера й натисни «Підключити».");
                   sv.addView(tv);
                   root.addView(sv);
                   setContentView(root);
 
+                  // Bluetooth devices (paired only)
+                  List<String> names = new ArrayList<String>();
+                  String savedMac = prefs.getString("mac", "");
+                  int sel = 0;
                   try {
-                      Intent i = new Intent(ACTION);
-                      i.setPackage(PKG);
-                      boolean ok = bindService(i, conn, Context.BIND_AUTO_CREATE);
-                      if (!ok) {
-                          tv.setText("bindService повернув false (сервіс не знайдено або немає доступу)");
+                      BluetoothAdapter ad = BluetoothAdapter.getDefaultAdapter();
+                      if (ad != null && ad.isEnabled()) {
+                          Set<BluetoothDevice> bonded = ad.getBondedDevices();
+                          for (BluetoothDevice d : bonded) {
+                              if (d.getAddress().equals(savedMac)) sel = devs.size();
+                              devs.add(d);
+                              names.add(d.getName() + " (" + d.getAddress() + ")");
+                          }
                       }
                   } catch (Throwable t) {
-                      tv.setText("bind ERR: " + t);
+                      names.add("BT помилка: " + t);
                   }
-              }
+                  if (names.isEmpty()) names.add("(немає спарених пристроїв)");
+                  ArrayAdapter<String> aa = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, names);
+                  aa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                  spDev.setAdapter(aa);
+                  spDev.setSelection(sel);
 
-              void show(final String s) {
-                  runOnUiThread(new Runnable() {
+                  if (prefs.getString("mode", "bt").equals("wifi")) rbWifi.setChecked(true);
+                  else rbBt.setChecked(true);
+
+                  btnGo.setOnClickListener(new View.OnClickListener() {
                       @Override
-                      public void run() {
-                          tv.setText(s);
+                      public void onClick(View v) {
+                          if (running) stop();
+                          else start();
+                      }
+                  });
+                  btnCopy.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                          cm.setPrimaryClip(ClipData.newPlainText("elm", lastFull));
+                          Toast.makeText(MainActivity.this, "Скопійовано", Toast.LENGTH_SHORT).show();
                       }
                   });
               }
 
-              void startLoop() {
-                  if (running) return;
+              void start() {
+                  SharedPreferences.Editor e = prefs.edit();
+                  e.putString("mode", rbWifi.isChecked() ? "wifi" : "bt");
+                  e.putString("host", etHost.getText().toString().trim());
+                  e.putString("port", etPort.getText().toString().trim());
+                  int idx = spDev.getSelectedItemPosition();
+                  if (idx >= 0 && idx < devs.size()) e.putString("mac", devs.get(idx).getAddress());
+                  e.apply();
+
+                  synchronized (lock) {
+                      values.clear();
+                      logSb.setLength(0);
+                  }
                   running = true;
-                  new Thread(new Runnable() {
+                  btnGo.setText("Зупинити");
+                  final boolean wifi = rbWifi.isChecked();
+                  final int devIdx = idx;
+                  final String host = etHost.getText().toString().trim();
+                  final String portS = etPort.getText().toString().trim();
+                  worker = new Thread(new Runnable() {
                       @Override
                       public void run() {
-                          while (running && svc != null) {
-                              poll();
-                              try {
-                                  Thread.sleep(1000);
-                              } catch (InterruptedException e) {
-                                  return;
+                          work(wifi, devIdx, host, portS);
+                      }
+                  });
+                  worker.start();
+              }
+
+              void stop() {
+                  running = false;
+                  closeAll();
+              }
+
+              void closeAll() {
+                  try { if (in != null) in.close(); } catch (Throwable ignored) { }
+                  try { if (out != null) out.close(); } catch (Throwable ignored) { }
+                  try { if (btSock != null) btSock.close(); } catch (Throwable ignored) { }
+                  try { if (ipSock != null) ipSock.close(); } catch (Throwable ignored) { }
+                  in = null;
+                  out = null;
+                  btSock = null;
+                  ipSock = null;
+              }
+
+              // ---------- logging / rendering ----------
+
+              void log(String s) {
+                  synchronized (lock) {
+                      logSb.append(tf.format(new Date())).append("  ").append(s).append("\n");
+                      if (logSb.length() > 30000) logSb.delete(0, 10000);
+                  }
+                  render();
+              }
+
+              void setStatus(String s) {
+                  synchronized (lock) {
+                      status = s;
+                  }
+                  render();
+              }
+
+              void render() {
+                  final String shown;
+                  final String full;
+                  synchronized (lock) {
+                      StringBuilder sb = new StringBuilder();
+                      sb.append("Стан: ").append(status).append("\n\n");
+                      for (Map.Entry<String, String> en : values.entrySet()) {
+                          sb.append(en.getKey()).append(": ").append(en.getValue()).append("\n");
+                      }
+                      String head = sb.toString();
+                      full = head + "\n--- ЛОГ ---\n" + logSb.toString();
+                      String[] lines = logSb.toString().split("\n");
+                      StringBuilder tail = new StringBuilder();
+                      int from = Math.max(0, lines.length - 25);
+                      for (int i = from; i < lines.length; i++) tail.append(lines[i]).append("\n");
+                      shown = head + "\n--- ЛОГ ---\n" + tail.toString();
+                  }
+                  lastFull = full;
+                  runOnUiThread(new Runnable() {
+                      @Override
+                      public void run() {
+                          tv.setText(shown);
+                      }
+                  });
+              }
+
+              // ---------- worker ----------
+
+              void work(boolean wifi, int devIdx, String host, String portS) {
+                  try {
+                      setStatus("Підключення...");
+                      connect(wifi, devIdx, host, portS);
+                      log("З'єднання встановлено");
+                      setStatus("Ініціалізація...");
+                      initElm();
+                      Set<String> supported = scanSupported();
+                      StringBuilder sb = new StringBuilder();
+                      for (String p : supported) sb.append(p).append(' ');
+                      log("Підтримувані PID: " + (supported.isEmpty() ? "(не вдалось визначити)" : sb.toString()));
+                      setStatus("Читання");
+                      while (running) {
+                          for (String[] w : WANT) {
+                              if (!running) break;
+                              if (!supported.isEmpty() && !supported.contains(w[0])) continue;
+                              String resp = send(w[0], 2000);
+                              int[] d = parsePid(resp, w[0]);
+                              if (d == null) {
+                                  synchronized (lock) {
+                                      values.put(w[1], "— (" + shorten(resp) + ")");
+                                  }
+                              } else {
+                                  synchronized (lock) {
+                                      values.put(w[1], decode(w[0], d));
+                                  }
                               }
                           }
+                          String v = send("ATRV", 1500);
+                          synchronized (lock) {
+                              values.put("Напруга адаптера", shorten(v));
+                          }
+                          render();
                       }
-                  }).start();
-              }
-
-              static Parcel call(IBinder b, int code) throws Exception {
-                  Parcel d = Parcel.obtain();
-                  Parcel r = Parcel.obtain();
-                  try {
-                      d.writeInterfaceToken(DESC);
-                      b.transact(code, d, r, 0);
-                      r.readException();
-                      return r;
-                  } catch (Exception e) {
-                      r.recycle();
-                      throw e;
+                  } catch (Throwable t) {
+                      if (running) log("ПОМИЛКА: " + t);
                   } finally {
-                      d.recycle();
+                      running = false;
+                      closeAll();
+                      setStatus("Не підключено");
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              btnGo.setText("Підключити");
+                          }
+                      });
                   }
               }
 
-              void poll() {
-                  IBinder b = svc;
-                  if (b == null) return;
-                  StringBuilder sb = new StringBuilder();
-                  try {
-                      call(b, 3).recycle();
-                  } catch (Exception e) {
-                      sb.append("requestData: ERR ").append(e).append("\n");
-                  }
-                  for (int k = 0; k < ITEMS.length; k++) {
-                      String name = ITEMS[k][0];
-                      char type = ITEMS[k][1].charAt(0);
+              static String shorten(String s) {
+                  if (s == null) return "";
+                  s = s.replace("\n", " | ");
+                  return s.length() > 40 ? s.substring(0, 40) : s;
+              }
+
+              void connect(boolean wifi, int devIdx, String host, String portS) throws Exception {
+                  if (!wifi) {
+                      BluetoothAdapter ad = BluetoothAdapter.getDefaultAdapter();
+                      if (ad == null) throw new IOException("Bluetooth недоступний");
+                      if (!ad.isEnabled()) throw new IOException("Bluetooth вимкнений");
+                      if (devIdx < 0 || devIdx >= devs.size())
+                          throw new IOException("Не вибрано адаптер: спочатку спаруй його в налаштуваннях Bluetooth (PIN 1234 або 0000)");
+                      BluetoothDevice dev = devs.get(devIdx);
+                      log("Bluetooth: " + dev.getName() + " " + dev.getAddress());
+                      ad.cancelDiscovery();
+                      BluetoothSocket s = null;
                       try {
-                          Parcel r = call(b, FIRST + k);
-                          String v;
-                          if (type == 'i') v = String.valueOf(r.readInt());
-                          else if (type == 'f') v = String.valueOf(r.readFloat());
-                          else if (type == 'I') v = Arrays.toString(r.createIntArray());
-                          else v = Arrays.toString(r.createFloatArray());
-                          r.recycle();
-                          sb.append(name).append(": ").append(v).append("\n");
-                      } catch (Exception e) {
-                          sb.append(name).append(": ERR ").append(e).append("\n");
+                          s = dev.createRfcommSocketToServiceRecord(SPP);
+                          s.connect();
+                      } catch (IOException e1) {
+                          log("SPP не вдалось (" + e1.getMessage() + "), пробую запасний спосіб");
+                          try { if (s != null) s.close(); } catch (Throwable ignored) { }
+                          s = (BluetoothSocket) dev.getClass().getMethod("createRfcommSocket", int.class).invoke(dev, 1);
+                          s.connect();
+                      }
+                      btSock = s;
+                      in = s.getInputStream();
+                      out = s.getOutputStream();
+                  } else {
+                      bindWifi();
+                      int port = Integer.parseInt(portS);
+                      log("Wi-Fi: " + host + ":" + port);
+                      Socket s = new Socket();
+                      s.connect(new InetSocketAddress(host, port), 6000);
+                      ipSock = s;
+                      in = s.getInputStream();
+                      out = s.getOutputStream();
+                  }
+              }
+
+              void bindWifi() {
+                  try {
+                      ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                      for (Network n : cm.getAllNetworks()) {
+                          NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                          if (nc != null && nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                              cm.bindProcessToNetwork(n);
+                              log("Прив'язано до Wi-Fi мережі");
+                              return;
+                          }
+                      }
+                  } catch (Throwable t) {
+                      log("bindWifi: " + t);
+                  }
+              }
+
+              // ---------- ELM327 ----------
+
+              String send(String cmd, int timeoutMs) throws IOException {
+                  InputStream i = in;
+                  OutputStream o = out;
+                  if (i == null || o == null) throw new IOException("не підключено");
+                  while (i.available() > 0) i.read();
+                  o.write((cmd + "\r").getBytes("US-ASCII"));
+                  o.flush();
+                  StringBuilder sb = new StringBuilder();
+                  long end = System.currentTimeMillis() + timeoutMs;
+                  while (System.currentTimeMillis() < end && running) {
+                      if (i.available() > 0) {
+                          int c = i.read();
+                          if (c < 0) throw new IOException("з'єднання закрито");
+                          if (c == '>') break;
+                          sb.append((char) c);
+                      } else {
+                          try {
+                              Thread.sleep(10);
+                          } catch (InterruptedException e) {
+                              throw new IOException("перервано");
+                          }
                       }
                   }
-                  show(sb.toString());
+                  StringBuilder clean = new StringBuilder();
+                  for (String line : sb.toString().replace('\r', '\n').split("\n")) {
+                      String t = line.trim();
+                      if (t.isEmpty()) continue;
+                      if (t.equalsIgnoreCase(cmd)) continue;
+                      if (clean.length() > 0) clean.append('\n');
+                      clean.append(t);
+                  }
+                  return clean.toString();
+              }
+
+              void initElm() throws IOException {
+                  log("ATZ → " + shorten(send("ATZ", 4000)));
+                  send("ATE0", 1500);
+                  send("ATL0", 1500);
+                  send("ATS0", 1500);
+                  send("ATH0", 1500);
+                  log("ATSP0 → " + shorten(send("ATSP0", 1500)));
+                  log("0100 → " + shorten(send("0100", 15000)));
+                  log("ATDP → " + shorten(send("ATDP", 1500)));
+                  log("ATRV → " + shorten(send("ATRV", 1500)));
+              }
+
+              Set<String> scanSupported() throws IOException {
+                  Set<String> res = new TreeSet<String>();
+                  String[] bases = {"0100", "0120", "0140", "0160"};
+                  for (int bi = 0; bi < bases.length; bi++) {
+                      int[] d = parsePid(send(bases[bi], 5000), bases[bi]);
+                      if (d == null || d.length < 4) break;
+                      int start = bi * 0x20;
+                      for (int n = 1; n <= 32; n++) {
+                          int byteIdx = (n - 1) / 8;
+                          int bit = 7 - ((n - 1) % 8);
+                          if (((d[byteIdx] >> bit) & 1) != 0) {
+                              res.add(String.format(Locale.US, "01%02X", start + n));
+                          }
+                      }
+                      if ((d[3] & 1) == 0) break;
+                  }
+                  return res;
+              }
+
+              static int[] parsePid(String resp, String pid) {
+                  if (resp == null) return null;
+                  String head = "41" + pid.substring(2);
+                  for (String line : resp.split("\n")) {
+                      String s = line.replace(" ", "").toUpperCase(Locale.US);
+                      if (s.startsWith(head)) {
+                          String hex = s.substring(head.length());
+                          int n = hex.length() / 2;
+                          int[] r = new int[n];
+                          try {
+                              for (int k = 0; k < n; k++) r[k] = Integer.parseInt(hex.substring(2 * k, 2 * k + 2), 16);
+                          } catch (NumberFormatException e) {
+                              return null;
+                          }
+                          return r;
+                      }
+                  }
+                  return null;
+              }
+
+              static String f0(double v) {
+                  return String.format(Locale.US, "%.0f", v);
+              }
+
+              static String f1(double v) {
+                  return String.format(Locale.US, "%.1f", v);
+              }
+
+              static String decode(String pid, int[] d) {
+                  int a = d.length > 0 ? d[0] : 0;
+                  int b = d.length > 1 ? d[1] : 0;
+                  int ab = a * 256 + b;
+                  switch (pid) {
+                      case "010C": return f0(ab / 4.0) + " об/хв";
+                      case "010D": return a + " км/год";
+                      case "0105": return (a - 40) + " °C";
+                      case "010B": return a + " кПа";
+                      case "010F": return (a - 40) + " °C";
+                      case "0111": return f1(a * 100.0 / 255.0) + " %";
+                      case "0104": return f1(a * 100.0 / 255.0) + " %";
+                      case "0110": return f1(ab / 100.0) + " г/с";
+                      case "0133": return a + " кПа";
+                      case "0123": return f0(ab * 10.0) + " кПа";
+                      case "012C": return f1(a * 100.0 / 255.0) + " %";
+                      case "012D": return f1(a * 100.0 / 128.0 - 100.0) + " %";
+                      case "015C": return (a - 40) + " °C";
+                      case "015E": return f1(ab / 20.0) + " л/год";
+                      case "0142": return f1(ab / 1000.0) + " В";
+                      default: return "?";
+                  }
               }
 
               @Override
               protected void onDestroy() {
                   running = false;
-                  try {
-                      unbindService(conn);
-                  } catch (Throwable ignored) {
-                  }
+                  closeAll();
                   super.onDestroy();
               }
           }
@@ -312,5 +617,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CarProbe
+          name: ElmProbe
           path: app/build/outputs/apk/debug/app-debug.apk
