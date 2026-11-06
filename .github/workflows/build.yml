@@ -331,7 +331,28 @@ jobs:
               static SharedPreferences get(Context c) { return c.getSharedPreferences("cfg", Context.MODE_PRIVATE); }
           }
 
+          /** Short log of what the app did and why (newest first), shown in the settings tab. */
+          final class ActLog {
+              static synchronized void add(Context c, String msg) {
+                  try {
+                      SharedPreferences p = c.getSharedPreferences("actlog", Context.MODE_PRIVATE);
+                      String old = p.getString("t", "");
+                      String line = new java.text.SimpleDateFormat("dd.MM HH:mm:ss", Locale.US).format(new java.util.Date()) + "  " + msg;
+                      String[] a = old.isEmpty() ? new String[0] : old.split("\n");
+                      StringBuilder sb = new StringBuilder(line);
+                      for (int i = 0; i < Math.min(a.length, 59); i++) sb.append('\n').append(a[i]);
+                      p.edit().putString("t", sb.toString()).apply();
+                  } catch (Throwable ignored) { }
+              }
+              static String text(Context c) {
+                  String t = c.getSharedPreferences("actlog", Context.MODE_PRIVATE).getString("t", "");
+                  return t.isEmpty() ? "Подій ще немає." : t;
+              }
+              static void clear(Context c) { c.getSharedPreferences("actlog", Context.MODE_PRIVATE).edit().clear().apply(); }
+          }
+
           final class Radio {
+              static String res(int r) { return r == OK ? "ок" : r == NOT_READY ? "Shizuku недоступний" : "помилка команди"; }
               static final int OK = 0, NOT_READY = 1, FAILED = 2;
               static boolean ready(int waitMs) {
                   long end = System.currentTimeMillis() + waitMs;
@@ -393,7 +414,9 @@ jobs:
                       boolean mine = p.getBoolean("auto_data_off", false);
                       if (!p.getBoolean("wifi_auto", false)) {
                           if (mine) {
-                              if (dataOn(c) || Radio.setData(true) == Radio.OK) p.edit().putBoolean("auto_data_off", false).apply();
+                              int r = dataOn(c) ? Radio.OK : Radio.setData(true);
+                              if (r == Radio.OK) p.edit().putBoolean("auto_data_off", false).apply();
+                              ActLog.add(c, "Авто Wi‑Fi вимкнено: дані повернуто (" + Radio.res(r) + ")");
                           }
                           return;
                       }
@@ -402,11 +425,27 @@ jobs:
                       long now = System.currentTimeMillis();
                       long conn = p.getLong("wifi_conn_since", 0);
                       long lost = p.getLong("wifi_lost_since", 0);
+                      if (conn == 0 && lost == 0) {
+                          // No Wi-Fi seen since the feature started: count from now.
+                          lost = now;
+                          p.edit().putLong("wifi_lost_since", lost).apply();
+                      }
                       boolean on = dataOn(c);
                       if (conn > 0 && now - conn >= HOLD_MS) {
-                          if (on && Radio.setData(false) == Radio.OK) p.edit().putBoolean("auto_data_off", true).apply();
+                          if (on) {
+                              int r = Radio.setData(false);
+                              if (r == Radio.OK) p.edit().putBoolean("auto_data_off", true).apply();
+                              ActLog.add(c, "Wi‑Fi стабільний 5 хв: вимикаю мобільні дані (" + Radio.res(r) + ")");
+                          }
                       } else if (conn == 0 && lost > 0 && now - lost >= HOLD_MS) {
-                          if (mine && (on || Radio.setData(true) == Radio.OK)) p.edit().putBoolean("auto_data_off", false).apply();
+                          if (!on) {
+                              int r = Radio.setData(true);
+                              if (r == Radio.OK) p.edit().putBoolean("auto_data_off", false).apply();
+                              ActLog.add(c, "Без Wi‑Fi 5 хв: вмикаю мобільні дані (" + Radio.res(r) + ")");
+                              if (r != Radio.OK) Scheduler.schedule(c, 161, now + 60000L);
+                          } else if (mine) {
+                              p.edit().putBoolean("auto_data_off", false).apply();
+                          }
                       } else if (conn > 0) {
                           Scheduler.schedule(c, 161, conn + HOLD_MS + 2000L);
                       } else if (lost > 0) {
@@ -469,6 +508,7 @@ jobs:
                           .setContentTitle("За 5 хвилин почнеться розклад")
                           .setContentText("Буде вимкнено: " + what)
                           .setAutoCancel(true)
+                          .setGroup("nn_pre")
                           .setTimeoutAfter(5 * 60 * 1000L)
                           .build();
                   nm.notify(NOTIFICATION_ID, n);
@@ -537,7 +577,12 @@ jobs:
                       int result = Radio.on(c);
                       if (result == Radio.OK) active = false;
                   }
-                  if (active != was) p.edit().putLong("flip_ts", nowMs).apply();
+                  if (active != was) {
+                      p.edit().putLong("flip_ts", nowMs).apply();
+                      ActLog.add(c, active ? "Розклад: мережу вимкнено (телефон у спокої 20+ хв)" : "Розклад: мережу відновлено");
+                  } else if (want != active) {
+                      ActLog.add(c, "Розклад: не вдалося змінити мережу (Shizuku?)");
+                  }
                   p.edit().putBoolean("active", active).apply();
 
                   boolean notif = p.getBoolean("notifications", true);
@@ -1345,7 +1390,24 @@ jobs:
                   p.edit().putLong("use_last", cur).putLong("use_acc", acc).putLong("use_period", start).apply();
               }
 
+              /** Measured traffic plus the manual correction (valid only for the period it was entered in). */
               static synchronized long monthBytes(Context c) {
+                  SharedPreferences p = Prefs.get(c);
+                  long start = periodStart(p, System.currentTimeMillis());
+                  long off = p.getLong("use_off_period", 0) == start ? p.getLong("use_off", 0) : 0;
+                  return Math.max(0, rawBytes(c) + off);
+              }
+
+              /** The user enters the real usage so far (GB); later traffic is added on top of it. */
+              static synchronized void setManual(Context c, double gb) {
+                  SharedPreferences p = Prefs.get(c);
+                  long start = periodStart(p, System.currentTimeMillis());
+                  long off = (long) (gb * 1073741824.0) - rawBytes(c);
+                  p.edit().putLong("use_off", off).putLong("use_off_period", start).putLong("limit_notified", 0).apply();
+                  ActLog.add(c, "Трафік за місяць вручну: " + String.format(Locale.US, "%.2f", gb) + " ГБ");
+              }
+
+              private static long rawBytes(Context c) {
                   SharedPreferences p = Prefs.get(c);
                   long now = System.currentTimeMillis();
                   long start = periodStart(p, now);
@@ -1383,6 +1445,7 @@ jobs:
                               .setContentText("Використано " + fmt(used) + " за цей місяць")
                               .setContentIntent(pi)
                               .setAutoCancel(true)
+                              .setGroup("nn_limit")
                               .build();
                       nm.notify(3, n);
                       p.edit().putLong("limit_notified", start).apply();
@@ -1597,6 +1660,7 @@ jobs:
                           .setOngoing(true)
                           .setOnlyAlertOnce(true)
                           .setShowWhen(false)
+                          .setGroup("nn_main")
                           .setContentIntent(pi);
                   if (icon != null) b.setSmallIcon(icon);
                   else b.setSmallIcon(R.drawable.ic_stat);
@@ -1708,6 +1772,7 @@ jobs:
                                   .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                                   .build();
                           try { cm.registerNetworkCallback(req, netCb); } catch (Throwable t) { netCb = null; }
+                          cfg.edit().putLong("wifi_lost_since", System.currentTimeMillis()).apply();
                       } else if (!want && netCb != null) {
                           try { cm.unregisterNetworkCallback(netCb); } catch (Throwable ignored) { }
                           netCb = null;
@@ -1721,6 +1786,7 @@ jobs:
               private void wifiState(boolean up) {
                   SharedPreferences p = Prefs.get(this);
                   long now = System.currentTimeMillis();
+                  ActLog.add(this, up ? "Wi‑Fi підключено" : "Wi‑Fi втрачено");
                   if (up) {
                       if (p.getLong("wifi_conn_since", 0) == 0) p.edit().putLong("wifi_conn_since", now).putLong("wifi_lost_since", 0).apply();
                   } else {
@@ -1733,9 +1799,9 @@ jobs:
 
               private final Runnable tickRun = new Runnable() {
                   @Override public void run() {
-                      boolean again = false;
+                      long again = 0;
                       try { again = doTick(); } catch (Throwable ignored) { }
-                      if (again) h.postDelayed(this, 1000L);
+                      if (again > 0) h.postDelayed(this, again);
                       else ticking = false;
                   }
               };
@@ -1800,6 +1866,7 @@ jobs:
                   return new Notification.Builder(this, CH_CUR)
                           .setSmallIcon(textIcon(n, "mA", false))
                           .setContentTitle("Струм заряду: " + n + " мА")
+                          .setGroup("nn_cur")
                           .setOngoing(true)
                           .setOnlyAlertOnce(true)
                           .setShowWhen(false)
@@ -1807,42 +1874,60 @@ jobs:
                           .build();
               }
 
-              /** Returns true if the ticker should keep running. */
-              private boolean doTick() {
+              private long curAt;
+              private long speedUntil;
+              private String curKey = "";
+
+              /** Returns the delay until the next tick in ms, or 0 if the ticker should stop. */
+              private long doTick() {
                   SharedPreferences cfg = Prefs.get(this);
                   boolean speed = cfg.getBoolean("show_speed", false);
                   boolean cur = cfg.getBoolean("show_current", false);
-                  BatInfo b = (unlocked && cur) ? Power.info(this) : null;
-                  boolean showCur = b != null && b.charging && !Double.isNaN(b.ma);
-                  // The charging current has its own status bar icon next to the speed icon.
-                  if (showCur) {
-                      nm.notify(4, curNote(b.ma));
-                      curShown = true;
-                  } else if (curShown) {
-                      nm.cancel(4);
-                      curShown = false;
+                  long t = SystemClock.elapsedRealtime();
+                  // The charging current has its own status bar icon; it is refreshed only every 5 s.
+                  if (unlocked && cur) {
+                      if (curAt == 0 || t - curAt >= 5000L) {
+                          curAt = t;
+                          BatInfo b = Power.info(this);
+                          boolean sc = b != null && b.charging && !Double.isNaN(b.ma);
+                          if (sc) {
+                              String key = String.valueOf(Math.round(b.ma / 5.0));
+                              if (!curShown || !key.equals(curKey)) { nm.notify(4, curNote(b.ma)); curKey = key; }
+                              curShown = true;
+                          } else if (curShown) {
+                              nm.cancel(4);
+                              curShown = false;
+                          }
+                      }
+                  } else {
+                      curAt = 0;
+                      if (curShown) { nm.cancel(4); curShown = false; }
                   }
-                  if (!unlocked || (!speed && !showCur)) {
+                  if (!unlocked || (!speed && !curShown)) {
                       lastT = 0;
                       showBasic(false);
                       // Unlocking or connecting a charger restarts the ticker.
-                      return false;
+                      return 0;
+                  }
+                  if (!speed) {
+                      lastT = 0;
+                      showBasic(false);
+                      return 5000L;
                   }
                   long rx = TrafficStats.getTotalRxBytes();
-                  long t = SystemClock.elapsedRealtime();
                   double rxs = 0;
                   if (lastT > 0 && t > lastT && rx >= 0) rxs = Math.max(0, (rx - lastRx) * 1000.0 / (t - lastT));
                   lastRx = rx;
                   lastT = t;
-                  // Speeds below 10 kB/s are noise: treat them as no traffic and show nothing.
-                  if (!(speed && rxs >= 10 * 1024)) {
+                  // Speeds below 10 kB/s count as no traffic; the icon stays 5 s after the last real traffic to avoid flicker.
+                  if (rxs >= 10 * 1024) speedUntil = t + 5000L;
+                  if (t >= speedUntil) {
                       showBasic(false);
-                      return true;
+                      return 1000L;
                   }
-                  // Speed goes only into the status bar icon; the text holds the monthly usage.
                   nm.notify(2, build(usageLine(), null, speedIcon(rxs), false));
                   basicShown = false;
-                  return true;
+                  return 1000L;
               }
 
               // ------------------------------------------------------------ screen events and lock sessions
@@ -1902,7 +1987,7 @@ jobs:
                   int lvl = Power.level(this);
                   long cc = Power.cc(this);
                   boolean sched = Prefs.get(this).getBoolean("active", false);
-                  long snap = Snapper.ensure(this, 20000L);
+                  long snap = Snapper.ensure(this, 150000L);
                   m.edit().putBoolean("open", true).putBoolean("charged", false)
                           .putLong("st", now).putLong("st_el", el).putLong("st_up", up)
                           .putInt("st_lvl", lvl).putLong("st_cc", cc)
@@ -1921,8 +2006,7 @@ jobs:
 
                   long minMs = cfg.getInt("min_minutes", 30) * 60000L;
                   if (st <= 0 || el < stEl || charged || now - st < minMs) {
-                      // Not a log entry, but keep a snapshot so that any time range can still be analysed.
-                      if (!charged) Snapper.ensure(this, 180000L);
+                      // Too short for the log: no snapshot, to save battery.
                       return;
                   }
                   long snapB = Snapper.take(this);
@@ -1987,9 +2071,25 @@ jobs:
                   Button b = new Button(c);
                   b.setText(s);
                   b.setAllCaps(false);
-                  b.setBackgroundTintList(ColorStateList.valueOf(color));
+                  b.setTextSize(15);
                   b.setTextColor(0xFFFFFFFF);
+                  b.setMinHeight(dp(c, 52));
+                  b.setMinimumHeight(dp(c, 52));
+                  b.setStateListAnimator(null);
+                  b.setElevation(0);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                  lp.setMargins(0, dp(c, 4), 0, dp(c, 4));
+                  b.setLayoutParams(lp);
+                  paint(b, color);
                   return b;
+              }
+
+              /** Rounded filled background with a ripple; also used to recolor on theme change. */
+              static void paint(Button b, int color) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  g.setCornerRadius(dp(b.getContext(), 14));
+                  b.setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x44FFFFFF), g, null));
               }
 
               static LinearLayout card(Context c) {
@@ -2289,6 +2389,65 @@ jobs:
                           .setNegativeButton("Скасувати", null).show();
               }
           }
+
+          /** Full-width card: title, short description and a switch; the whole card is tappable. */
+          final class ToggleRow extends LinearLayout {
+              private final android.widget.Switch sw;
+              private final TextView menu;
+
+              ToggleRow(Context c, String title, String desc) {
+                  super(c);
+                  setOrientation(HORIZONTAL);
+                  setGravity(Gravity.CENTER_VERTICAL);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(0xFFFFFFFF);
+                  g.setCornerRadius(Ui.dp(c, 14));
+                  g.setStroke(Ui.dp(c, 1), 0xFFE3E6EB);
+                  setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x22000000), g, null));
+                  setPadding(Ui.dp(c, 16), Ui.dp(c, 12), Ui.dp(c, 12), Ui.dp(c, 12));
+                  setMinimumHeight(Ui.dp(c, 64));
+                  LinearLayout texts = new LinearLayout(c);
+                  texts.setOrientation(VERTICAL);
+                  texts.addView(Ui.tv(c, title, 16, 0xFF202124, true));
+                  if (desc != null) {
+                      TextView d = Ui.tv(c, desc, 13, 0xFF5F6368, false);
+                      d.setPadding(0, Ui.dp(c, 2), 0, 0);
+                      texts.addView(d);
+                  }
+                  addView(texts, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+                  menu = Ui.tv(c, "▾", 22, 0xFF168C83, true);
+                  menu.setGravity(Gravity.CENTER);
+                  menu.setVisibility(GONE);
+                  addView(menu, new LayoutParams(Ui.dp(c, 44), Ui.dp(c, 44)));
+                  sw = new android.widget.Switch(c);
+                  sw.setClickable(false);
+                  sw.setFocusable(false);
+                  addView(sw, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+                  setOnClickListener(v -> sw.toggle());
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+                  lp.setMargins(0, Ui.dp(c, 4), 0, Ui.dp(c, 4));
+                  setLayoutParams(lp);
+              }
+
+              boolean isChecked() { return sw.isChecked(); }
+              void setChecked(boolean on) { sw.setChecked(on); }
+              void setOnCheckedChangeListener(android.widget.CompoundButton.OnCheckedChangeListener l) { sw.setOnCheckedChangeListener(l); }
+
+              /** Shows a "▾" button next to the switch. */
+              void setMenu(View.OnClickListener l) {
+                  menu.setVisibility(VISIBLE);
+                  menu.setOnClickListener(l);
+              }
+
+              View menuAnchor() { return menu; }
+
+              void recolor(int accent) {
+                  int[][] st = {{android.R.attr.state_checked}, {}};
+                  sw.setThumbTintList(new ColorStateList(st, new int[]{accent, 0xFF9AA0A6}));
+                  sw.setTrackTintList(new ColorStateList(st, new int[]{(accent & 0x00FFFFFF) | 0x80000000, 0x55888888}));
+                  menu.setTextColor(accent);
+              }
+          }
           EOF
 
           cat > src/main/java/com/example/nightnet/BatteryUi.java <<'EOF'
@@ -2311,7 +2470,6 @@ jobs:
           import android.widget.HorizontalScrollView;
           import android.widget.LinearLayout;
           import android.widget.ScrollView;
-          import android.widget.Switch;
           import android.widget.TextView;
           import android.widget.Toast;
           import androidx.viewpager.widget.PagerAdapter;
@@ -2325,7 +2483,7 @@ jobs:
 
           /** Battery-control windows: swipeable pages with a tab strip on top (like BBS Reloaded). */
           final class BatteryUi {
-              private static final String[] TITLES_TOP = {"Мережа", "Батарея"};
+              private static final String[] TITLES_TOP = {"Мережа", "Батарея", "Сповіщення", "Налаштування"};
               private static final String[] TITLES_SUB = {"Струм", "Журнал", "Період", "Огляд", "Налаштування"};
               private static final int[] MIN_VALUES = {10, 15, 20, 30, 45, 60, 90, 120};
               private static final int[] KEEP_VALUES = {3, 7, 14, 30, 60};
@@ -2351,7 +2509,7 @@ jobs:
               private long ovHours = 24;
               private int ovSeq;
 
-              private Switch swMon;
+              private ToggleRow swMon;
               private Button btnMin, btnKeep;
               private TextView tvAccess, tvCounts;
               private boolean loadingSet;
@@ -2486,18 +2644,18 @@ jobs:
                   }
               }
 
-              View build(View networkPage) {
+              View build(View networkPage, View notifPage, View settingsPage) {
                   pages[0] = buildCurrent();
                   pages[1] = buildLog();
                   pages[2] = buildRange();
                   pages[3] = buildOverview();
                   pages[4] = buildSettings();
                   sub = new Tabs(TITLES_SUB, pages, 14, 0xFFEEF1F4, p -> refreshSub());
-                  top = new Tabs(TITLES_TOP, new View[]{networkPage, sub.root}, 17, 0xFFFFFFFF, p -> {
+                  top = new Tabs(TITLES_TOP, new View[]{networkPage, sub.root, notifPage, settingsPage}, 17, 0xFFFFFFFF, p -> {
                       if (p == 1) refreshSub();
                       else stopCurrent();
                   });
-                  top.pager.setOffscreenPageLimit(1);
+                  top.pager.setOffscreenPageLimit(3);
 
                   if (prefs.getBoolean("mon_enabled", true) && !prefs.getBoolean("asked_notif", false)) {
                       prefs.edit().putBoolean("asked_notif", true).apply();
@@ -2510,14 +2668,8 @@ jobs:
               void refresh() {
                   if (top == null) return;
                   ColorStateList cs = ColorStateList.valueOf(accent());
-                  for (Button b : buttons) b.setBackgroundTintList(cs);
-                  int[][] st = {{android.R.attr.state_checked}, {}};
-                  ColorStateList thumb = new ColorStateList(st, new int[]{accent(), 0xFF9AA0A6});
-                  ColorStateList track = new ColorStateList(st, new int[]{(accent() & 0x00FFFFFF) | 0x80000000, 0x55888888});
-                  swMon.setThumbTintList(thumb);
-                  swMon.setTrackTintList(track);
-                  swShowCur.setThumbTintList(thumb);
-                  swShowCur.setTrackTintList(track);
+                  for (Button b : buttons) Ui.paint(b, accent());
+                  swMon.recolor(accent());
                   curValue.setTextColor(accent());
                   chart.accent = accent();
                   top.select(top.pager.getCurrentItem());
@@ -2787,7 +2939,6 @@ jobs:
 
               private TextView curValue, curMin, curMax;
               private LinearLayout curRows;
-              private Switch swShowCur;
               private boolean loadingCur, curOn;
               private double minMa = Double.NaN, maxMa = Double.NaN;
               private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -2801,12 +2952,6 @@ jobs:
 
               private View buildCurrent() {
                   LinearLayout col = col();
-                  swShowCur = new Switch(act);
-                  swShowCur.setText("Показувати струм заряду у сповіщенні під час зарядки");
-                  swShowCur.setTextSize(15);
-                  swShowCur.setPadding(0, 0, 0, dp(10));
-                  col.addView(swShowCur);
-
                   LinearLayout head = new LinearLayout(act);
                   head.setOrientation(LinearLayout.VERTICAL);
                   android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
@@ -2838,19 +2983,10 @@ jobs:
                   curRows = Ui.card(act);
                   col.addView(curRows, Ui.lp(act, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 12, 0, 0));
 
-                  swShowCur.setOnCheckedChangeListener((v, on) -> {
-                      if (loadingCur) return;
-                      prefs.edit().putBoolean("show_current", on).apply();
-                      if (on) askNotif();
-                      MonitorService.ensure(act.getApplicationContext());
-                  });
                   return scroll(col);
               }
 
               private void startCurrent() {
-                  loadingCur = true;
-                  swShowCur.setChecked(prefs.getBoolean("show_current", false));
-                  loadingCur = false;
                   curValue.setTextColor(accent());
                   if (!curOn) {
                       curOn = true;
@@ -2921,11 +3057,6 @@ jobs:
                   kv("Температура:", String.format(Locale.US, "%.1f °C", b.temp / 10.0));
                   kv("Напруга:", String.format(Locale.US, "%.2f В", b.volt / 1000.0));
                   if (!Double.isNaN(b.ma)) kv("Потужність:", String.format(Locale.US, "%.1f Вт", Math.abs(b.ma) * b.volt / 1000000.0));
-                  kv(" ", " ");
-                  kv("Виробник:", android.os.Build.MANUFACTURER);
-                  kv("Модель:", android.os.Build.MODEL);
-                  kv("Версія Android:", android.os.Build.VERSION.RELEASE);
-                  kv("Номер збірки:", android.os.Build.DISPLAY);
               }
 
               // ---------------------------------------------------------------- settings page
@@ -2934,10 +3065,7 @@ jobs:
                   LinearLayout col = col();
                   col.addView(title("Налаштування моніторингу"));
 
-                  swMon = new Switch(act);
-                  swMon.setText("Моніторинг батареї (фоновий збір даних)");
-                  swMon.setTextSize(16);
-                  swMon.setPadding(0, dp(8), 0, dp(8));
+                  swMon = new ToggleRow(act, "Моніторинг батареї", "Фоновий збір даних для журналу блокувань");
                   col.addView(swMon);
 
                   btnMin = mk("");
@@ -3162,45 +3290,74 @@ jobs:
           import android.content.Context;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
-          import android.content.res.ColorStateList;
+          import android.graphics.Typeface;
           import android.os.Build;
           import android.os.Bundle;
           import android.view.View;
+          import android.view.ViewGroup;
           import android.widget.Button;
-          import android.widget.CheckBox;
           import android.widget.LinearLayout;
+          import android.widget.PopupMenu;
           import android.widget.ScrollView;
-          import android.widget.Switch;
           import android.widget.TextView;
           import android.widget.Toast;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Locale;
           import rikka.shizuku.Shizuku;
 
           public class MainActivity extends Activity {
               private SharedPreferences prefs;
-              private CheckBox cbWifi, cbData, cbNotifications, cbSpeed, cbAuto, cbUsage, cbLimit;
-              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission, btnBill, btnLimit;
-              private Switch swEnabled;
-              private TextView tvStatus;
+              private ToggleRow rWifi, rData, rEnabled, rNotice, rAuto, rSpeed, rUsage, rCur;
+              private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission, btnLogRefresh, btnLogClear;
+              private final List<ToggleRow> rows = new ArrayList<>();
+              private final List<Button> btns = new ArrayList<>();
+              private TextView tvStatus, tvLog;
               private boolean loading;
               private BatteryUi ui;
               private final String[] themeNames = {"Бірюзова", "Синя", "Фіолетова", "Смарагдова", "Бурштинова"};
               private final int[] themeColors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
               private int color() { return themeColors[Math.floorMod(prefs.getInt("theme", 0), themeColors.length)]; }
-              private int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
-              private TextView label(String text) {
-                  TextView t = new TextView(this); t.setText(text); t.setTextSize(18); t.setTextColor(0xFF202124);
-                  t.setPadding(0, dp(18), 0, dp(6)); return t;
-              }
+              private int dp(float v) { return Ui.dp(this, v); }
               private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
-              private Button makeButton(String text) {
-                  Button b = new Button(this); b.setText(text); b.setAllCaps(false);
-                  b.setBackgroundTintList(ColorStateList.valueOf(color())); b.setTextColor(0xFFFFFFFF); return b;
+
+              private TextView label(String text) {
+                  TextView t = Ui.tv(this, text, 15, 0xFF5F6368, true);
+                  t.setPadding(dp(4), dp(18), 0, dp(4));
+                  return t;
+              }
+              private ToggleRow row(String title, String desc) {
+                  ToggleRow r = new ToggleRow(this, title, desc);
+                  rows.add(r);
+                  return r;
+              }
+              private Button button(String text) {
+                  Button b = Ui.btn(this, text, color());
+                  btns.add(b);
+                  return b;
               }
               private LinearLayout timeRow(Button a, Button b) {
-                  LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-                  lp.setMargins(dp(3), 0, dp(3), 0); row.addView(a, lp); row.addView(b, lp); return row;
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                  lp.setMargins(dp(3), 0, dp(3), 0);
+                  row.addView(a, lp);
+                  row.addView(b, lp);
+                  return row;
               }
+              private LinearLayout page() {
+                  LinearLayout l = new LinearLayout(this);
+                  l.setOrientation(LinearLayout.VERTICAL);
+                  l.setPadding(dp(16), dp(8), dp(16), dp(24));
+                  return l;
+              }
+              private ScrollView scroll(View v) {
+                  ScrollView s = new ScrollView(this);
+                  s.setBackgroundColor(0xFFF7F8FA);
+                  s.addView(v);
+                  return s;
+              }
+
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   prefs = Prefs.get(this);
@@ -3212,54 +3369,118 @@ jobs:
                   if (!prefs.contains("weekend_end")) migration.putInt("weekend_end", prefs.getInt("end", 6 * 60));
                   migration.apply();
 
-                  LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(dp(20), dp(8), dp(20), dp(24));
-                  root.setBackgroundColor(0xFFF7F8FA);
-                  root.addView(label("Що вимикати"));
-                  cbWifi = new CheckBox(this); cbWifi.setText("Wi-Fi"); root.addView(cbWifi);
-                  cbData = new CheckBox(this); cbData.setText("Мобільні дані"); root.addView(cbData);
+                  // ---- Network page
+                  LinearLayout net = page();
+                  net.addView(label("Що вимикати"));
+                  rWifi = row("Wi-Fi", "Вимикати за розкладом");
+                  rData = row("Мобільні дані", "Вимикати за розкладом");
+                  net.addView(rWifi);
+                  net.addView(rData);
+                  net.addView(label("Графік на будні (понеділок – п’ятниця)"));
+                  btnWeekdayFrom = button("Початок");
+                  btnWeekdayTo = button("Завершення");
+                  net.addView(timeRow(btnWeekdayFrom, btnWeekdayTo));
+                  net.addView(label("Графік на вихідні (субота – неділя)"));
+                  btnWeekendFrom = button("Початок");
+                  btnWeekendTo = button("Завершення");
+                  net.addView(timeRow(btnWeekendFrom, btnWeekendTo));
+                  net.addView(label("Режим"));
+                  rEnabled = row("Розклад увімкнено", "Працює, коли телефон заблоковано 20+ хв");
+                  rNotice = row("Нагадування", "Сповіщення за 5 хвилин до початку");
+                  rAuto = row("Wi‑Fi ↔ мобільні дані", "Дані вимикаються на стабільному Wi‑Fi (5 хв) і вмикаються без нього");
+                  net.addView(rEnabled);
+                  net.addView(rNotice);
+                  net.addView(rAuto);
 
-                  root.addView(label("Графік на будні (понеділок – п’ятниця)"));
-                  btnWeekdayFrom = makeButton("Початок"); btnWeekdayTo = makeButton("Завершення");
-                  root.addView(timeRow(btnWeekdayFrom, btnWeekdayTo));
-                  root.addView(label("Графік на вихідні (субота – неділя)"));
-                  btnWeekendFrom = makeButton("Початок"); btnWeekendTo = makeButton("Завершення");
-                  root.addView(timeRow(btnWeekendFrom, btnWeekendTo));
+                  // ---- Notifications page
+                  LinearLayout nt = page();
+                  nt.addView(label("Що показувати"));
+                  rSpeed = row("Швидкість інтернету", "Значок у рядку стану, поки телефон розблоковано");
+                  rUsage = row("Трафік за місяць", "Мобільний трафік у сповіщенні; ▾ — параметри");
+                  rCur = row("Струм заряду", "Значок у рядку стану під час зарядки");
+                  nt.addView(rSpeed);
+                  nt.addView(rUsage);
+                  nt.addView(rCur);
 
-                  swEnabled = new Switch(this); swEnabled.setText("Розклад увімкнено"); swEnabled.setTextSize(18);
-                  swEnabled.setPadding(0, dp(20), 0, dp(8)); root.addView(swEnabled);
-                  cbNotifications = new CheckBox(this); cbNotifications.setText("Нагадувати за 5 хвилин до початку");
-                  root.addView(cbNotifications);
-                  cbSpeed = new CheckBox(this); cbSpeed.setText("Показувати швидкість інтернету (рядок стану і сповіщення)"); root.addView(cbSpeed);
-                  cbAuto = new CheckBox(this); cbAuto.setText("Вимикати мобільні дані на стабільному Wi‑Fi (5 хв), повертати без Wi‑Fi"); root.addView(cbAuto);
-                  cbUsage = new CheckBox(this); cbUsage.setText("Показувати використаний мобільний трафік за місяць у сповіщенні"); root.addView(cbUsage);
-                  btnBill = makeButton("День"); root.addView(btnBill);
-                  cbLimit = new CheckBox(this); cbLimit.setText("Сповістити один раз, коли трафік за місяць досягне порога"); root.addView(cbLimit);
-                  btnLimit = makeButton("Поріг"); root.addView(btnLimit);
-                  btnTheme = makeButton("Колірна схема"); root.addView(btnTheme);
-                  tvStatus = new TextView(this); tvStatus.setPadding(0, dp(12), 0, dp(4)); tvStatus.setTextColor(0xFF30343A); root.addView(tvStatus);
-                  btnPermission = makeButton("Дати дозвіл Shizuku"); root.addView(btnPermission);
-                  ScrollView sv = new ScrollView(this); sv.addView(root);
-                  ui = new BatteryUi(this); setContentView(ui.build(sv));
+                  // ---- Settings page
+                  LinearLayout st = page();
+                  st.addView(label("Shizuku"));
+                  tvStatus = Ui.tv(this, "", 14, 0xFF30343A, false);
+                  tvStatus.setPadding(dp(4), dp(2), dp(4), dp(6));
+                  st.addView(tvStatus);
+                  btnPermission = button("Дати дозвіл Shizuku");
+                  st.addView(btnPermission);
+                  st.addView(label("Вигляд"));
+                  btnTheme = button("Колірна схема");
+                  st.addView(btnTheme);
+                  st.addView(label("Журнал дій Wi‑Fi і мережі"));
+                  LinearLayout logCard = Ui.card(this);
+                  tvLog = Ui.tv(this, "", 12, 0xFF30343A, false);
+                  tvLog.setTypeface(Typeface.MONOSPACE);
+                  logCard.addView(tvLog);
+                  st.addView(logCard, Ui.lp(this, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 4, 0, 4));
+                  btnLogRefresh = button("Оновити журнал");
+                  btnLogClear = button("Очистити журнал");
+                  st.addView(btnLogRefresh);
+                  st.addView(btnLogClear);
 
-                  cbWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  cbData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  swEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
-                  cbNotifications.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("notifications", on).apply(); if (on) requestNotificationPermissionIfNeeded(); runSync(); } });
-                  cbSpeed.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_speed", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
-                  cbAuto.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("wifi_auto", on).apply(); MonitorService.ensure(getApplicationContext()); runSync(); } });
-                  cbUsage.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_usage", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
-                  cbLimit.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("limit_on", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
-                  btnBill.setOnClickListener(v -> Dlg.pickInt(this, "Рахувати трафік з числа", 1, 31, prefs.getInt("bill_day", 1), day -> { prefs.edit().putInt("bill_day", day).apply(); render(); MonitorService.ensure(getApplicationContext()); }));
-                  btnLimit.setOnClickListener(v -> Dlg.pickDecimal(this, "Поріг сповіщення, ГБ", prefs.getFloat("limit_gb", 3.8f), gb -> { prefs.edit().putFloat("limit_gb", gb).putLong("limit_notified", 0).apply(); render(); }));
+                  ui = new BatteryUi(this);
+                  setContentView(ui.build(scroll(net), scroll(nt), scroll(st)));
+
+                  rWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  rData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  rEnabled.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
+                  rNotice.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("notifications", on).apply(); if (on) requestNotificationPermissionIfNeeded(); runSync(); } });
+                  rSpeed.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_speed", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  rAuto.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("wifi_auto", on).apply(); ActLog.add(getApplicationContext(), on ? "Авто Wi‑Fi ↔ дані увімкнено" : "Авто Wi‑Fi ↔ дані вимкнено"); MonitorService.ensure(getApplicationContext()); runSync(); } });
+                  rUsage.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_usage", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  rCur.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_current", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  rUsage.setMenu(v -> usageMenu());
                   btnWeekdayFrom.setOnClickListener(v -> pick("weekday_start"));
                   btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
                   btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
                   btnWeekendTo.setOnClickListener(v -> pick("weekend_end"));
                   btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); if (ui != null) ui.refresh(); });
                   btnPermission.setOnClickListener(v -> { try { Shizuku.requestPermission(100); } catch (Throwable t) { toast("Спершу запустіть Shizuku"); } });
+                  btnLogRefresh.setOnClickListener(v -> render());
+                  btnLogClear.setOnClickListener(v -> { ActLog.clear(getApplicationContext()); render(); });
                   render();
               }
+
+              private void usageMenu() {
+                  PopupMenu m = new PopupMenu(this, rUsage.menuAnchor());
+                  boolean lim = prefs.getBoolean("limit_on", false);
+                  m.getMenu().add(0, 1, 0, "Рахувати з " + prefs.getInt("bill_day", 1) + "-го числа");
+                  m.getMenu().add(0, 2, 1, "Поріг: " + String.format(Locale.US, "%.1f", prefs.getFloat("limit_gb", 3.8f)) + " ГБ");
+                  m.getMenu().add(0, 3, 2, lim ? "Сповіщення про поріг: увімкнено" : "Сповіщення про поріг: вимкнено");
+                  m.getMenu().add(0, 4, 3, "Ввести поточний трафік…");
+                  m.setOnMenuItemClickListener(it -> {
+                      switch (it.getItemId()) {
+                          case 1:
+                              Dlg.pickInt(this, "Рахувати трафік з числа", 1, 31, prefs.getInt("bill_day", 1), day -> { prefs.edit().putInt("bill_day", day).apply(); MonitorService.ensure(getApplicationContext()); });
+                              break;
+                          case 2:
+                              Dlg.pickDecimal(this, "Поріг сповіщення, ГБ", prefs.getFloat("limit_gb", 3.8f), gb -> prefs.edit().putFloat("limit_gb", gb).putLong("limit_notified", 0).apply());
+                              break;
+                          case 3:
+                              prefs.edit().putBoolean("limit_on", !lim).apply();
+                              if (!lim) requestNotificationPermissionIfNeeded();
+                              MonitorService.ensure(getApplicationContext());
+                              toast(lim ? "Сповіщення про поріг вимкнено" : "Сповіщення про поріг увімкнено");
+                              break;
+                          default:
+                              float used = (float) (Usage.monthBytes(getApplicationContext()) / 1073741824.0);
+                              Dlg.pickDecimal(this, "Скільки ГБ використано в цьому періоді", Math.round(used * 100f) / 100f, v -> {
+                                  Usage.setManual(getApplicationContext(), v);
+                                  MonitorService.ensure(getApplicationContext());
+                                  toast("Збережено: далі новий трафік додається до " + String.format(Locale.US, "%.2f", v) + " ГБ");
+                              });
+                      }
+                      return true;
+                  });
+                  m.show();
+              }
+
               @Override protected void onPause() { super.onPause(); if (ui != null) ui.pause(); }
               @Override protected void onResume() {
                   super.onResume(); render(); runSync();
@@ -3271,13 +3492,13 @@ jobs:
                       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
               }
               private void changed() {
-                  boolean w = cbWifi.isChecked(), d = cbData.isChecked(), en = swEnabled.isChecked();
+                  boolean w = rWifi.isChecked(), d = rData.isChecked(), en = rEnabled.isChecked();
                   if (en && !w && !d) {
-                      en = false; loading = true; swEnabled.setChecked(false); loading = false;
+                      en = false; loading = true; rEnabled.setChecked(false); loading = false;
                       toast("Оберіть, що вимикати: Wi-Fi або мобільні дані");
                   }
                   prefs.edit().putBoolean("wifi", w).putBoolean("data", d).putBoolean("enabled", en).apply();
-                  if (en && cbNotifications.isChecked()) requestNotificationPermissionIfNeeded();
+                  if (en && rNotice.isChecked()) requestNotificationPermissionIfNeeded();
                   MonitorService.ensure(getApplicationContext());
                   runSync(); render();
               }
@@ -3295,12 +3516,12 @@ jobs:
                   new Thread(() -> { Scheduler.sync(app); runOnUiThread(this::render); }).start();
               }
               private void render() {
-                  if (prefs == null || cbWifi == null) return;
+                  if (prefs == null || rWifi == null) return;
                   loading = true;
-                  cbWifi.setChecked(prefs.getBoolean("wifi", false)); cbData.setChecked(prefs.getBoolean("data", false));
-                  swEnabled.setChecked(prefs.getBoolean("enabled", false)); cbNotifications.setChecked(prefs.getBoolean("notifications", true));
-                  cbSpeed.setChecked(prefs.getBoolean("show_speed", false)); cbAuto.setChecked(prefs.getBoolean("wifi_auto", false));
-                  cbUsage.setChecked(prefs.getBoolean("show_usage", false)); cbLimit.setChecked(prefs.getBoolean("limit_on", false));
+                  rWifi.setChecked(prefs.getBoolean("wifi", false)); rData.setChecked(prefs.getBoolean("data", false));
+                  rEnabled.setChecked(prefs.getBoolean("enabled", false)); rNotice.setChecked(prefs.getBoolean("notifications", true));
+                  rSpeed.setChecked(prefs.getBoolean("show_speed", false)); rAuto.setChecked(prefs.getBoolean("wifi_auto", false));
+                  rUsage.setChecked(prefs.getBoolean("show_usage", false)); rCur.setChecked(prefs.getBoolean("show_current", false));
                   loading = false;
                   btnWeekdayFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekday_start", 22 * 60)));
                   btnWeekdayTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekday_end", 6 * 60)));
@@ -3308,17 +3529,14 @@ jobs:
                   btnWeekendTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekend_end", 6 * 60)));
                   btnTheme.setText("Колірна схема: " + themeNames[prefs.getInt("theme", 0) % themeNames.length]);
                   int c = color();
-                  btnWeekdayFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekdayTo.setBackgroundTintList(ColorStateList.valueOf(c));
-                  btnWeekendFrom.setBackgroundTintList(ColorStateList.valueOf(c)); btnWeekendTo.setBackgroundTintList(ColorStateList.valueOf(c));
-                  btnTheme.setBackgroundTintList(ColorStateList.valueOf(c)); btnPermission.setBackgroundTintList(ColorStateList.valueOf(c));
-                  btnBill.setBackgroundTintList(ColorStateList.valueOf(c)); btnLimit.setBackgroundTintList(ColorStateList.valueOf(c));
-                  btnBill.setText("Рахувати трафік з " + prefs.getInt("bill_day", 1) + "-го числа (змінити)");
-                  btnLimit.setText("Поріг сповіщення: " + String.format(java.util.Locale.US, "%.1f", prefs.getFloat("limit_gb", 3.8f)) + " ГБ (змінити)");
+                  for (Button b : btns) Ui.paint(b, c);
+                  for (ToggleRow r : rows) r.recolor(c);
                   boolean binder = false, granted = false;
                   try { binder = Shizuku.pingBinder(); granted = binder && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED; } catch (Throwable ignored) {}
-                  String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад запрацює." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
+                  String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад та Wi‑Fi авто запрацюють." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
                   if (prefs.getBoolean("active", false)) s += "\nЗараз зв’язок вимкнено за розкладом.";
                   tvStatus.setText(s); btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
+                  tvLog.setText(ActLog.text(getApplicationContext()));
               }
           }
           EOF
