@@ -3857,6 +3857,51 @@ jobs:
                   return b;
               }
 
+              private static boolean installed(Context c, String pkg) {
+                  try { c.getPackageManager().getPackageInfo(pkg, 0); return true; } catch (Throwable t) { return false; }
+              }
+
+              /** Intent that opens a contact in the app chosen in the "Свята" tab (auto: the system contacts app). */
+              static Intent viewIntent(Context c, long id, String lookup) {
+                  Intent i = new Intent(Intent.ACTION_VIEW);
+                  i.setDataAndType(ContactsContract.Contacts.getLookupUri(id, lookup), ContactsContract.Contacts.CONTENT_ITEM_TYPE);
+                  String pkg = Prefs.get(c).getString("bd_app", "");
+                  if (pkg.isEmpty()) {
+                      String[] cand = {"com.google.android.contacts", "com.android.contacts", "com.samsung.android.contacts"};
+                      for (String k : cand) if (installed(c, k)) { pkg = k; break; }
+                  }
+                  if (!pkg.isEmpty() && !pkg.equals("-")) {
+                      i.setPackage(pkg);
+                      try { if (c.getPackageManager().queryIntentActivities(i, 0).isEmpty()) i.setPackage(null); } catch (Throwable ignored) { }
+                  }
+                  return i;
+              }
+
+              /** Apps able to open a contact: {package, label} pairs. */
+              static List<String[]> contactApps(Context c) {
+                  List<String[]> out = new ArrayList<>();
+                  Set<String> seen = new HashSet<>();
+                  try {
+                      Intent i = new Intent(Intent.ACTION_VIEW);
+                      i.setDataAndType(ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, 1), ContactsContract.Contacts.CONTENT_ITEM_TYPE);
+                      for (android.content.pm.ResolveInfo r : c.getPackageManager().queryIntentActivities(i, 0)) {
+                          String pk = r.activityInfo.packageName;
+                          if (seen.add(pk)) out.add(new String[]{pk, String.valueOf(r.loadLabel(c.getPackageManager()))});
+                      }
+                  } catch (Throwable ignored) { }
+                  return out;
+              }
+
+              static String appLabel(Context c) {
+                  String pkg = Prefs.get(c).getString("bd_app", "");
+                  if (pkg.isEmpty()) return "авто";
+                  if (pkg.equals("-")) return "щоразу питати";
+                  try {
+                      android.content.pm.PackageManager pm = c.getPackageManager();
+                      return String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)));
+                  } catch (Throwable t) { return pkg; }
+              }
+
               // ------------------------------------------------------------ widget
 
               static void updateWidgets(Context c) {
@@ -3886,7 +3931,7 @@ jobs:
                           rv.setTextViewText(AGE[i], a);
                           rv.setTextViewText(DAYS[i], String.valueOf(e.days));
                           rv.setTextViewText(NAME[i], e.name);
-                          Intent vi = new Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(e.id, e.lookup));
+                          Intent vi = viewIntent(c, e.id, e.lookup);
                           PendingIntent pi = PendingIntent.getActivity(c, 10 + i, vi, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
                           rv.setOnClickPendingIntent(TILE[i], pi);
                       }
@@ -3974,7 +4019,7 @@ jobs:
               private final SharedPreferences p;
               private final List<Button> btns = new ArrayList<>();
               private ToggleRow rNot;
-              private Button bDays, bTime, bRefresh, bPerm, bTest;
+              private Button bDays, bTime, bRefresh, bPerm, bTest, bApp;
               private LinearLayout list;
               private TextView hint;
               private boolean loading;
@@ -4017,6 +4062,8 @@ jobs:
                   col.addView(bPerm);
                   col.addView(bRefresh);
                   col.addView(bTest);
+                  bApp = button("");
+                  col.addView(bApp);
                   hint = Ui.tv(a, "Віджет: утримуйте порожнє місце на робочому столі → Віджети → «Дні народження».", 13, 0xFF5F6368, false);
                   hint.setPadding(dp(4), dp(8), dp(4), 0);
                   col.addView(hint);
@@ -4045,6 +4092,20 @@ jobs:
                           refreshLabels();
                       }, cur / 60, cur % 60, true).show();
                   });
+                  bApp.setOnClickListener(v -> {
+                      final List<String[]> apps = Bday.contactApps(a);
+                      final String[] names = new String[apps.size() + 2];
+                      names[0] = "Авто (системні «Контакти»)";
+                      names[1] = "Щоразу питати";
+                      for (int i = 0; i < apps.size(); i++) names[i + 2] = apps.get(i)[1];
+                      new android.app.AlertDialog.Builder(a).setTitle("Відкривати контакт у програмі")
+                              .setItems(names, (dlg, w) -> {
+                                  String val = w == 0 ? "" : w == 1 ? "-" : apps.get(w - 2)[0];
+                                  p.edit().putString("bd_app", val).apply();
+                                  refreshLabels();
+                                  refresh();
+                              }).show();
+                  });
                   bPerm.setOnClickListener(v -> a.requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 2));
                   bRefresh.setOnClickListener(v -> refresh());
                   bTest.setOnClickListener(v -> {
@@ -4067,6 +4128,7 @@ jobs:
                   int min = p.getInt("bd_min", 9 * 60);
                   bDays.setText("Нагадувати за: " + p.getInt("bd_days", 1) + " дн. і в день свята");
                   bTime.setText("Час нагадування: " + Scheduler.hhmm(min));
+                  bApp.setText("Контакт відкривати в: " + Bday.appLabel(a));
                   int c = Bday.accent(a);
                   for (Button b : btns) Ui.paint(b, c);
                   rNot.recolor(c);
@@ -4123,7 +4185,7 @@ jobs:
                       final long id = e.id;
                       final String lookup = e.lookup;
                       card.setOnClickListener(v -> {
-                          try { a.startActivity(new Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(id, lookup))); }
+                          try { a.startActivity(Bday.viewIntent(a, id, lookup)); }
                           catch (Throwable ignored) { }
                       });
                       list.addView(card, Ui.lp(a, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 4, 0, 4));
