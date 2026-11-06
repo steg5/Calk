@@ -128,6 +128,7 @@ jobs:
               <uses-permission android:name="android.permission.DUMP" />
               <uses-permission android:name="android.permission.BATTERY_STATS" />
               <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+              <uses-permission android:name="android.permission.READ_CONTACTS" />
 
               <application
                   android:allowBackup="false"
@@ -167,6 +168,22 @@ jobs:
                           <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                       </intent-filter>
                   </receiver>
+
+                  <receiver
+                      android:name=".BdayWidget"
+                      android:label="Дні народження"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.appwidget.provider"
+                          android:resource="@xml/bday_widget" />
+                  </receiver>
+
+                  <receiver
+                      android:name=".BdayReceiver"
+                      android:exported="false" />
 
                   <provider
                       android:name="rikka.shizuku.ShizukuProvider"
@@ -299,6 +316,7 @@ jobs:
                               }
                           }
                           Scheduler.sync(app, preNotice);
+                          Bday.schedule(app);
                       } finally {
                           result.finish();
                       }
@@ -403,9 +421,15 @@ jobs:
           final class WifiAuto {
               static final long HOLD_MS = 5 * 60 * 1000L;
 
+              /** Mobile data state of the default data SIM (dual-SIM phones keep it under mobile_data<subId>). */
               private static boolean dataOn(Context c) {
-                  try { return Settings.Global.getInt(c.getContentResolver(), "mobile_data", 1) == 1; }
-                  catch (Throwable t) { return true; }
+                  try {
+                      android.content.ContentResolver cr = c.getContentResolver();
+                      int v = Settings.Global.getInt(cr, "mobile_data", 1);
+                      int sub = android.telephony.SubscriptionManager.getDefaultDataSubscriptionId();
+                      if (sub >= 0) v = Settings.Global.getInt(cr, "mobile_data" + sub, v);
+                      return v == 1;
+                  } catch (Throwable t) { return true; }
               }
 
               static synchronized void eval(Context c) {
@@ -432,18 +456,22 @@ jobs:
                       }
                       boolean on = dataOn(c);
                       if (conn > 0 && now - conn >= HOLD_MS) {
-                          if (on) {
+                          // One decision per Wi-Fi connection; nothing to do if data is already off.
+                          if (on && p.getLong("auto_off_conn", 0) != conn) {
                               int r = Radio.setData(false);
+                              if (r != Radio.NOT_READY) p.edit().putLong("auto_off_conn", conn).apply();
                               if (r == Radio.OK) p.edit().putBoolean("auto_data_off", true).apply();
+                              else if (r == Radio.NOT_READY) Scheduler.schedule(c, 161, now + HOLD_MS);
                               ActLog.add(c, "Wi‑Fi стабільний 5 хв: вимикаю мобільні дані (" + Radio.res(r) + ")");
                           }
                       } else if (conn == 0 && lost > 0 && now - lost >= HOLD_MS) {
-                          if (!on) {
+                          if (!on && p.getLong("auto_on_lost", 0) != lost) {
                               int r = Radio.setData(true);
+                              if (r != Radio.NOT_READY) p.edit().putLong("auto_on_lost", lost).apply();
                               if (r == Radio.OK) p.edit().putBoolean("auto_data_off", false).apply();
+                              else if (r == Radio.NOT_READY) Scheduler.schedule(c, 161, now + HOLD_MS);
                               ActLog.add(c, "Без Wi‑Fi 5 хв: вмикаю мобільні дані (" + Radio.res(r) + ")");
-                              if (r != Radio.OK) Scheduler.schedule(c, 161, now + 60000L);
-                          } else if (mine) {
+                          } else if (on && mine) {
                               p.edit().putBoolean("auto_data_off", false).apply();
                           }
                       } else if (conn > 0) {
@@ -1567,7 +1595,9 @@ jobs:
 
           final class Fmt {
               /** {number, unit} for a speed in bytes per second, switching kB/s, MB/s, GB/s automatically. */
-              static String[] speed(double bps) {
+              static String[] speed(double bps) { return speed(bps, 10); }
+
+              static String[] speed(double bps, int minKb) {
                   double kb = Math.max(0, bps) / 1024.0;
                   String unit = "kB/s";
                   double v = kb;
@@ -1579,7 +1609,7 @@ jobs:
                           unit = "GB/s";
                       }
                   }
-                  String num = kb < 10 ? "0" : v < 10 ? String.format(Locale.US, "%.1f", v) : String.format(Locale.US, "%.0f", v);
+                  String num = kb < minKb ? "0" : v < 10 ? String.format(Locale.US, "%.1f", v) : String.format(Locale.US, "%.0f", v);
                   return new String[]{num, unit};
               }
 
@@ -1856,7 +1886,7 @@ jobs:
               }
 
               private Icon speedIcon(double bps) {
-                  String[] p = Fmt.speed(bps);
+                  String[] p = Fmt.speed(bps, Prefs.get(this).getInt("speed_min_kb", 10));
                   return textIcon(p[0], p[1], "kB/s".equals(p[1]));
               }
 
@@ -1884,9 +1914,12 @@ jobs:
                   boolean speed = cfg.getBoolean("show_speed", false);
                   boolean cur = cfg.getBoolean("show_current", false);
                   long t = SystemClock.elapsedRealtime();
-                  // The charging current has its own status bar icon; it is refreshed only every 5 s.
+                  long minBps = Math.max(1, cfg.getInt("speed_min_kb", 10)) * 1024L;
+                  long idleMs = Math.max(1, cfg.getInt("speed_idle_s", 5)) * 1000L;
+                  long curMs = Math.max(1, cfg.getInt("cur_s", 5)) * 1000L;
+                  // The charging current has its own status bar icon, refreshed at the chosen interval.
                   if (unlocked && cur) {
-                      if (curAt == 0 || t - curAt >= 5000L) {
+                      if (curAt == 0 || t - curAt >= curMs) {
                           curAt = t;
                           BatInfo b = Power.info(this);
                           boolean sc = b != null && b.charging && !Double.isNaN(b.ma);
@@ -1912,7 +1945,7 @@ jobs:
                   if (!speed) {
                       lastT = 0;
                       showBasic(false);
-                      return 5000L;
+                      return curMs;
                   }
                   long rx = TrafficStats.getTotalRxBytes();
                   double rxs = 0;
@@ -1920,10 +1953,10 @@ jobs:
                   lastRx = rx;
                   lastT = t;
                   // Speeds below 10 kB/s count as no traffic; the icon stays 5 s after the last real traffic to avoid flicker.
-                  if (rxs >= 10 * 1024) speedUntil = t + 5000L;
+                  if (rxs >= minBps) speedUntil = t + idleMs;
                   if (t >= speedUntil) {
                       showBasic(false);
-                      return 1000L;
+                      return curShown ? Math.min(idleMs, curMs) : idleMs;
                   }
                   nm.notify(2, build(usageLine(), null, speedIcon(rxs), false));
                   basicShown = false;
@@ -2483,7 +2516,7 @@ jobs:
 
           /** Battery-control windows: swipeable pages with a tab strip on top (like BBS Reloaded). */
           final class BatteryUi {
-              private static final String[] TITLES_TOP = {"Мережа", "Батарея", "Сповіщення", "Налаштування"};
+              private static final String[] TITLES_TOP = {"Мережа", "Батарея", "Сповіщення", "Свята", "Налаштування"};
               private static final String[] TITLES_SUB = {"Струм", "Журнал", "Період", "Огляд", "Налаштування"};
               private static final int[] MIN_VALUES = {10, 15, 20, 30, 45, 60, 90, 120};
               private static final int[] KEEP_VALUES = {3, 7, 14, 30, 60};
@@ -2585,13 +2618,17 @@ jobs:
                       scroll.setBackgroundColor(bg);
                       row = new LinearLayout(act);
                       row.setOrientation(LinearLayout.HORIZONTAL);
-                      boolean even = titles.length <= 3;
+                      boolean even = sp > 16;
                       for (int i = 0; i < titles.length; i++) {
                           LinearLayout tab = new LinearLayout(act);
                           tab.setOrientation(LinearLayout.VERTICAL);
                           TextView t = Ui.tv(act, titles[i], sp, 0xFF5F6368, false);
                           t.setGravity(android.view.Gravity.CENTER);
-                          t.setPadding(dp(16), dp(sp > 16 ? 14 : 10), dp(16), dp(8));
+                          t.setPadding(dp(even ? 2 : 16), dp(sp > 16 ? 14 : 10), dp(even ? 2 : 16), dp(8));
+                          if (even) {
+                              t.setMaxLines(1);
+                              t.setAutoSizeTextTypeUniformWithConfiguration(9, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+                          }
                           View line = new View(act);
                           tab.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                           tab.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)));
@@ -2644,18 +2681,21 @@ jobs:
                   }
               }
 
-              View build(View networkPage, View notifPage, View settingsPage) {
+              java.util.function.IntConsumer onTop;
+
+              View build(View networkPage, View notifPage, View bdayPage, View settingsPage) {
                   pages[0] = buildCurrent();
                   pages[1] = buildLog();
                   pages[2] = buildRange();
                   pages[3] = buildOverview();
                   pages[4] = buildSettings();
                   sub = new Tabs(TITLES_SUB, pages, 14, 0xFFEEF1F4, p -> refreshSub());
-                  top = new Tabs(TITLES_TOP, new View[]{networkPage, sub.root, notifPage, settingsPage}, 17, 0xFFFFFFFF, p -> {
+                  top = new Tabs(TITLES_TOP, new View[]{networkPage, sub.root, notifPage, bdayPage, settingsPage}, 17, 0xFFFFFFFF, p -> {
                       if (p == 1) refreshSub();
                       else stopCurrent();
+                      if (onTop != null) onTop.accept(p);
                   });
-                  top.pager.setOffscreenPageLimit(3);
+                  top.pager.setOffscreenPageLimit(4);
 
                   if (prefs.getBoolean("mon_enabled", true) && !prefs.getBoolean("asked_notif", false)) {
                       prefs.edit().putBoolean("asked_notif", true).apply();
@@ -3313,6 +3353,7 @@ jobs:
               private final List<ToggleRow> rows = new ArrayList<>();
               private final List<Button> btns = new ArrayList<>();
               private TextView tvStatus, tvLog;
+              private BdayPage bp;
               private boolean loading;
               private BatteryUi ui;
               private final String[] themeNames = {"Бірюзова", "Синя", "Фіолетова", "Смарагдова", "Бурштинова"};
@@ -3395,9 +3436,9 @@ jobs:
                   // ---- Notifications page
                   LinearLayout nt = page();
                   nt.addView(label("Що показувати"));
-                  rSpeed = row("Швидкість інтернету", "Значок у рядку стану, поки телефон розблоковано");
+                  rSpeed = row("Швидкість інтернету", "Значок у рядку стану, поки телефон розблоковано; ▾ — параметри");
                   rUsage = row("Трафік за місяць", "Мобільний трафік у сповіщенні; ▾ — параметри");
-                  rCur = row("Струм заряду", "Значок у рядку стану під час зарядки");
+                  rCur = row("Струм заряду", "Значок у рядку стану під час зарядки; ▾ — параметри");
                   nt.addView(rSpeed);
                   nt.addView(rUsage);
                   nt.addView(rCur);
@@ -3425,7 +3466,9 @@ jobs:
                   st.addView(btnLogClear);
 
                   ui = new BatteryUi(this);
-                  setContentView(ui.build(scroll(net), scroll(nt), scroll(st)));
+                  bp = new BdayPage(this);
+                  ui.onTop = p -> { if (p == 3) bp.refresh(); };
+                  setContentView(ui.build(scroll(net), scroll(nt), bp.build(), scroll(st)));
 
                   rWifi.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
                   rData.setOnCheckedChangeListener((v, on) -> { if (!loading) changed(); });
@@ -3436,15 +3479,41 @@ jobs:
                   rUsage.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_usage", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
                   rCur.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_current", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
                   rUsage.setMenu(v -> usageMenu());
+                  rSpeed.setMenu(v -> speedMenu());
+                  rCur.setMenu(v -> curMenu());
                   btnWeekdayFrom.setOnClickListener(v -> pick("weekday_start"));
                   btnWeekdayTo.setOnClickListener(v -> pick("weekday_end"));
                   btnWeekendFrom.setOnClickListener(v -> pick("weekend_start"));
                   btnWeekendTo.setOnClickListener(v -> pick("weekend_end"));
-                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); if (ui != null) ui.refresh(); });
+                  btnTheme.setOnClickListener(v -> { prefs.edit().putInt("theme", (prefs.getInt("theme", 0) + 1) % themeNames.length).apply(); render(); if (ui != null) ui.refresh(); if (bp != null) bp.refresh(); });
                   btnPermission.setOnClickListener(v -> { try { Shizuku.requestPermission(100); } catch (Throwable t) { toast("Спершу запустіть Shizuku"); } });
                   btnLogRefresh.setOnClickListener(v -> render());
                   btnLogClear.setOnClickListener(v -> { ActLog.clear(getApplicationContext()); render(); });
                   render();
+              }
+
+              private void speedMenu() {
+                  PopupMenu m = new PopupMenu(this, rSpeed.menuAnchor());
+                  m.getMenu().add(0, 1, 0, "Показувати від: " + prefs.getInt("speed_min_kb", 10) + " кБ/с");
+                  m.getMenu().add(0, 2, 1, "Оновлення при малих даних: " + prefs.getInt("speed_idle_s", 5) + " с");
+                  m.setOnMenuItemClickListener(it -> {
+                      if (it.getItemId() == 1)
+                          Dlg.pickInt(this, "Показувати швидкість від, кБ/с", 1, 200, prefs.getInt("speed_min_kb", 10), v -> { prefs.edit().putInt("speed_min_kb", v).apply(); MonitorService.ensure(getApplicationContext()); });
+                      else
+                          Dlg.pickInt(this, "Оновлення при малих даних, с", 1, 60, prefs.getInt("speed_idle_s", 5), v -> { prefs.edit().putInt("speed_idle_s", v).apply(); MonitorService.ensure(getApplicationContext()); });
+                      return true;
+                  });
+                  m.show();
+              }
+
+              private void curMenu() {
+                  PopupMenu m = new PopupMenu(this, rCur.menuAnchor());
+                  m.getMenu().add(0, 1, 0, "Оновлення струму: " + prefs.getInt("cur_s", 5) + " с");
+                  m.setOnMenuItemClickListener(it -> {
+                      Dlg.pickInt(this, "Як часто оновлювати струм, с", 1, 60, prefs.getInt("cur_s", 5), v -> { prefs.edit().putInt("cur_s", v).apply(); MonitorService.ensure(getApplicationContext()); });
+                      return true;
+                  });
+                  m.show();
               }
 
               private void usageMenu() {
@@ -3481,11 +3550,17 @@ jobs:
                   m.show();
               }
 
+              @Override public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+                  super.onRequestPermissionsResult(code, perms, res);
+                  if (code == 2 && bp != null) bp.refresh();
+              }
+
               @Override protected void onPause() { super.onPause(); if (ui != null) ui.pause(); }
               @Override protected void onResume() {
                   super.onResume(); render(); runSync();
                   MonitorService.ensure(getApplicationContext());
                   if (ui != null) ui.refresh();
+                  if (bp != null) bp.refresh();
               }
               private void requestNotificationPermissionIfNeeded() {
                   if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
@@ -3539,6 +3614,791 @@ jobs:
                   tvLog.setText(ActLog.text(getApplicationContext()));
               }
           }
+          EOF
+
+          mkdir -p src/main/java/com/example/nightnet
+          cat > src/main/java/com/example/nightnet/Bday.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.AlarmManager;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.TimePickerDialog;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.BroadcastReceiver;
+          import android.content.ComponentName;
+          import android.content.ContentUris;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.database.Cursor;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.provider.ContactsContract;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.ViewOutlineProvider;
+          import android.widget.Button;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.RemoteViews;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.util.ArrayList;
+          import java.util.Calendar;
+          import java.util.Collections;
+          import java.util.HashSet;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.Set;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          /** One birthday or name day taken from a contact. */
+          final class BdayEv {
+              String name, lookup;
+              long id;
+              boolean nameday;
+              int month, day, year;
+              int days;
+              int age = -1;
+          }
+
+          final class Bday {
+              private static final String[] MONTHS = {"січ.", "лют.", "бер.", "квіт.", "трав.", "черв.", "лип.", "серп.", "вер.", "жовт.", "лист.", "груд."};
+              private static final int[] TILE = {R.id.t1, R.id.t2, R.id.t3, R.id.t4};
+              private static final int[] PIC = {R.id.p1, R.id.p2, R.id.p3, R.id.p4};
+              private static final int[] AGE = {R.id.a1, R.id.a2, R.id.a3, R.id.a4};
+              private static final int[] DAYS = {R.id.d1, R.id.d2, R.id.d3, R.id.d4};
+              private static final int[] NAME = {R.id.n1, R.id.n2, R.id.n3, R.id.n4};
+              private static final int[] COLORS = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924, 0xFFC2554B};
+
+              static boolean hasPerm(Context c) {
+                  return c.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED;
+              }
+
+              static int accent(Context c) {
+                  int[] colors = {0xFF168C83, 0xFF3978C6, 0xFF8064B5, 0xFF27866A, 0xFFB77924};
+                  return colors[Math.floorMod(Prefs.get(c).getInt("theme", 0), colors.length)];
+              }
+
+              /** Returns {year, month, day}; year 0 = unknown. */
+              static int[] parse(String s) {
+                  if (s == null) return null;
+                  s = s.trim();
+                  try {
+                      Matcher m = Pattern.compile("^(\\d{4})-(\\d{1,2})-(\\d{1,2})").matcher(s);
+                      int y, mo, d;
+                      if (m.find()) {
+                          y = Integer.parseInt(m.group(1));
+                          mo = Integer.parseInt(m.group(2));
+                          d = Integer.parseInt(m.group(3));
+                      } else {
+                          m = Pattern.compile("^--(\\d{1,2})-(\\d{1,2})").matcher(s);
+                          if (m.find()) {
+                              y = 0;
+                              mo = Integer.parseInt(m.group(1));
+                              d = Integer.parseInt(m.group(2));
+                          } else {
+                              m = Pattern.compile("^(\\d{4})(\\d{2})(\\d{2})$").matcher(s);
+                              if (!m.find()) return null;
+                              y = Integer.parseInt(m.group(1));
+                              mo = Integer.parseInt(m.group(2));
+                              d = Integer.parseInt(m.group(3));
+                          }
+                      }
+                      if (y < 1800) y = 0;
+                      if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+                      return new int[]{y, mo, d};
+                  } catch (Throwable t) { return null; }
+              }
+
+              private static Calendar dayStart(Calendar c) {
+                  Calendar x = (Calendar) c.clone();
+                  x.set(Calendar.HOUR_OF_DAY, 0);
+                  x.set(Calendar.MINUTE, 0);
+                  x.set(Calendar.SECOND, 0);
+                  x.set(Calendar.MILLISECOND, 0);
+                  return x;
+              }
+
+              private static Calendar occurrence(int year, int month, int day) {
+                  Calendar c = Calendar.getInstance();
+                  c.clear();
+                  c.set(year, month - 1, 1, 0, 0, 0);
+                  c.set(Calendar.DAY_OF_MONTH, Math.min(day, c.getActualMaximum(Calendar.DAY_OF_MONTH)));
+                  return c;
+              }
+
+              /** All birthdays and name days from contacts, nearest first. */
+              static List<BdayEv> load(Context c) {
+                  List<BdayEv> out = new ArrayList<>();
+                  if (!hasPerm(c)) return out;
+                  Calendar today = dayStart(Calendar.getInstance());
+                  Set<String> seen = new HashSet<>();
+                  Cursor cur = null;
+                  try {
+                      cur = c.getContentResolver().query(ContactsContract.Data.CONTENT_URI,
+                              new String[]{ContactsContract.Data.CONTACT_ID, ContactsContract.Data.LOOKUP_KEY, ContactsContract.Data.DISPLAY_NAME,
+                                      ContactsContract.CommonDataKinds.Event.START_DATE, ContactsContract.CommonDataKinds.Event.TYPE,
+                                      ContactsContract.CommonDataKinds.Event.LABEL},
+                              ContactsContract.Data.MIMETYPE + "=?", new String[]{ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE}, null);
+                      while (cur != null && cur.moveToNext()) {
+                          long id = cur.getLong(0);
+                          int type = cur.getInt(4);
+                          String label = cur.getString(5);
+                          String lb = label == null ? "" : label.toLowerCase(Locale.ROOT);
+                          boolean name = lb.contains("імен") || lb.contains("имен") || lb.contains("name day") || lb.contains("nameday");
+                          boolean birth = type == ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY
+                                  || lb.contains("народж") || lb.contains("рожд") || lb.contains("birth");
+                          if (!name && !birth) continue;
+                          int[] d = parse(cur.getString(3));
+                          if (d == null) continue;
+                          boolean nd = name && !(type == ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY);
+                          String key = id + "/" + nd + "/" + d[1] + "/" + d[2];
+                          if (!seen.add(key)) continue;
+                          BdayEv e = new BdayEv();
+                          e.id = id;
+                          e.lookup = cur.getString(1);
+                          e.name = cur.getString(2) == null ? "?" : cur.getString(2);
+                          e.nameday = nd;
+                          e.year = d[0];
+                          e.month = d[1];
+                          e.day = d[2];
+                          int y = today.get(Calendar.YEAR);
+                          Calendar n = occurrence(y, e.month, e.day);
+                          if (n.before(today)) n = occurrence(y + 1, e.month, e.day);
+                          e.days = (int) Math.round((n.getTimeInMillis() - today.getTimeInMillis()) / 86400000.0);
+                          if (!nd && e.year > 0) e.age = n.get(Calendar.YEAR) - e.year;
+                          out.add(e);
+                      }
+                  } catch (Throwable ignored) {
+                  } finally {
+                      if (cur != null) cur.close();
+                  }
+                  Collections.sort(out, (a, b) -> a.days != b.days ? Integer.compare(a.days, b.days) : a.name.compareToIgnoreCase(b.name));
+                  return out;
+              }
+
+              static String years(int n) {
+                  int m10 = n % 10, m100 = n % 100;
+                  String w = (m10 == 1 && m100 != 11) ? "рік" : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? "роки" : "років";
+                  return n + " " + w;
+              }
+
+              static String daysText(int d) { return d == 0 ? "сьогодні" : d == 1 ? "завтра" : d + " дн."; }
+
+              static String dateText(BdayEv e) { return e.day + " " + MONTHS[e.month - 1]; }
+
+              /** Contact photo scaled to about maxPx, or a coloured tile with the initial. */
+              static Bitmap photo(Context c, BdayEv e, int maxPx) {
+                  try {
+                      Uri u = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, e.id);
+                      InputStream is = ContactsContract.Contacts.openContactPhotoInputStream(c.getContentResolver(), u, true);
+                      if (is != null) {
+                          ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                          byte[] buf = new byte[16384];
+                          int n;
+                          while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                          is.close();
+                          byte[] data = bo.toByteArray();
+                          BitmapFactory.Options o = new BitmapFactory.Options();
+                          o.inJustDecodeBounds = true;
+                          BitmapFactory.decodeByteArray(data, 0, data.length, o);
+                          int s = 1;
+                          while (Math.max(o.outWidth, o.outHeight) / (s * 2) >= maxPx) s *= 2;
+                          BitmapFactory.Options o2 = new BitmapFactory.Options();
+                          o2.inSampleSize = s;
+                          Bitmap b = BitmapFactory.decodeByteArray(data, 0, data.length, o2);
+                          if (b != null) return b;
+                      }
+                  } catch (Throwable ignored) { }
+                  Bitmap b = Bitmap.createBitmap(maxPx, maxPx, Bitmap.Config.ARGB_8888);
+                  Canvas cv = new Canvas(b);
+                  cv.drawColor(COLORS[Math.floorMod((int) e.id, COLORS.length)]);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  p.setColor(0xFFFFFFFF);
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTypeface(Typeface.DEFAULT_BOLD);
+                  p.setTextSize(maxPx * 0.5f);
+                  String ini = e.name.isEmpty() ? "?" : e.name.substring(0, 1).toUpperCase(Locale.ROOT);
+                  cv.drawText(ini, maxPx / 2f, maxPx * 0.66f, p);
+                  return b;
+              }
+
+              // ------------------------------------------------------------ widget
+
+              static void updateWidgets(Context c) {
+                  try {
+                      AppWidgetManager m = AppWidgetManager.getInstance(c);
+                      int[] ids = m.getAppWidgetIds(new ComponentName(c, BdayWidget.class));
+                      if (ids == null || ids.length == 0) return;
+                      List<BdayEv> l = load(c);
+                      RemoteViews rv = new RemoteViews(c.getPackageName(), R.layout.bday_widget);
+                      PendingIntent open = PendingIntent.getActivity(c, 0, new Intent(c, MainActivity.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                      rv.setOnClickPendingIntent(R.id.root, open);
+                      if (l.isEmpty()) {
+                          rv.setTextViewText(R.id.empty, hasPerm(c) ? "Немає днів народження в контактах" : "Дайте доступ до контактів у застосунку");
+                          rv.setViewVisibility(R.id.empty, View.VISIBLE);
+                      } else {
+                          rv.setViewVisibility(R.id.empty, View.GONE);
+                      }
+                      for (int i = 0; i < 4; i++) {
+                          if (i >= l.size()) {
+                              rv.setViewVisibility(TILE[i], View.INVISIBLE);
+                              continue;
+                          }
+                          BdayEv e = l.get(i);
+                          rv.setViewVisibility(TILE[i], View.VISIBLE);
+                          rv.setImageViewBitmap(PIC[i], photo(c, e, 260));
+                          String a = e.nameday ? "🎈" : ("🎂" + (e.age >= 0 ? " " + e.age : ""));
+                          rv.setTextViewText(AGE[i], a);
+                          rv.setTextViewText(DAYS[i], String.valueOf(e.days));
+                          rv.setTextViewText(NAME[i], e.name);
+                          Intent vi = new Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(e.id, e.lookup));
+                          PendingIntent pi = PendingIntent.getActivity(c, 10 + i, vi, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                          rv.setOnClickPendingIntent(TILE[i], pi);
+                      }
+                      m.updateAppWidget(ids, rv);
+                  } catch (Throwable ignored) { }
+              }
+
+              // ------------------------------------------------------------ alarms and notification
+
+              private static PendingIntent pending(Context c, int code) {
+                  Intent i = new Intent(c, BdayReceiver.class).setAction("com.example.nightnet.BDAY." + code);
+                  return PendingIntent.getBroadcast(c, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+              }
+
+              /** One alarm after midnight (refresh the widget) and one at the chosen time (reminder). */
+              static void schedule(Context c) {
+                  try {
+                      AlarmManager am = c.getSystemService(AlarmManager.class);
+                      SharedPreferences p = Prefs.get(c);
+                      Calendar mid = dayStart(Calendar.getInstance());
+                      mid.add(Calendar.DAY_OF_YEAR, 1);
+                      mid.add(Calendar.MINUTE, 5);
+                      am.set(AlarmManager.RTC, mid.getTimeInMillis(), pending(c, 160));
+                      if (!p.getBoolean("bd_notify", true)) {
+                          am.cancel(pending(c, 170));
+                          return;
+                      }
+                      int min = p.getInt("bd_min", 9 * 60);
+                      Calendar t = dayStart(Calendar.getInstance());
+                      t.add(Calendar.MINUTE, min);
+                      if (!t.after(Calendar.getInstance())) t.add(Calendar.DAY_OF_YEAR, 1);
+                      am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, t.getTimeInMillis(), pending(c, 170));
+                  } catch (Throwable ignored) { }
+              }
+
+              private static String lineFor(BdayEv e, String when) {
+                  String what = e.nameday ? "іменини" : "день народження" + (e.age >= 0 ? " (" + years(e.age) + ")" : "");
+                  return when + ": " + e.name + " — " + what;
+              }
+
+              /** Posts the reminder for today's events and for events in bd_days days. test = show the next three events. */
+              static void notifyNow(Context c, boolean test) {
+                  try {
+                      SharedPreferences p = Prefs.get(c);
+                      if (!test && !p.getBoolean("bd_notify", true)) return;
+                      if (!hasPerm(c)) return;
+                      Calendar now = Calendar.getInstance();
+                      String key = now.get(Calendar.YEAR) + "-" + now.get(Calendar.DAY_OF_YEAR);
+                      if (!test && key.equals(p.getString("bd_last", ""))) return;
+                      int n = p.getInt("bd_days", 1);
+                      List<BdayEv> l = load(c);
+                      List<String> lines = new ArrayList<>();
+                      for (BdayEv e : l) {
+                          if (test ? lines.size() < 3 : (e.days == 0 || e.days == n)) {
+                              lines.add(lineFor(e, e.days == 0 ? "Сьогодні" : e.days == 1 ? "Завтра" : "Через " + e.days + " дн."));
+                          }
+                      }
+                      if (lines.isEmpty()) {
+                          if (!test) p.edit().putString("bd_last", key).apply();
+                          return;
+                      }
+                      NotificationManager nm = c.getSystemService(NotificationManager.class);
+                      nm.createNotificationChannel(new NotificationChannel("bday", "Дні народження та іменини", NotificationManager.IMPORTANCE_DEFAULT));
+                      PendingIntent pi = PendingIntent.getActivity(c, 0, new Intent(c, MainActivity.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                      Notification.InboxStyle st = new Notification.InboxStyle();
+                      for (String s : lines) st.addLine(s);
+                      Notification nt = new Notification.Builder(c, "bday")
+                              .setSmallIcon(R.drawable.ic_stat)
+                              .setContentTitle(lines.size() == 1 ? lines.get(0) : "Найближчі свята")
+                              .setContentText(lines.size() == 1 ? "Натисніть, щоб відкрити" : lines.get(0))
+                              .setStyle(lines.size() == 1 ? null : st)
+                              .setGroup("nn_bday")
+                              .setAutoCancel(true)
+                              .setContentIntent(pi)
+                              .build();
+                      nm.notify(5, nt);
+                      if (!test) p.edit().putString("bd_last", key).apply();
+                  } catch (Throwable ignored) { }
+              }
+          }
+
+          /** The "Свята" tab: reminder settings and the list of upcoming events. */
+          final class BdayPage {
+              private final Activity a;
+              private final SharedPreferences p;
+              private final List<Button> btns = new ArrayList<>();
+              private ToggleRow rNot;
+              private Button bDays, bTime, bRefresh, bPerm, bTest;
+              private LinearLayout list;
+              private TextView hint;
+              private boolean loading;
+              private View root;
+
+              BdayPage(Activity a) {
+                  this.a = a;
+                  this.p = Prefs.get(a);
+              }
+
+              private int dp(float v) { return Ui.dp(a, v); }
+
+              private Button button(String t) {
+                  Button b = Ui.btn(a, t, Bday.accent(a));
+                  btns.add(b);
+                  return b;
+              }
+
+              private TextView label(String t) {
+                  TextView v = Ui.tv(a, t, 15, 0xFF5F6368, true);
+                  v.setPadding(dp(4), dp(18), 0, dp(4));
+                  return v;
+              }
+
+              View build() {
+                  LinearLayout col = new LinearLayout(a);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(dp(16), dp(8), dp(16), dp(24));
+                  col.addView(label("Нагадування"));
+                  rNot = new ToggleRow(a, "Нагадувати про свята", "За кілька днів і в сам день");
+                  col.addView(rNot);
+                  bDays = button("");
+                  bTime = button("");
+                  col.addView(bDays);
+                  col.addView(bTime);
+                  col.addView(label("Дані з контактів"));
+                  bPerm = button("Дозволити доступ до контактів");
+                  bRefresh = button("Оновити з контактів");
+                  bTest = button("Пробне сповіщення");
+                  col.addView(bPerm);
+                  col.addView(bRefresh);
+                  col.addView(bTest);
+                  hint = Ui.tv(a, "Віджет: утримуйте порожнє місце на робочому столі → Віджети → «Дні народження».", 13, 0xFF5F6368, false);
+                  hint.setPadding(dp(4), dp(8), dp(4), 0);
+                  col.addView(hint);
+                  col.addView(label("Найближчі події"));
+                  list = new LinearLayout(a);
+                  list.setOrientation(LinearLayout.VERTICAL);
+                  col.addView(list);
+
+                  rNot.setOnCheckedChangeListener((v, on) -> {
+                      if (loading) return;
+                      p.edit().putBoolean("bd_notify", on).apply();
+                      if (on && android.os.Build.VERSION.SDK_INT >= 33
+                              && a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                          a.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+                      Bday.schedule(a.getApplicationContext());
+                  });
+                  bDays.setOnClickListener(v -> Dlg.pickInt(a, "Нагадувати за скільки днів", 1, 7, p.getInt("bd_days", 1), d -> {
+                      p.edit().putInt("bd_days", d).putString("bd_last", "").apply();
+                      refreshLabels();
+                  }));
+                  bTime.setOnClickListener(v -> {
+                      int cur = p.getInt("bd_min", 9 * 60);
+                      new TimePickerDialog(a, (view, h, m) -> {
+                          p.edit().putInt("bd_min", h * 60 + m).putString("bd_last", "").apply();
+                          Bday.schedule(a.getApplicationContext());
+                          refreshLabels();
+                      }, cur / 60, cur % 60, true).show();
+                  });
+                  bPerm.setOnClickListener(v -> a.requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 2));
+                  bRefresh.setOnClickListener(v -> refresh());
+                  bTest.setOnClickListener(v -> {
+                      final Context app = a.getApplicationContext();
+                      new Thread(() -> Bday.notifyNow(app, true)).start();
+                      Toast.makeText(a, "Надіслано", Toast.LENGTH_SHORT).show();
+                  });
+                  ScrollView sv = new ScrollView(a);
+                  sv.setBackgroundColor(0xFFF7F8FA);
+                  sv.addView(col);
+                  root = sv;
+                  refreshLabels();
+                  return sv;
+              }
+
+              private void refreshLabels() {
+                  loading = true;
+                  rNot.setChecked(p.getBoolean("bd_notify", true));
+                  loading = false;
+                  int min = p.getInt("bd_min", 9 * 60);
+                  bDays.setText("Нагадувати за: " + p.getInt("bd_days", 1) + " дн. і в день свята");
+                  bTime.setText("Час нагадування: " + Scheduler.hhmm(min));
+                  int c = Bday.accent(a);
+                  for (Button b : btns) Ui.paint(b, c);
+                  rNot.recolor(c);
+              }
+
+              /** Reloads the contact data, the list and the widget. */
+              void refresh() {
+                  refreshLabels();
+                  final boolean perm = Bday.hasPerm(a);
+                  bPerm.setVisibility(perm ? View.GONE : View.VISIBLE);
+                  final Context app = a.getApplicationContext();
+                  new Thread(() -> {
+                      final List<BdayEv> l = Bday.load(app);
+                      final List<Bitmap> pics = new ArrayList<>();
+                      int cnt = Math.min(40, l.size());
+                      for (int i = 0; i < cnt; i++) pics.add(Bday.photo(app, l.get(i), 120));
+                      Bday.updateWidgets(app);
+                      Bday.schedule(app);
+                      a.runOnUiThread(() -> fill(l, pics, perm));
+                  }).start();
+              }
+
+              private void fill(List<BdayEv> l, List<Bitmap> pics, boolean perm) {
+                  list.removeAllViews();
+                  if (l.isEmpty()) {
+                      list.addView(Ui.tv(a, perm ? "У контактах не знайдено днів народження чи іменин." : "Потрібен доступ до контактів.", 14, 0xFF30343A, false));
+                      return;
+                  }
+                  for (int i = 0; i < pics.size(); i++) {
+                      BdayEv e = l.get(i);
+                      LinearLayout card = Ui.card(a);
+                      card.setOrientation(LinearLayout.HORIZONTAL);
+                      card.setGravity(Gravity.CENTER_VERTICAL);
+                      ImageView iv = new ImageView(a);
+                      iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                      GradientDrawable g = new GradientDrawable();
+                      g.setShape(GradientDrawable.OVAL);
+                      g.setColor(0xFFDDDDDD);
+                      iv.setBackground(g);
+                      iv.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+                      iv.setClipToOutline(true);
+                      iv.setImageBitmap(pics.get(i));
+                      card.addView(iv, new LinearLayout.LayoutParams(dp(48), dp(48)));
+                      LinearLayout tx = new LinearLayout(a);
+                      tx.setOrientation(LinearLayout.VERTICAL);
+                      tx.setPadding(dp(12), 0, dp(8), 0);
+                      tx.addView(Ui.tv(a, e.name, 16, 0xFF202124, true));
+                      String sub = e.nameday ? "🎈 іменини · " + Bday.dateText(e)
+                              : "🎂 день народження · " + Bday.dateText(e) + (e.age >= 0 ? " · " + Bday.years(e.age) : "");
+                      tx.addView(Ui.tv(a, sub, 13, 0xFF5F6368, false));
+                      card.addView(tx, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                      TextView d = Ui.tv(a, Bday.daysText(e.days), 15, e.days <= 3 ? Bday.accent(a) : 0xFF30343A, true);
+                      card.addView(d);
+                      final long id = e.id;
+                      final String lookup = e.lookup;
+                      card.setOnClickListener(v -> {
+                          try { a.startActivity(new Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(id, lookup))); }
+                          catch (Throwable ignored) { }
+                      });
+                      list.addView(card, Ui.lp(a, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 4, 0, 4));
+                  }
+              }
+          }
+          EOF
+
+          mkdir -p src/main/java/com/example/nightnet
+          cat > src/main/java/com/example/nightnet/BdayReceiver.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+
+          public class BdayReceiver extends BroadcastReceiver {
+              @Override public void onReceive(Context context, Intent intent) {
+                  final PendingResult r = goAsync();
+                  final Context app = context.getApplicationContext();
+                  final String a = intent == null ? "" : String.valueOf(intent.getAction());
+                  new Thread(() -> {
+                      try {
+                          Bday.schedule(app);
+                          Bday.updateWidgets(app);
+                          if (a.endsWith(".170")) Bday.notifyNow(app, false);
+                      } finally { r.finish(); }
+                  }).start();
+              }
+          }
+          EOF
+
+          mkdir -p src/main/java/com/example/nightnet
+          cat > src/main/java/com/example/nightnet/BdayWidget.java <<'EOF'
+          package com.example.nightnet;
+
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.Context;
+
+          public class BdayWidget extends AppWidgetProvider {
+              @Override public void onUpdate(final Context context, AppWidgetManager mgr, int[] ids) {
+                  final PendingResult r = goAsync();
+                  final Context app = context.getApplicationContext();
+                  new Thread(() -> {
+                      try { Bday.updateWidgets(app); Bday.schedule(app); } finally { r.finish(); }
+                  }).start();
+              }
+          }
+          EOF
+
+          mkdir -p src/main/res/xml
+          cat > src/main/res/xml/bday_widget.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="250dp"
+              android:minHeight="40dp"
+              android:targetCellWidth="4"
+              android:targetCellHeight="1"
+              android:updatePeriodMillis="0"
+              android:initialLayout="@layout/bday_widget"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen" />
+          EOF
+
+          mkdir -p src/main/res/layout
+          cat > src/main/res/layout/bday_widget.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/root"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent">
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:orientation="horizontal">
+              <FrameLayout
+                  android:id="@+id/t1"
+                  android:layout_width="0dp"
+                  android:layout_height="match_parent"
+                  android:layout_weight="1"
+                  android:layout_margin="2dp">
+                  <ImageView
+                      android:id="@+id/p1"
+                      android:layout_width="match_parent"
+                      android:layout_height="match_parent"
+                      android:scaleType="centerCrop" />
+                  <TextView
+                      android:id="@+id/a1"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|start"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/d1"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|end"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/n1"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="bottom"
+                      android:background="#88000000"
+                      android:gravity="center"
+                      android:maxLines="1"
+                      android:ellipsize="end"
+                      android:paddingTop="1dp"
+                      android:paddingBottom="1dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp" />
+              </FrameLayout>
+              <FrameLayout
+                  android:id="@+id/t2"
+                  android:layout_width="0dp"
+                  android:layout_height="match_parent"
+                  android:layout_weight="1"
+                  android:layout_margin="2dp">
+                  <ImageView
+                      android:id="@+id/p2"
+                      android:layout_width="match_parent"
+                      android:layout_height="match_parent"
+                      android:scaleType="centerCrop" />
+                  <TextView
+                      android:id="@+id/a2"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|start"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/d2"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|end"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/n2"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="bottom"
+                      android:background="#88000000"
+                      android:gravity="center"
+                      android:maxLines="1"
+                      android:ellipsize="end"
+                      android:paddingTop="1dp"
+                      android:paddingBottom="1dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp" />
+              </FrameLayout>
+              <FrameLayout
+                  android:id="@+id/t3"
+                  android:layout_width="0dp"
+                  android:layout_height="match_parent"
+                  android:layout_weight="1"
+                  android:layout_margin="2dp">
+                  <ImageView
+                      android:id="@+id/p3"
+                      android:layout_width="match_parent"
+                      android:layout_height="match_parent"
+                      android:scaleType="centerCrop" />
+                  <TextView
+                      android:id="@+id/a3"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|start"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/d3"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|end"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/n3"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="bottom"
+                      android:background="#88000000"
+                      android:gravity="center"
+                      android:maxLines="1"
+                      android:ellipsize="end"
+                      android:paddingTop="1dp"
+                      android:paddingBottom="1dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp" />
+              </FrameLayout>
+              <FrameLayout
+                  android:id="@+id/t4"
+                  android:layout_width="0dp"
+                  android:layout_height="match_parent"
+                  android:layout_weight="1"
+                  android:layout_margin="2dp">
+                  <ImageView
+                      android:id="@+id/p4"
+                      android:layout_width="match_parent"
+                      android:layout_height="match_parent"
+                      android:scaleType="centerCrop" />
+                  <TextView
+                      android:id="@+id/a4"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|start"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/d4"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="top|end"
+                      android:padding="3dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="11sp"
+                      android:textStyle="bold"
+                      android:shadowColor="#CC000000"
+                      android:shadowDx="1"
+                      android:shadowDy="1"
+                      android:shadowRadius="2" />
+                  <TextView
+                      android:id="@+id/n4"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="bottom"
+                      android:background="#88000000"
+                      android:gravity="center"
+                      android:maxLines="1"
+                      android:ellipsize="end"
+                      android:paddingTop="1dp"
+                      android:paddingBottom="1dp"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp" />
+              </FrameLayout>
+              </LinearLayout>
+              <TextView
+                  android:id="@+id/empty"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:background="#88000000"
+                  android:gravity="center"
+                  android:textColor="#FFFFFFFF"
+                  android:textSize="13sp"
+                  android:visibility="gone" />
+          </FrameLayout>
           EOF
 
       - name: Build APK
