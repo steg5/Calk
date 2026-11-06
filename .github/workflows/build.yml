@@ -1,204 +1,316 @@
-exported
-action
-android.hardware.camera$android.intent.action.BOOT_COMPLETED
-android.intent.action.MAIN
-android.intent.category.DEFAULT)android.permission.ACCESS_COARSE_LOCATION'android.permission.ACCESS_FINE_LOCATION
-android.permission.CAMERA%android.permission.FOREGROUND_SERVICE(android.permission.READ_EXTERNAL_STORAGE)android.permission.RECEIVE_BOOT_COMPLETED&android.permission.SYSTEM_ALERT_WINDOW)android.permission.WRITE_EXTERNAL_STORAGE!android.permission.WRITE_SETTINGS+android.support.v4.app.CoreComponentFactory
-com.tw.carinfoservice!com.tw.carinfoservice.CarActivity!com.tw.carinfoservice.CarReceiver com.tw.carinfoservice.CarService%com.tw.carinfoservice.CarService.Bind,com.tw.carinfoservice.activity.MyApplication1com.tw.carinfoservice.lrreverse.LRReverseActivity-com.tw.carinfoservice.permission.MainActivity2com.tw.carinfoservice.permission.PermissionService)com.tw.carinfoservice.permission.USE_AIDL&com.tw.twcamera.activiy.CameraActivity*http://schemas.android.com/apk/res/android
-permission
-uses-permission
-=====AIDL1=====
-�识位 数组0位 -1 为无效   数组1位为警告值
-      * @param
-      */
-   int[] getRFTireWarning();
-  /**
-     * 请求左后胎压警告标识位 -数组0位 -1 为无效   数组1位为警告值
-     * @param
-     */
-   int[] getLRTireWarning();
- /**
-    * 请求右后胎压警告标识位 数组0位 -1 为无效   数组1位为警告值
-    * @param
-    */
-   int[] getRRTireWarning();
+name: Car probe
 
-   /**
-      * 请求左前胎压温度标识位 数组0位 -1 为无效 数组1位为数值 数组2位为单位0为摄氏度 1为华氏度
-      * @param
-      */
-  float[] getLFTireTemp();
-  /**
-     * 请求右前胎压温度标识位 数组0位 -1 为无效 数组1位为数值 数组2位为单位0为摄氏度 1为华氏度
-     * @param
-     */
-  float[] getRFTireTemp();
- /**
-    * 请求左后胎压温度标识位 数组0位 -1 为无效 数组1位为数值 数组2位为单位0为摄氏度 1为华氏度
-    * @param
-    */
-  float[] getLRTireTemp();
-/**
-   * 请求右后胎压温度标识位 数组0位 -1 为无效 数组1位为数值 数组2位为单位0为摄氏度 1为华氏度
-   * @param
-   */
-  float[] getRRTireTemp();
-  /**
-         * 请求清洗液警告标识位 -1 为无效
-         * @param
-         */
-   int getWashingFluidWarning();
+on:
+  workflow_dispatch:
+  push:
 
-   /**
-      * 请求雷达数据 1-11从近到远 0没有 16个数据 分别是前左，前左中，前右中 前右，右前，右前中，右后中，右后,后右，后右中，后左中，后左，左后，左后中，左前中，左前，从前左顺时针
-      * @param
-      */
-   int[] getRadar( );
-   /**
-      * 请求轨迹数据 中间值为240 0-480
-      * @param
-      */
-   int getTrack();
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-   /**
-       * 请求转向灯标识位 -1 为无效 1为右转向 2为左转向 3为双闪
-       * @param
-       */
-   int getTurn_Signal();
-   /**
-        * 请求本次驾驶平均油耗标识位 -1 为无效
-        * @param
-        */
-   float getAverage_Fuel_Consumption_For_This_Drive();
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/carprobe
 
-   /**
-       *扩展接口，后期接口扩展
-       */
-   Bundle extendedInterface(in Bundle bundle);
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'CarProbe'
+          include ':app'
+          EOF
 
-    /**
-       *暂停或者打开 服务端对当前客户端的数据发送 true为打开 fales为暂停 默认为true打开的
-       */
-   void pauseData(in CarServiceCallBack mCarServiceCallBack, boolean is);
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
 
-    /**
-       *同步更新接口第三方更新时同步更新CarInfoService自身接口
-       */
-   void updateApk();
-}
-=====AIDL2=====
- onDrivenDistance(int mDrivenDistance,String mUnit);
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
 
-    /**
-       * 左前胎压警告  mTireWarningType 0表示胎压正常 1胎压异常           2温度异常                 3传感器异常
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.carprobe'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.carprobe"
+                  minSdk 21
+                  targetSdk 26
+                  versionCode 1
+                  versionName "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          EOF
 
-                    mTireWarningValue 0正常       1胎压过低           1温度过低                 1传感器丢失
-                                                 2胎压过高           2温度过高                 2传感器电池电量低
-                                                 3请检查胎压         3温度警告                 3传感器故障
-                                                 4胎压失压
-                                                 5系统故障
-                                                 6快速泄漏
-       * @param
-       */
-   void onLFTireWarning(int mTireWarningType,int mTireWarningValue);
-   /**
-      * 右前胎压警告
-      * @param
-      */
-   void onRFTireWarning(int mTireWarningType,int mTireWarningValue);
-  /**
-     * 左后胎压警告
-     * @param
-     */
-   void onLRTireWarning(int mTireWarningType,int mTireWarningValue);
- /**
-    * 右后胎压警告
-    * @param
-    */
-   void onRRTireWarning(int mTireWarningType,int mTireWarningValue);
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="com.tw.carinfoservice.permission.USE_AIDL"/>
+              <application
+                  android:label="CarProbe"
+                  android:allowBackup="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
 
-   /**
-      * 左前胎压温度
-      * @param
-      */
-  void onLFTireTemp(int mTireTemp,String mUnit);
-  /**
-     * 右前胎压温度
-     * @param
-     */
-  void onRFTireTemp(int mTireTemp,String mUnit);
- /**
-    * 左后胎压温度
-    * @param
-    */
-  void onLRTireTemp(int mTireTemp,String mUnit);
-/**
-   * 右后胎压温度
-   * @param
-   */
-  void onRRTireTemp(int mTireTemp,String mUnit);
+          cat > app/src/main/java/com/example/carprobe/MainActivity.java <<'EOF'
+          package com.example.carprobe;
 
-    /**
-       * 清洗液警告
-       * @param
-       */
-    void onWashingFluidWarning(boolean mWashingFluidWarning);
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.ServiceConnection;
+          import android.graphics.Typeface;
+          import android.os.Bundle;
+          import android.os.IBinder;
+          import android.os.Parcel;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
 
-    /**
-       * 雷达数据1-11从近到远 0没有 16个数据 分别是前左，前左中，前右中 前右，右前，右前中，右后中，右后,后右，后右中，后左中，后左，左后，左后中，左前中，左前，从前左顺时针
-       * @param
-       */
-  void onRadar(int mFLR,int mFCLR,int mFCRR,int mFRR,int mRightFR,int mRightCFR,int mRightCRR,int mRightRR,int mRRR,int mRCRR,int mRCLR,int mRLR,int mLeftRR
-                          ,int mLeftCRR,int mLeftCFR,int mLeftFR);
+          import java.util.Arrays;
 
-    /**
-       * 轨迹数据 中间值为240 0-480
-       * @param
-       */
-    void onTrack(int mTrack);
-    /**
-         * 转向灯 0为无转向 1为右转向 2为左转向 3为双闪
-         * @param
-         */
-     void onTurn_Signal(int mTurn_Signal);
-    /**
-          * 本次驾驶平均油耗
-          * @param
-          */
-     void onAverage_Fuel_Consumption_For_This_Drive(float mAverage_Fuel_Consumption,String mUnit);
+          public class MainActivity extends Activity {
 
+              static final String DESC = "com.tw.carinfoservice.CarServiceAidl";
+              static final String ACTION = "com.tw.carinfoservice.CarService.Bind";
+              static final String PKG = "com.tw.carinfoservice";
 
+              // transaction code = 4 + index (1 register, 2 unregister, 3 requestData)
+              static final int FIRST = 4;
+              static final String[][] ITEMS = {
+                  {"ElectricVoltage", "f"},
+                  {"Headlight", "i"},
+                  {"DrivingTime", "i"},
+                  {"TotalMileage", "I"},
+                  {"RechargeMileage", "I"},
+                  {"AvgFuel", "f"},
+                  {"InstantFuel", "f"},
+                  {"Gear", "i"},
+                  {"MainSeatBelt", "i"},
+                  {"CoPilotSeatBelt", "i"},
+                  {"Handbrake", "i"},
+                  {"LeftTurn", "i"},
+                  {"RightTurn", "i"},
+                  {"DoubleFlash", "i"},
+                  {"Speed", "I"},
+                  {"EngineRPM", "i"},
+                  {"WaterTemp", "F"},
+                  {"AmbientTemp", "F"},
+                  {"OilTemp", "F"},
+                  {"OilVolume", "f"},
+                  {"Electricity", "f"},
+                  {"Charging", "i"},
+                  {"VoltageWarning", "i"},
+                  {"CarReverse", "i"},
+                  {"Door", "i"},
+                  {"OriginalCarVoltage", "f"},
+                  {"TransTemp", "f"},
+                  {"IntakeTemp", "f"},
+                  {"IntakePressure", "f"},
+                  {"Turbocharged", "i"},
+                  {"DrivingMode", "i"},
+                  {"OffSign", "i"},
+                  {"OnSign", "i"},
+                  {"TirePressure", "F"},
+                  {"Throttle", "i"},
+                  {"SteeringAngle", "i"}
+              };
 
-    /**
-        *扩展接口，后期接口扩展
-     */
-    void onExtendedInterface(in Bundle bundle);
+              TextView tv;
+              volatile IBinder svc;
+              volatile boolean running;
 
-    /**
-      * 本次驾驶里程
-      * @param
-      */
-     void onMileage_For_This_Drive(float mMileage,String mUnit);
-//      /**
-//          * GPS车速
-//          * @param
-//          */
-//      void onGPS_Speed(float mGPS_Speed);
-//      /**
-//            * GPS方向
-//            * @param
-//            */
-//    void onGPS_Bear(float mGPS_Bear);
-    /**
-        * 左前门
-        * @param
-        */
-    void onLeftRearDoor(boolean mLeftFrontDoor);
-    /**
-        * 右前门
-        * @param
-        */
-    void onRightRearDoor(boolean mRightFrontDoor);
+              ServiceConnection conn = new ServiceConnection() {
+                  @Override
+                  public void onServiceConnected(ComponentName name, IBinder service) {
+                      svc = service;
+                      startLoop();
+                  }
 
-}
+                  @Override
+                  public void onServiceDisconnected(ComponentName name) {
+                      svc = null;
+                      running = false;
+                      show("Service disconnected");
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(16, 16, 16, 16);
+
+                  Button copy = new Button(this);
+                  copy.setText("Копіювати");
+                  copy.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                          cm.setPrimaryClip(ClipData.newPlainText("car", tv.getText()));
+                          Toast.makeText(MainActivity.this, "Скопійовано", Toast.LENGTH_SHORT).show();
+                      }
+                  });
+                  root.addView(copy);
+
+                  ScrollView sv = new ScrollView(this);
+                  tv = new TextView(this);
+                  tv.setTypeface(Typeface.MONOSPACE);
+                  tv.setTextSize(15);
+                  tv.setText("Підключення...");
+                  sv.addView(tv);
+                  root.addView(sv);
+                  setContentView(root);
+
+                  try {
+                      Intent i = new Intent(ACTION);
+                      i.setPackage(PKG);
+                      boolean ok = bindService(i, conn, Context.BIND_AUTO_CREATE);
+                      if (!ok) {
+                          tv.setText("bindService повернув false (сервіс не знайдено або немає доступу)");
+                      }
+                  } catch (Throwable t) {
+                      tv.setText("bind ERR: " + t);
+                  }
+              }
+
+              void show(final String s) {
+                  runOnUiThread(new Runnable() {
+                      @Override
+                      public void run() {
+                          tv.setText(s);
+                      }
+                  });
+              }
+
+              void startLoop() {
+                  if (running) return;
+                  running = true;
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          while (running && svc != null) {
+                              poll();
+                              try {
+                                  Thread.sleep(1000);
+                              } catch (InterruptedException e) {
+                                  return;
+                              }
+                          }
+                      }
+                  }).start();
+              }
+
+              static Parcel call(IBinder b, int code) throws Exception {
+                  Parcel d = Parcel.obtain();
+                  Parcel r = Parcel.obtain();
+                  try {
+                      d.writeInterfaceToken(DESC);
+                      b.transact(code, d, r, 0);
+                      r.readException();
+                      return r;
+                  } catch (Exception e) {
+                      r.recycle();
+                      throw e;
+                  } finally {
+                      d.recycle();
+                  }
+              }
+
+              void poll() {
+                  IBinder b = svc;
+                  if (b == null) return;
+                  StringBuilder sb = new StringBuilder();
+                  try {
+                      call(b, 3).recycle();
+                  } catch (Exception e) {
+                      sb.append("requestData: ERR ").append(e).append("\n");
+                  }
+                  for (int k = 0; k < ITEMS.length; k++) {
+                      String name = ITEMS[k][0];
+                      char type = ITEMS[k][1].charAt(0);
+                      try {
+                          Parcel r = call(b, FIRST + k);
+                          String v;
+                          if (type == 'i') v = String.valueOf(r.readInt());
+                          else if (type == 'f') v = String.valueOf(r.readFloat());
+                          else if (type == 'I') v = Arrays.toString(r.createIntArray());
+                          else v = Arrays.toString(r.createFloatArray());
+                          r.recycle();
+                          sb.append(name).append(": ").append(v).append("\n");
+                      } catch (Exception e) {
+                          sb.append(name).append(": ERR ").append(e).append("\n");
+                      }
+                  }
+                  show(sb.toString());
+              }
+
+              @Override
+              protected void onDestroy() {
+                  running = false;
+                  try {
+                      unbindService(conn);
+                  } catch (Throwable ignored) {
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CarProbe
+          path: app/build/outputs/apk/debug/app-debug.apk
