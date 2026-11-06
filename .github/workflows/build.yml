@@ -2619,6 +2619,7 @@ jobs:
                       row = new LinearLayout(act);
                       row.setOrientation(LinearLayout.HORIZONTAL);
                       boolean even = sp > 16;
+                      final View[] tabViews = new View[titles.length];
                       for (int i = 0; i < titles.length; i++) {
                           LinearLayout tab = new LinearLayout(act);
                           tab.setOrientation(LinearLayout.VERTICAL);
@@ -2636,11 +2637,26 @@ jobs:
                           tl[i] = line;
                           final int idx = i;
                           tab.setOnClickListener(v -> pager.setCurrentItem(idx, true));
-                          if (even) row.addView(tab, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-                          else row.addView(tab);
+                          tabViews[i] = tab;
+                          if (!even) row.addView(tab);
                       }
-                      scroll.addView(row);
-                      root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                      if (even) {
+                          // Two rows: Батарея, Мережа, Свята / Сповіщення, Налаштування.
+                          int[][] grid = {{1, 0, 3}, {2, 4}};
+                          LinearLayout box = new LinearLayout(act);
+                          box.setOrientation(LinearLayout.VERTICAL);
+                          box.setBackgroundColor(bg);
+                          for (int[] line : grid) {
+                              LinearLayout r = new LinearLayout(act);
+                              r.setOrientation(LinearLayout.HORIZONTAL);
+                              for (int idx : line) r.addView(tabViews[idx], new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                              box.addView(r, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                          }
+                          root.addView(box, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                      } else {
+                          scroll.addView(row);
+                          root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                      }
 
                       pager = new ViewPager(act);
                       pager.setAdapter(new PagerAdapter() {
