@@ -78,6 +78,7 @@ jobs:
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
               <application
                   android:label="TwProbe"
                   android:allowBackup="false">
@@ -188,6 +189,7 @@ jobs:
                   super.onCreate(b);
                   registerReceiver(cmdRx, new android.content.IntentFilter("tw.cmd"));
                   appendFile("==== запуск програми ====");
+                  startServer();
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
                   LinearLayout root = new LinearLayout(this);
@@ -438,6 +440,91 @@ jobs:
                       sendTw(i.getIntExtra("what", 0), i.getIntExtra("a1", 0), i.getIntExtra("a2", 0));
                   }
               };
+
+              void startServer() {
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              java.net.ServerSocket ss = new java.net.ServerSocket(8099);
+                              while (true) {
+                                  final java.net.Socket c = ss.accept();
+                                  new Thread(new Runnable() {
+                                      @Override
+                                      public void run() {
+                                          serve(c);
+                                      }
+                                  }).start();
+                              }
+                          } catch (Throwable t) {
+                              addChange("HTTP помилка: " + t);
+                          }
+                      }
+                  }, "http").start();
+              }
+
+              String tailText(int n) {
+                  StringBuilder sb = new StringBuilder();
+                  sb.append("Стан: ").append(status).append("\n");
+                  int from = Math.max(0, changes.size() - n);
+                  for (int i = from; i < changes.size(); i++) sb.append(changes.get(i)).append("\n");
+                  return sb.toString();
+              }
+
+              void serve(java.net.Socket c) {
+                  try {
+                      c.setSoTimeout(3000);
+                      java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(c.getInputStream()));
+                      String line = r.readLine();
+                      String path = "/";
+                      if (line != null && line.split(" ").length > 1) path = line.split(" ")[1];
+                      final android.net.Uri u = android.net.Uri.parse("http://x" + path);
+                      final String p = u.getPath() == null ? "/" : u.getPath();
+                      final java.util.concurrent.CountDownLatch l1 = new java.util.concurrent.CountDownLatch(1);
+                      handler.post(new Runnable() {
+                          @Override
+                          public void run() {
+                              try {
+                                  if (p.equals("/start")) {
+                                      if (!running) startTw();
+                                  } else if (p.equals("/stop")) {
+                                      if (running) stopTw();
+                                  } else if (p.equals("/mark")) {
+                                      addChange("======== ПОЗНАЧКА: " + u.getQueryParameter("t") + " ========");
+                                  } else if (p.equals("/send")) {
+                                      sendTw(Integer.parseInt(u.getQueryParameter("what")),
+                                              Integer.parseInt(u.getQueryParameter("a1")),
+                                              Integer.parseInt(u.getQueryParameter("a2")));
+                                  }
+                              } catch (Throwable t) {
+                                  addChange("HTTP команда помилка: " + t);
+                              }
+                              l1.countDown();
+                          }
+                      });
+                      l1.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                      Thread.sleep(p.equals("/send") ? 900 : 100);
+                      final String[] out = new String[1];
+                      final java.util.concurrent.CountDownLatch l2 = new java.util.concurrent.CountDownLatch(1);
+                      final int n = u.getQueryParameter("n") != null ? Integer.parseInt(u.getQueryParameter("n")) : 20;
+                      handler.post(new Runnable() {
+                          @Override
+                          public void run() {
+                              out[0] = tailText(n);
+                              l2.countDown();
+                          }
+                      });
+                      l2.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                      byte[] body = String.valueOf(out[0]).getBytes("UTF-8");
+                      java.io.OutputStream o = c.getOutputStream();
+                      o.write(("HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n").getBytes("US-ASCII"));
+                      o.write(body);
+                      o.flush();
+                  } catch (Throwable ignored) {
+                  } finally {
+                      try { c.close(); } catch (Throwable ignored) { }
+                  }
+              }
 
               void addChange(String s) {
                   String line = tf.format(new Date()) + "  " + s;
