@@ -377,6 +377,7 @@ jobs:
               void onTwMessage(Message msg) {
                   int w = msg.what;
                   String o = fmtObj(msg.obj);
+                  if (w == 0x401 && msg.obj instanceof byte[]) o = o + "  " + decRadio((byte[]) msg.obj);
                   Rec r = table.get(w);
                   boolean changed;
                   if (r == null) {
@@ -392,7 +393,7 @@ jobs:
                   r.obj = o;
                   if (changed) {
                       r.changes++;
-                      if (r.changes <= 60) {
+                      if (r.changes <= 60 || w == 0x401) {
                           addChange(String.format(Locale.US, "0x%04x  a1=%d (0x%x)  a2=%d (0x%x)  obj=%s",
                                   w, msg.arg1, msg.arg1, msg.arg2, msg.arg2, o));
                       } else if (r.changes == 61) {
@@ -524,6 +525,17 @@ jobs:
                   } finally {
                       try { c.close(); } catch (Throwable ignored) { }
                   }
+              }
+
+              static String decRadio(byte[] b) {
+                  if (b.length < 13) return "";
+                  int f = ((b[2] & 0xff) << 8) | (b[3] & 0xff);
+                  StringBuilder ps = new StringBuilder();
+                  for (int i = 5; i < 13; i++) {
+                      int c = b[i] & 0xff;
+                      ps.append(c >= 32 && c < 127 ? (char) c : '.');
+                  }
+                  return String.format(Locale.US, "[fl=%02x b1=%02x f=%d.%02d PS=%s]", b[0] & 0xff, b[1] & 0xff, f / 100, f % 100, ps);
               }
 
               void addChange(String s) {
