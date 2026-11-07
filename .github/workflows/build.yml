@@ -377,7 +377,11 @@ jobs:
               void onTwMessage(Message msg) {
                   int w = msg.what;
                   String o = fmtObj(msg.obj);
-                  if (w == 0x401 && msg.obj instanceof byte[]) o = o + "  " + decRadio((byte[]) msg.obj);
+                  if (w == 0x401 && msg.obj instanceof byte[]) {
+                      o = o + "  " + decRadio((byte[]) msg.obj);
+                      byte[] bb0 = (byte[]) msg.obj;
+                      if (bb0.length >= 4) lastFreq = ((bb0[2] & 0xff) << 8) | (bb0[3] & 0xff);
+                  }
                   Rec r = table.get(w);
                   boolean changed;
                   if (r == null) {
@@ -442,6 +446,52 @@ jobs:
                   }
               };
 
+              volatile int lastFreq = 0;
+
+              void openRadio(Float f) {
+                  try {
+                      android.content.Intent in = new android.content.Intent();
+                      in.setClassName("com.tw.radio", "com.tw.radio.RadioActivity");
+                      in.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                      if (f != null) in.putExtra("frequency", f.floatValue());
+                      startActivity(in);
+                      addChange("Запуск радіо" + (f != null ? " з частотою " + f : ""));
+                  } catch (Throwable t) {
+                      addChange("Запуск радіо помилка: " + t);
+                  }
+              }
+
+              void gotoFreq(final int target) {
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              int guard = 0;
+                              while (guard++ < 500) {
+                                  final int cur = lastFreq;
+                                  if (cur == 0 || Math.abs(target - cur) < 3) break;
+                                  final int dir = target > cur ? 0 : 1;
+                                  handler.post(new Runnable() {
+                                      @Override
+                                      public void run() {
+                                          sendTw(0x401, 2, dir);
+                                      }
+                                  });
+                                  Thread.sleep(60);
+                              }
+                              handler.post(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      addChange("goto завершено, частота " + (lastFreq / 100.0));
+                                  }
+                              });
+                          } catch (Throwable t) {
+                              addChange("goto помилка: " + t);
+                          }
+                      }
+                  }).start();
+              }
+
               void startServer() {
                   new Thread(new Runnable() {
                       @Override
@@ -492,6 +542,12 @@ jobs:
                                       if (running) stopTw();
                                   } else if (p.equals("/mark")) {
                                       addChange("======== ПОЗНАЧКА: " + u.getQueryParameter("t") + " ========");
+                                  } else if (p.equals("/open")) {
+                                      openRadio(null);
+                                  } else if (p.equals("/tune")) {
+                                      openRadio(Float.valueOf(u.getQueryParameter("f")));
+                                  } else if (p.equals("/goto")) {
+                                      gotoFreq((int) Math.round(Double.parseDouble(u.getQueryParameter("f")) * 100));
                                   } else if (p.equals("/send")) {
                                       sendTw(Integer.parseInt(u.getQueryParameter("what")),
                                               Integer.parseInt(u.getQueryParameter("a1")),
@@ -504,7 +560,7 @@ jobs:
                           }
                       });
                       l1.await(2, java.util.concurrent.TimeUnit.SECONDS);
-                      Thread.sleep(p.equals("/send") ? 900 : 100);
+                      Thread.sleep(p.equals("/send") ? 900 : (p.equals("/goto") ? 100 : (p.equals("/tune") ? 1500 : 100)));
                       final String[] out = new String[1];
                       final java.util.concurrent.CountDownLatch l2 = new java.util.concurrent.CountDownLatch(1);
                       final int n = u.getQueryParameter("n") != null ? Integer.parseInt(u.getQueryParameter("n")) : 20;
