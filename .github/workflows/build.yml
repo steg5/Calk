@@ -186,6 +186,8 @@ jobs:
               @Override
               protected void onCreate(Bundle b) {
                   super.onCreate(b);
+                  registerReceiver(cmdRx, new android.content.IntentFilter("tw.cmd"));
+                  appendFile("==== запуск програми ====");
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
                   LinearLayout root = new LinearLayout(this);
@@ -398,8 +400,49 @@ jobs:
                   scheduleRender();
               }
 
+              java.io.FileWriter logw;
+
+              void appendFile(String line) {
+                  try {
+                      if (logw == null) {
+                          java.io.File dir = getExternalFilesDir(null);
+                          if (dir == null) dir = getFilesDir();
+                          dir.mkdirs();
+                          logw = new java.io.FileWriter(new java.io.File(dir, "tw_log.txt"), true);
+                      }
+                      logw.write(line + "\n");
+                      logw.flush();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              final android.content.BroadcastReceiver cmdRx = new android.content.BroadcastReceiver() {
+                  @Override
+                  public void onReceive(Context c, android.content.Intent i) {
+                      String act = i.getStringExtra("act");
+                      if ("start".equals(act)) {
+                          if (!running) startTw();
+                          return;
+                      }
+                      if ("stop".equals(act)) {
+                          if (running) stopTw();
+                          return;
+                      }
+                      String mark = i.getStringExtra("mark");
+                      if (mark != null) {
+                          addChange("======== ПОЗНАЧКА: " + mark + " ========");
+                          scheduleRender();
+                          return;
+                      }
+                      if (!i.hasExtra("what")) return;
+                      sendTw(i.getIntExtra("what", 0), i.getIntExtra("a1", 0), i.getIntExtra("a2", 0));
+                  }
+              };
+
               void addChange(String s) {
-                  changes.add(tf.format(new Date()) + "  " + s);
+                  String line = tf.format(new Date()) + "  " + s;
+                  changes.add(line);
+                  appendFile(line);
                   if (changes.size() > 1500) changes.remove(0);
               }
 
@@ -437,6 +480,7 @@ jobs:
               @Override
               protected void onDestroy() {
                   if (running) stopTw();
+                  try { unregisterReceiver(cmdRx); } catch (Throwable ignored) { }
                   super.onDestroy();
               }
           }
