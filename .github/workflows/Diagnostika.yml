@@ -21,7 +21,7 @@ jobs:
 
       - name: Write project
         run: |
-          mkdir -p app/src/main/java/com/example/diagnostics
+          mkdir -p app/src/main/java/com/example/diagnostics2
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -86,7 +86,7 @@ jobs:
                   android:allowBackup="false"
                   android:theme="@android:style/Theme.DeviceDefault">
                   <activity
-                      android:name=".MainActivity"
+                      android:name="com.example.diagnostics2.MainActivity"
                       android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
@@ -97,8 +97,8 @@ jobs:
           </manifest>
           EOF
 
-          cat > app/src/main/java/com/example/diagnostics/MainActivity.java <<'EOF'
-          package com.example.diagnostics;
+          cat > app/src/main/java/com/example/diagnostics2/MainActivity.java <<'EOF'
+          package com.example.diagnostics2;
 
           import android.app.Activity;
           import android.graphics.Color;
