@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.diagnostics"
                   minSdk 23
                   targetSdk 26
-                  versionCode 7
-                  versionName "2.5"
+                  versionCode 8
+                  versionName "2.6"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -150,13 +150,21 @@ jobs:
               static final int RED = 0xFFEF5350, GRN = 0xFF81C784;
               int BG, CARD, TXT, DIM, ACC, BTN, TABON;
 
-              static final String[] SCHEME_NAMES = {"Темна синя", "Світла", "Зелена ніч", "Бурштин", "Чорна (AMOLED)"};
+              static final String[] SCHEME_NAMES = {"Темна синя", "Світла", "Зелена ніч", "Бурштин", "Чорна (AMOLED)",
+                      "Лаванда", "М'ята", "Персик", "Небо", "Рожевий туман", "Темна лаванда", "Морська ніч"};
               static final int[][] SCHEMES = {
                       {0xFF101418, 0xFF1A2026, 0xFFECEFF1, 0xFF8899A6, 0xFF4FC3F7, 0xFF2A3640, 0xFF2E7D9A},
                       {0xFFF3F5F8, 0xFFFFFFFF, 0xFF1B2430, 0xFF5B6B7F, 0xFF0277BD, 0xFFDCE3EA, 0xFF7FBDE6},
                       {0xFF0E1512, 0xFF17231D, 0xFFE6F2EA, 0xFF86A394, 0xFF4ADE80, 0xFF22352B, 0xFF2F8F5B},
                       {0xFF15110C, 0xFF211A12, 0xFFF5ECE0, 0xFFA8967F, 0xFFFFB74D, 0xFF33291D, 0xFFB9741F},
-                      {0xFF000000, 0xFF0D0D0D, 0xFFFFFFFF, 0xFF8A8A8A, 0xFF22D3EE, 0xFF1C1C1C, 0xFF0E7490}};
+                      {0xFF000000, 0xFF0D0D0D, 0xFFFFFFFF, 0xFF8A8A8A, 0xFF22D3EE, 0xFF1C1C1C, 0xFF0E7490},
+                      {0xFFF6F7FB, 0xFFFFFFFF, 0xFF1E2230, 0xFF6B7385, 0xFF7C5CB8, 0xFFE8E2F5, 0xFF9A80CF},
+                      {0xFFF2F8F6, 0xFFFFFFFF, 0xFF18302B, 0xFF5F7A74, 0xFF1F9D8A, 0xFFDDEFEA, 0xFF5FBFAE},
+                      {0xFFFBF6F2, 0xFFFFFFFF, 0xFF33261E, 0xFF8A7266, 0xFFE0703A, 0xFFF6E4D8, 0xFFEE9A6E},
+                      {0xFFF2F7FC, 0xFFFFFFFF, 0xFF14283C, 0xFF5A7088, 0xFF2F7DD1, 0xFFDCE9F7, 0xFF6CA6E6},
+                      {0xFFFBF3F6, 0xFFFFFFFF, 0xFF35212A, 0xFF8A6B77, 0xFFD6578A, 0xFFF6DDE6, 0xFFE58FB1},
+                      {0xFF1A1726, 0xFF252136, 0xFFEDE9F7, 0xFFA39BB8, 0xFFB79CF0, 0xFF322C4A, 0xFF6F57B0},
+                      {0xFF0F1A24, 0xFF172635, 0xFFE4EEF6, 0xFF8AA2B6, 0xFF5CC8E8, 0xFF213548, 0xFF2F7FA3}};
 
               void applyScheme(int i) {
                   if (i < 0 || i >= SCHEMES.length) i = 0;
@@ -484,7 +492,7 @@ jobs:
                   tabs[4] = buildLog();
                   for (View v : tabs) content.addView(v, new FrameLayout.LayoutParams(-1, -1));
                   setContentView(root);
-                  showTab(4);
+                  showTab(2);
                   root.setFocusableInTouchMode(true);
                   root.requestFocus();
                   applyTop();
@@ -708,13 +716,12 @@ jobs:
                   recBtn.setTextSize(15);
                   recBtn.setTextColor(0xFFFFFFFF);
                   recBtn.setOnClickListener(v -> toggleRec());
-                  col.addView(text("Лог для аналізу", 16, ACC));
                   LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-2, dp(44));
                   rlp.gravity = Gravity.CENTER_HORIZONTAL;
                   rlp.setMargins(0, dp(12), 0, dp(12));
                   col.addView(recBtn, rlp);
                   markEt = new EditText(this);
-                  markEt.setHint("Позначка, напр. «газ у підлогу», «фари ввімкнув»");
+                  markEt.setHint("Позначка");
                   markEt.setHintTextColor(DIM);
                   markEt.setTextColor(TXT);
                   col.addView(markEt);
@@ -733,12 +740,18 @@ jobs:
                       toast("Звіт скопійовано");
                   });
                   col.addView(cp, bl());
-                  Button sh = btn("Поділитись звітом");
+                  Button sh = btn("Зберегти у файл CSV");
                   sh.setOnClickListener(v -> {
-                      Intent i = new Intent(Intent.ACTION_SEND);
-                      i.setType("text/plain");
-                      i.putExtra(Intent.EXTRA_TEXT, rep.report());
-                      startActivity(Intent.createChooser(i, "Звіт"));
+                      rep.flush();
+                      if (rep.csvPath.isEmpty()) {
+                          toast("CSV ще не створено");
+                          return;
+                      }
+                      Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                      i.addCategory(Intent.CATEGORY_OPENABLE);
+                      i.setType("text/csv");
+                      i.putExtra(Intent.EXTRA_TITLE, new java.io.File(rep.csvPath).getName());
+                      startActivityForResult(i, 21);
                   });
                   col.addView(sh, bl());
                   Button rs = btn("Скинути статистику й графіки");
@@ -1003,6 +1016,24 @@ jobs:
                       for (int i = 0; i < devs.size(); i++) {
                           if (devs.get(i).getAddress().equals(last)) cp.spin.setSelection(i);
                       }
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req != 21 || res != RESULT_OK || data == null || data.getData() == null) return;
+                  try {
+                      java.io.InputStream in = new java.io.FileInputStream(rep.csvPath);
+                      java.io.OutputStream out = getContentResolver().openOutputStream(data.getData());
+                      byte[] buf = new byte[65536];
+                      int n;
+                      while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                      out.close();
+                      in.close();
+                      toast("Збережено");
+                  } catch (Throwable t) {
+                      toast("Не вдалось зберегти: " + t);
                   }
               }
 
