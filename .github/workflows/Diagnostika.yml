@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.diagnostics"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "2.3"
+                  versionCode 6
+                  versionName "2.4"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -115,6 +115,7 @@ jobs:
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
           import android.net.Uri;
           import android.os.Bundle;
           import android.os.Handler;
@@ -146,8 +147,35 @@ jobs:
           import java.util.concurrent.TimeUnit;
 
           public class MainActivity extends Activity {
-              static final int BG = 0xFF101418, CARD = 0xFF1A2026, TXT = 0xFFECEFF1, DIM = 0xFF8899A6,
-                      ACC = 0xFF4FC3F7, RED = 0xFFEF5350, GRN = 0xFF81C784;
+              static final int RED = 0xFFEF5350, GRN = 0xFF81C784;
+              int BG, CARD, TXT, DIM, ACC, BTN, TABON;
+
+              static final String[] SCHEME_NAMES = {"Темна синя", "Світла", "Зелена ніч", "Бурштин", "Чорна (AMOLED)"};
+              static final int[][] SCHEMES = {
+                      {0xFF101418, 0xFF1A2026, 0xFFECEFF1, 0xFF8899A6, 0xFF4FC3F7, 0xFF2A3640, 0xFF2E7D9A},
+                      {0xFFF3F5F8, 0xFFFFFFFF, 0xFF1B2430, 0xFF5B6B7F, 0xFF0277BD, 0xFFDCE3EA, 0xFF7FBDE6},
+                      {0xFF0E1512, 0xFF17231D, 0xFFE6F2EA, 0xFF86A394, 0xFF4ADE80, 0xFF22352B, 0xFF2F8F5B},
+                      {0xFF15110C, 0xFF211A12, 0xFFF5ECE0, 0xFFA8967F, 0xFFFFB74D, 0xFF33291D, 0xFFB9741F},
+                      {0xFF000000, 0xFF0D0D0D, 0xFFFFFFFF, 0xFF8A8A8A, 0xFF22D3EE, 0xFF1C1C1C, 0xFF0E7490}};
+
+              void applyScheme(int i) {
+                  if (i < 0 || i >= SCHEMES.length) i = 0;
+                  int[] c = SCHEMES[i];
+                  BG = c[0];
+                  CARD = c[1];
+                  TXT = c[2];
+                  DIM = c[3];
+                  ACC = c[4];
+                  BTN = c[5];
+                  TABON = c[6];
+              }
+
+              void paint(View v, int color) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  g.setCornerRadius(dp(12));
+                  v.setBackground(g);
+              }
 
               final Handler ui = new Handler(Looper.getMainLooper());
               final Rep rep = new Rep();
@@ -164,7 +192,9 @@ jobs:
 
               TextView connLog;
               ScrollView connLogSv;
-              Button indBtn;
+              Button indBtn, arrowBtn;
+              LinearLayout rightCol;
+              boolean connOpen = false;
               ConnPanel pTop;
               boolean topShown = true;
               final List<String> clines = new ArrayList<String>();
@@ -227,7 +257,7 @@ jobs:
                           if (wantConn) stopConnect();
                           else startConnect();
                       });
-                      root.addView(btn, new LinearLayout.LayoutParams(-1, dp(50)));
+                      root.addView(btn, new LinearLayout.LayoutParams(-1, -2));
                   }
               }
 
@@ -254,11 +284,15 @@ jobs:
 
               void applyTop() {
                   connLogSv.setVisibility(topShown ? View.VISIBLE : View.GONE);
-                  pTop.root.setVisibility(topShown ? View.VISIBLE : View.GONE);
-                  LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) indBtn.getLayoutParams();
+                  arrowBtn.setVisibility(topShown ? View.VISIBLE : View.GONE);
+                  arrowBtn.setText(connOpen ? "▴" : "▾");
+                  pTop.root.setVisibility(topShown && connOpen ? View.VISIBLE : View.GONE);
+                  LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) rightCol.getLayoutParams();
                   lp.width = topShown ? dp(150) : -1;
-                  lp.height = topShown ? dp(96) : dp(44);
-                  indBtn.setLayoutParams(lp);
+                  rightCol.setLayoutParams(lp);
+                  LinearLayout.LayoutParams ip = (LinearLayout.LayoutParams) indBtn.getLayoutParams();
+                  ip.height = topShown ? dp(60) : dp(44);
+                  indBtn.setLayoutParams(ip);
               }
 
               void tickInd() {
@@ -282,7 +316,7 @@ jobs:
                       col = q >= 85 ? 0xFF2E7D32 : q >= 50 ? 0xFFEF6C00 : 0xFFC62828;
                   }
                   indBtn.setText(t);
-                  indBtn.setBackgroundColor(col);
+                  paint(indBtn, col);
                   ui.postDelayed(this::tickInd, 1000);
               }
 
@@ -357,6 +391,7 @@ jobs:
                       return;
                   }
                   prefs = getSharedPreferences("diag", MODE_PRIVATE);
+                  applyScheme(prefs.getInt("scheme", 0));
                   rep.openCsv(getExternalFilesDir(null) != null ? getExternalFilesDir(null) : getFilesDir());
                   String en = prefs.getString("enabled", null);
                   if (en == null) {
@@ -379,35 +414,55 @@ jobs:
                   LinearLayout head = new LinearLayout(this);
                   head.setOrientation(LinearLayout.HORIZONTAL);
                   connLogSv = new ScrollView(this);
-                  connLogSv.setBackgroundColor(CARD);
+                  paint(connLogSv, CARD);
                   connLog = text("Не підключено", 13, DIM);
                   connLog.setPadding(dp(6), dp(4), dp(6), dp(4));
                   connLogSv.addView(connLog);
                   head.addView(connLogSv, new LinearLayout.LayoutParams(0, dp(96), 1));
+                  rightCol = new LinearLayout(this);
+                  rightCol.setOrientation(LinearLayout.VERTICAL);
                   indBtn = btn("● …");
                   indBtn.setTextSize(16);
+                  indBtn.setTextColor(0xFFFFFFFF);
                   indBtn.setOnClickListener(v -> setTop(!topShown));
-                  LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(150), dp(96));
-                  ilp.setMargins(dp(6), 0, 0, 0);
-                  head.addView(indBtn, ilp);
+                  rightCol.addView(indBtn, new LinearLayout.LayoutParams(-1, dp(60)));
+                  arrowBtn = btn("▾");
+                  arrowBtn.setTextSize(16);
+                  arrowBtn.setMinHeight(0);
+                  arrowBtn.setMinimumHeight(0);
+                  arrowBtn.setPadding(0, 0, 0, 0);
+                  arrowBtn.setOnClickListener(v -> {
+                      connOpen = !connOpen;
+                      applyTop();
+                  });
+                  LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, dp(32));
+                  alp.setMargins(0, dp(4), 0, 0);
+                  rightCol.addView(arrowBtn, alp);
+                  LinearLayout.LayoutParams rcp = new LinearLayout.LayoutParams(dp(150), -2);
+                  rcp.setMargins(dp(6), 0, 0, 0);
+                  head.addView(rightCol, rcp);
                   root.addView(head);
                   root.addView(pTop.root);
 
                   LinearLayout bar = new LinearLayout(this);
-                  bar.setOrientation(LinearLayout.HORIZONTAL);
+                  bar.setOrientation(LinearLayout.VERTICAL);
+                  LinearLayout[] rows = {new LinearLayout(this), new LinearLayout(this)};
                   String[] names = {"Дані", "Графіки", "Помилки", "Сервіс", "Лог"};
                   for (int i = 0; i < 5; i++) {
                       final int idx = i;
                       Button t = btn(names[i]);
+                      t.setSingleLine(true);
                       t.setOnClickListener(v -> {
                           showTab(idx);
                           setTop(false);
                       });
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(52), 1);
-                      lp.setMargins(dp(2), dp(4), dp(2), 0);
-                      bar.addView(t, lp);
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1);
+                      lp.setMargins(dp(2), dp(2), dp(2), dp(2));
+                      rows[i < 3 ? 0 : 1].addView(t, lp);
                       tabBtns[i] = t;
                   }
+                  bar.addView(rows[0]);
+                  bar.addView(rows[1]);
                   root.addView(bar);
                   content = new FrameLayout(this);
                   root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -440,8 +495,11 @@ jobs:
                   b.setText(s);
                   b.setAllCaps(false);
                   b.setTextColor(TXT);
-                  b.setBackgroundColor(0xFF2A3640);
+                  paint(b, BTN);
                   b.setTextSize(15);
+                  b.setMinHeight(dp(44));
+                  b.setMinimumHeight(dp(44));
+                  b.setPadding(dp(12), dp(6), dp(12), dp(6));
                   return b;
               }
 
@@ -467,12 +525,12 @@ jobs:
                       savePrefs();
                       rep.recStart(cols);
                       recStartMs = System.currentTimeMillis();
-                      recBtn.setBackgroundColor(0xFF455A64);
+                      paint(recBtn, 0xFF455A64);
                       tickRec();
                   } else {
                       String rpt = rep.recStop();
                       recBtn.setText("● Почати запис");
-                      recBtn.setBackgroundColor(0xFF2E7D32);
+                      paint(recBtn, 0xFF2E7D32);
                       ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                       cm.setPrimaryClip(ClipData.newPlainText("diag", rpt));
                       try {
@@ -509,7 +567,7 @@ jobs:
                   curTab = i;
                   for (int k = 0; k < 5; k++) {
                       tabs[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
-                      tabBtns[k].setBackgroundColor(k == i ? 0xFF2E7D9A : 0xFF2A3640);
+                      paint(tabBtns[k], k == i ? TABON : BTN);
                   }
                   if (i == 1) refreshGraph();
               }
@@ -526,7 +584,7 @@ jobs:
                       LinearLayout row = new LinearLayout(this);
                       row.setOrientation(LinearLayout.HORIZONTAL);
                       row.setGravity(Gravity.CENTER_VERTICAL);
-                      row.setBackgroundColor(CARD);
+                      paint(row, CARD);
                       row.setPadding(dp(6), dp(4), dp(6), dp(4));
                       CheckBox cb = new CheckBox(this);
                       cb.setChecked(enabled.contains(d.pid));
@@ -629,10 +687,11 @@ jobs:
                   sv.addView(col);
 
                   recBtn = btn("● Почати запис");
-                  recBtn.setBackgroundColor(0xFF2E7D32);
-                  recBtn.setTextSize(18);
+                  paint(recBtn, 0xFF2E7D32);
+                  recBtn.setTextSize(15);
+                  recBtn.setTextColor(0xFFFFFFFF);
                   recBtn.setOnClickListener(v -> toggleRec());
-                  col.addView(recBtn, new LinearLayout.LayoutParams(-1, dp(64)));
+                  col.addView(recBtn, new LinearLayout.LayoutParams(-2, dp(44)));
                   col.addView(gap());
                   col.addView(text("Лог для аналізу", 16, ACC));
                   markEt = new EditText(this);
@@ -647,14 +706,14 @@ jobs:
                       rep.marker(s);
                       toast("Позначку додано");
                   });
-                  col.addView(mk, new LinearLayout.LayoutParams(-1, dp(46)));
+                  col.addView(mk, new LinearLayout.LayoutParams(-1, -2));
                   Button cp = btn("Копіювати звіт (вставити мені в чат)");
                   cp.setOnClickListener(v -> {
                       ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                       cm.setPrimaryClip(ClipData.newPlainText("diag", rep.report()));
                       toast("Звіт скопійовано");
                   });
-                  col.addView(cp, new LinearLayout.LayoutParams(-1, dp(46)));
+                  col.addView(cp, new LinearLayout.LayoutParams(-1, -2));
                   Button sh = btn("Поділитись звітом");
                   sh.setOnClickListener(v -> {
                       Intent i = new Intent(Intent.ACTION_SEND);
@@ -662,13 +721,13 @@ jobs:
                       i.putExtra(Intent.EXTRA_TEXT, rep.report());
                       startActivity(Intent.createChooser(i, "Звіт"));
                   });
-                  col.addView(sh, new LinearLayout.LayoutParams(-1, dp(46)));
+                  col.addView(sh, new LinearLayout.LayoutParams(-1, -2));
                   Button rs = btn("Скинути статистику й графіки");
                   rs.setOnClickListener(v -> {
                       rep.reset();
                       toast("Скинуто");
                   });
-                  col.addView(rs, new LinearLayout.LayoutParams(-1, dp(46)));
+                  col.addView(rs, new LinearLayout.LayoutParams(-1, -2));
 
                   return sv;
               }
@@ -706,9 +765,21 @@ jobs:
                           }
                       });
                   });
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(50));
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
                   lp.setMargins(0, dp(3), 0, dp(3));
                   col.addView(rescan, lp);
+                  Button sch = btn("🎨  Колірна схема: " + SCHEME_NAMES[Math.min(prefs.getInt("scheme", 0), SCHEMES.length - 1)]);
+                  sch.setOnClickListener(v -> new AlertDialog.Builder(this)
+                          .setTitle("Колірна схема")
+                          .setItems(SCHEME_NAMES, (d, i) -> {
+                              prefs.edit().putInt("scheme", i).apply();
+                              recreate();
+                          })
+                          .setNegativeButton("Скасувати", null)
+                          .show());
+                  LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2);
+                  slp.setMargins(0, dp(3), 0, dp(3));
+                  col.addView(sch, slp);
                   svcOut = text("", 14, TXT);
                   svcOut.setTextIsSelectable(true);
                   svcOut.setPadding(dp(6), dp(8), dp(6), dp(8));
@@ -719,14 +790,14 @@ jobs:
                       cm.setPrimaryClip(ClipData.newPlainText("diag", svcOut.getText().toString()));
                       toast("Скопійовано");
                   });
-                  col.addView(cp, new LinearLayout.LayoutParams(-1, dp(46)));
+                  col.addView(cp, new LinearLayout.LayoutParams(-1, -2));
                   return sv;
               }
 
               void addSvcBtn(LinearLayout col, String label, final String title, final SvcJob job) {
                   Button b = btn(label);
                   b.setOnClickListener(v -> svcRun(title, job));
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(50));
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
                   lp.setMargins(0, dp(3), 0, dp(3));
                   col.addView(b, lp);
               }
@@ -1033,7 +1104,10 @@ jobs:
                   scanModules();
                   if (!set.isEmpty()) {
                       clog("Готово — зв'язок встановлено");
-                      ui.post(() -> setTop(false));
+                      ui.post(() -> {
+                          connOpen = false;
+                          setTop(false);
+                      });
                   }
               }
 
@@ -1180,7 +1254,7 @@ jobs:
                   for (final String[] f : found) {
                       LinearLayout card = new LinearLayout(this);
                       card.setOrientation(LinearLayout.VERTICAL);
-                      card.setBackgroundColor(CARD);
+                      paint(card, CARD);
                       card.setPadding(dp(10), dp(8), dp(10), dp(8));
                       TextView h = text(f[0] + "   (" + Dtc.kindLabel(f[1]) + ")", 20, RED);
                       h.setTypeface(Typeface.DEFAULT_BOLD);
@@ -1195,7 +1269,7 @@ jobs:
                               toast("Немає браузера");
                           }
                       });
-                      card.addView(web, new LinearLayout.LayoutParams(-1, dp(44)));
+                      card.addView(web, new LinearLayout.LayoutParams(-1, -2));
                       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
                       lp.setMargins(0, dp(4), 0, dp(4));
                       dtcList.addView(card, lp);
