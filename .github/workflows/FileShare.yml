@@ -1,0 +1,731 @@
+name: FileShare
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/FileShare.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/fileshare app/src/main/res/drawable
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'FileShare'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.fileshare'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.fileshare"
+                  minSdk 23
+                  targetSdk 26
+                  versionCode 2
+                  versionName "1.1"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+              <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+              <application
+                  android:label="Передача"
+                  android:icon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:usesCleartextTraffic="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/fileshare/MainActivity.java <<'EOF'
+          package com.example.fileshare;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.database.Cursor;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Environment;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.StrictMode;
+          import android.provider.OpenableColumns;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+
+          import java.io.BufferedReader;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.InetAddress;
+          import java.net.NetworkInterface;
+          import java.net.URL;
+          import java.net.URLEncoder;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Date;
+          import java.util.List;
+          import java.util.Locale;
+
+          public class MainActivity extends Activity implements FileServer.Host {
+              static final int PORT = 8080;
+              static final int BG = 0xFF0B0F17, CARD = 0xFF172033, TXT = 0xFFF1F5F9, DIM = 0xFF8A99B3, ACC = 0xFF22D3EE;
+
+              final Handler ui = new Handler(Looper.getMainLooper());
+              SharedPreferences sp;
+              FileServer server;
+              EditText etIp, etPin;
+              TextView tvLog, tvMy;
+              ScrollView logScroll;
+              final SimpleDateFormat tf = new SimpleDateFormat("HH:mm:ss", Locale.US);
+
+              int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+              }
+
+              Button btn(String s, int color) {
+                  Button b = new Button(this);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  b.setTextColor(Color.WHITE);
+                  b.setTextSize(19);
+                  b.setTypeface(Typeface.DEFAULT_BOLD);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  g.setCornerRadius(dp(16));
+                  b.setBackground(g);
+                  return b;
+              }
+
+              EditText field(String hint, String val) {
+                  EditText e = new EditText(this);
+                  e.setHint(hint);
+                  e.setText(val);
+                  e.setTextColor(TXT);
+                  e.setHintTextColor(DIM);
+                  e.setSingleLine(true);
+                  return e;
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().build());
+                  sp = getSharedPreferences("fs", MODE_PRIVATE);
+                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+                  }
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(BG);
+                  root.setPadding(dp(14), dp(10), dp(14), dp(10));
+
+                  TextView title = new TextView(this);
+                  title.setText("Передача файлів");
+                  title.setTextSize(24);
+                  title.setTextColor(TXT);
+                  title.setTypeface(Typeface.DEFAULT_BOLD);
+                  root.addView(title);
+                  tvMy = new TextView(this);
+                  tvMy.setTextColor(ACC);
+                  tvMy.setTextSize(15);
+                  root.addView(tvMy);
+
+                  LinearLayout row = new LinearLayout(this);
+                  etIp = field("Адреса іншого пристрою", sp.getString("ip", "192.168.11.215"));
+                  etPin = field("PIN", sp.getString("pin", "1234"));
+                  row.addView(etIp, new LinearLayout.LayoutParams(0, -2, 2));
+                  row.addView(etPin, new LinearLayout.LayoutParams(0, -2, 1));
+                  root.addView(row);
+
+                  LinearLayout r1 = new LinearLayout(this);
+                  Button send = btn("⬆  Відправити", 0xFF2563EB);
+                  Button recv = btn("⬇  Прийняти", 0xFF16A34A);
+                  send.setOnClickListener(v -> {
+                      save();
+                      pick();
+                  });
+                  recv.setOnClickListener(v -> {
+                      save();
+                      listRemote();
+                  });
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(78), 1);
+                  lp.setMargins(dp(4), dp(8), dp(4), dp(4));
+                  r1.addView(send, lp);
+                  r1.addView(recv, lp);
+                  root.addView(r1);
+
+                  Button inst = btn("📦  Встановити APK з цього пристрою", 0xFF7C3AED);
+                  inst.setOnClickListener(v -> listLocalApk());
+                  LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-1, dp(64));
+                  lp2.setMargins(dp(4), dp(4), dp(4), dp(8));
+                  root.addView(inst, lp2);
+
+                  logScroll = new ScrollView(this);
+                  tvLog = new TextView(this);
+                  tvLog.setTextColor(DIM);
+                  tvLog.setTextSize(14);
+                  tvLog.setTextIsSelectable(true);
+                  logScroll.addView(tvLog);
+                  root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+                  setContentView(root);
+
+                  tvMy.setText("Ця адреса: " + myIps() + ":" + PORT + "   |   Папка: Download/Transfer");
+                  server = new FileServer(this);
+                  server.start(PORT);
+                  log("Готово. Встанови цю програму на обидва пристрої й тримай її відкритою там, куди відправляєш.");
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (server != null) server.stop();
+                  super.onDestroy();
+              }
+
+              void save() {
+                  sp.edit().putString("ip", etIp.getText().toString().trim()).putString("pin", etPin.getText().toString().trim()).apply();
+              }
+
+              static String myIps() {
+                  StringBuilder sb = new StringBuilder();
+                  try {
+                      for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                          for (InetAddress a : Collections.list(ni.getInetAddresses())) {
+                              if (!a.isLoopbackAddress() && a.getHostAddress().indexOf(':') < 0) {
+                                  if (sb.length() > 0) sb.append(", ");
+                                  sb.append(a.getHostAddress());
+                              }
+                          }
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  return sb.length() == 0 ? "немає мережі" : sb.toString();
+              }
+
+              // ---- Host ----
+              @Override
+              public File dir() {
+                  File d = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Transfer");
+                  d.mkdirs();
+                  if (!d.isDirectory() || !d.canWrite()) {
+                      File alt = getExternalFilesDir(null);
+                      d = alt != null ? alt : getFilesDir();
+                  }
+                  return d;
+              }
+
+              @Override
+              public String pin() {
+                  return sp.getString("pin", "1234");
+              }
+
+              @Override
+              public void received(final File f) {
+                  ui.post(() -> {
+                      if (f.getName().toLowerCase().endsWith(".apk")) {
+                          new AlertDialog.Builder(this)
+                                  .setTitle("Отримано " + f.getName())
+                                  .setMessage("Встановити цей APK зараз?")
+                                  .setPositiveButton("Встановити", (d, w) -> install(f))
+                                  .setNegativeButton("Пізніше", null)
+                                  .show();
+                      }
+                  });
+              }
+
+              @Override
+              public void log(final String s) {
+                  ui.post(() -> {
+                      tvLog.append(tf.format(new Date()) + "  " + s + "\n");
+                      logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
+                  });
+              }
+
+              // ---- відправлення ----
+              void pick() {
+                  Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                  i.addCategory(Intent.CATEGORY_OPENABLE);
+                  i.setType("*/*");
+                  try {
+                      if (Build.VERSION.SDK_INT >= 26) {
+                          dir();
+                          i.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+                                  Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload%2FTransfer"));
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  startActivityForResult(i, 10);
+              }
+
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req == 10 && res == RESULT_OK && data != null && data.getData() != null) {
+                      final Uri u = data.getData();
+                      new Thread(() -> upload(u)).start();
+                  }
+              }
+
+              String base() {
+                  return "http://" + etIp.getText().toString().trim() + ":" + PORT;
+              }
+
+              String q(String s) throws Exception {
+                  return URLEncoder.encode(s, "UTF-8");
+              }
+
+              void upload(Uri u) {
+                  try {
+                      String name = "file";
+                      long size = -1;
+                      Cursor c = getContentResolver().query(u, null, null, null, null);
+                      if (c != null) {
+                          if (c.moveToFirst()) {
+                              int ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                              int si = c.getColumnIndex(OpenableColumns.SIZE);
+                              if (ni >= 0) name = c.getString(ni);
+                              if (si >= 0 && !c.isNull(si)) size = c.getLong(si);
+                          }
+                          c.close();
+                      }
+                      InputStream in = getContentResolver().openInputStream(u);
+                      File tmp = null;
+                      if (size <= 0) {
+                          tmp = new File(getCacheDir(), "up.tmp");
+                          FileOutputStream fo = new FileOutputStream(tmp);
+                          byte[] buf = new byte[65536];
+                          int n;
+                          while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
+                          fo.close();
+                          in.close();
+                          size = tmp.length();
+                          in = new java.io.FileInputStream(tmp);
+                      }
+                      log("Відправляю " + name + " (" + size / 1024 + " КБ)…");
+                      HttpURLConnection c2 = (HttpURLConnection) new URL(base() + "/upload?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
+                      c2.setConnectTimeout(6000);
+                      c2.setReadTimeout(30000);
+                      c2.setRequestMethod("POST");
+                      c2.setDoOutput(true);
+                      c2.setFixedLengthStreamingMode(size);
+                      OutputStream o = c2.getOutputStream();
+                      byte[] buf = new byte[65536];
+                      int n;
+                      while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+                      o.close();
+                      in.close();
+                      int code = c2.getResponseCode();
+                      log(code == 200 ? "Відправлено ✓ " + name : "Помилка " + code + " " + readAll(code == 200 ? c2.getInputStream() : c2.getErrorStream()));
+                      if (tmp != null) tmp.delete();
+                  } catch (Throwable t) {
+                      log("Не вдалось відправити: " + t);
+                  }
+              }
+
+              static String readAll(InputStream in) {
+                  try {
+                      BufferedReader r = new BufferedReader(new InputStreamReader(in, "UTF-8"));
+                      StringBuilder sb = new StringBuilder();
+                      String l;
+                      while ((l = r.readLine()) != null) sb.append(l).append('\n');
+                      return sb.toString().trim();
+                  } catch (Throwable t) {
+                      return "";
+                  }
+              }
+
+              // ---- прийняття ----
+              void listRemote() {
+                  log("Запитую список файлів…");
+                  new Thread(() -> {
+                      try {
+                          HttpURLConnection c = (HttpURLConnection) new URL(base() + "/list?pin=" + q(etPin.getText().toString().trim())).openConnection();
+                          c.setConnectTimeout(6000);
+                          c.setReadTimeout(10000);
+                          if (c.getResponseCode() != 200) {
+                              log("Помилка " + c.getResponseCode() + " " + readAll(c.getErrorStream()));
+                              return;
+                          }
+                          final List<String> names = new ArrayList<String>();
+                          final List<String> labels = new ArrayList<String>();
+                          for (String line : readAll(c.getInputStream()).split("\n")) {
+                              String[] p = line.split("\t");
+                              if (p.length == 2) {
+                                  names.add(p[0]);
+                                  labels.add(p[0] + "  (" + Long.parseLong(p[1]) / 1024 + " КБ)");
+                              }
+                          }
+                          ui.post(() -> {
+                              if (names.isEmpty()) {
+                                  log("На іншому пристрої немає файлів у «Download/Transfer».");
+                                  return;
+                              }
+                              new AlertDialog.Builder(this)
+                                      .setTitle("Що прийняти?")
+                                      .setItems(labels.toArray(new String[0]), (d, i) -> new Thread(() -> download(names.get(i))).start())
+                                      .setNegativeButton("Скасувати", null)
+                                      .show();
+                          });
+                      } catch (Throwable t) {
+                          log("Не вдалось підключитись: " + t);
+                      }
+                  }).start();
+              }
+
+              void download(String name) {
+                  try {
+                      log("Приймаю " + name + "…");
+                      HttpURLConnection c = (HttpURLConnection) new URL(base() + "/get?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
+                      c.setConnectTimeout(6000);
+                      c.setReadTimeout(30000);
+                      if (c.getResponseCode() != 200) {
+                          log("Помилка " + c.getResponseCode());
+                          return;
+                      }
+                      File f = new File(dir(), name);
+                      InputStream in = c.getInputStream();
+                      FileOutputStream fo = new FileOutputStream(f);
+                      byte[] buf = new byte[65536];
+                      int n;
+                      long total = 0;
+                      while ((n = in.read(buf)) > 0) {
+                          fo.write(buf, 0, n);
+                          total += n;
+                      }
+                      fo.close();
+                      in.close();
+                      log("Прийнято ✓ " + name + " (" + total / 1024 + " КБ) → " + f.getParent());
+                      received(f);
+                  } catch (Throwable t) {
+                      log("Не вдалось прийняти: " + t);
+                  }
+              }
+
+              // ---- встановлення ----
+              void listLocalApk() {
+                  File[] fs = dir().listFiles();
+                  final List<File> apks = new ArrayList<File>();
+                  if (fs != null) {
+                      java.util.Arrays.sort(fs, (a, b2) -> Long.compare(b2.lastModified(), a.lastModified()));
+                      for (File f : fs) if (f.getName().toLowerCase().endsWith(".apk")) apks.add(f);
+                  }
+                  if (apks.isEmpty()) {
+                      log("У папці немає APK-файлів.");
+                      return;
+                  }
+                  String[] names = new String[apks.size()];
+                  for (int i = 0; i < names.length; i++) names[i] = apks.get(i).getName();
+                  new AlertDialog.Builder(this)
+                          .setTitle("Який APK встановити?")
+                          .setItems(names, (d, i) -> install(apks.get(i)))
+                          .setNegativeButton("Скасувати", null)
+                          .show();
+              }
+
+              void install(File f) {
+                  try {
+                      Intent i = new Intent(Intent.ACTION_VIEW);
+                      i.setDataAndType(Uri.fromFile(f), "application/vnd.android.package-archive");
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      startActivity(i);
+                  } catch (Throwable t) {
+                      log("Не вдалось запустити встановлення: " + t);
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/fileshare/FileServer.java <<'EOF'
+          package com.example.fileshare;
+
+          import android.net.Uri;
+
+          import java.io.BufferedOutputStream;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+          import java.util.Arrays;
+          import java.util.Comparator;
+
+          /** Простий HTTP-сервер для прийому/віддачі файлів: /upload, /list, /get. */
+          final class FileServer {
+              interface Host {
+                  File dir();
+
+                  String pin();
+
+                  void received(File f);
+
+                  void log(String s);
+              }
+
+              private final Host host;
+              private ServerSocket ss;
+              private volatile boolean run;
+
+              FileServer(Host h) {
+                  host = h;
+              }
+
+              void start(final int port) {
+                  run = true;
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              ss = new ServerSocket(port);
+                              host.log("Сервер слухає порт " + port);
+                              while (run) {
+                                  final Socket s = ss.accept();
+                                  new Thread(new Runnable() {
+                                      @Override
+                                      public void run() {
+                                          handle(s);
+                                      }
+                                  }).start();
+                              }
+                          } catch (Throwable t) {
+                              if (run) host.log("Сервер: " + t);
+                          }
+                      }
+                  }, "fs-accept").start();
+              }
+
+              void stop() {
+                  run = false;
+                  try {
+                      if (ss != null) ss.close();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static String readLine(InputStream in) throws IOException {
+                  StringBuilder sb = new StringBuilder();
+                  int c;
+                  while ((c = in.read()) >= 0) {
+                      if (c == '\n') break;
+                      if (c != '\r') sb.append((char) c);
+                      if (sb.length() > 8192) break;
+                  }
+                  return c < 0 && sb.length() == 0 ? null : sb.toString();
+              }
+
+              private static void reply(OutputStream o, int code, String type, byte[] body) throws IOException {
+                  String head = "HTTP/1.1 " + code + (code == 200 ? " OK" : " ERR") + "\r\nContent-Type: " + type
+                          + "\r\nContent-Length: " + body.length + "\r\nConnection: close\r\n\r\n";
+                  o.write(head.getBytes("ISO-8859-1"));
+                  o.write(body);
+                  o.flush();
+              }
+
+              private static String safeName(String n) {
+                  if (n == null) return "file";
+                  n = n.replace('\\', '/');
+                  n = n.substring(n.lastIndexOf('/') + 1).trim();
+                  while (n.startsWith(".")) n = n.substring(1);
+                  return n.isEmpty() ? "file" : n;
+              }
+
+              private void handle(Socket s) {
+                  try {
+                      s.setSoTimeout(20000);
+                      InputStream in = s.getInputStream();
+                      OutputStream out = new BufferedOutputStream(s.getOutputStream());
+                      String line = readLine(in);
+                      if (line == null) return;
+                      String[] p = line.split(" ");
+                      if (p.length < 2) return;
+                      long len = 0;
+                      String h;
+                      while ((h = readLine(in)) != null && !h.isEmpty()) {
+                          if (h.toLowerCase().startsWith("content-length:")) {
+                              try {
+                                  len = Long.parseLong(h.substring(15).trim());
+                              } catch (NumberFormatException ignored) {
+                              }
+                          }
+                      }
+                      Uri u = Uri.parse("http://x" + p[1]);
+                      String path = u.getPath() == null ? "/" : u.getPath();
+                      String pin = u.getQueryParameter("pin");
+                      if (pin == null || !pin.equals(host.pin())) {
+                          reply(out, 403, "text/plain; charset=utf-8", "Невірний PIN".getBytes("UTF-8"));
+                          host.log("Відхилено запит: невірний PIN");
+                          return;
+                      }
+                      File dir = host.dir();
+                      dir.mkdirs();
+                      if (path.equals("/upload")) {
+                          String name = safeName(u.getQueryParameter("name"));
+                          File tmp = new File(dir, name + ".part");
+                          FileOutputStream fo = new FileOutputStream(tmp);
+                          byte[] buf = new byte[65536];
+                          long left = len;
+                          while (left > 0) {
+                              int n = in.read(buf, 0, (int) Math.min(buf.length, left));
+                              if (n < 0) break;
+                              fo.write(buf, 0, n);
+                              left -= n;
+                          }
+                          fo.close();
+                          if (left > 0) {
+                              tmp.delete();
+                              reply(out, 500, "text/plain; charset=utf-8", "Обірвано".getBytes("UTF-8"));
+                              host.log("Отримання обірвано: " + name);
+                              return;
+                          }
+                          File dst = new File(dir, name);
+                          if (dst.exists()) dst.delete();
+                          tmp.renameTo(dst);
+                          reply(out, 200, "text/plain; charset=utf-8", "OK".getBytes("UTF-8"));
+                          host.log("Отримано: " + name + " (" + len / 1024 + " КБ)");
+                          host.received(dst);
+                      } else if (path.equals("/list")) {
+                          File[] fs = dir.listFiles();
+                          StringBuilder sb = new StringBuilder();
+                          if (fs != null) {
+                              Arrays.sort(fs, new Comparator<File>() {
+                                  @Override
+                                  public int compare(File a, File b) {
+                                      return Long.compare(b.lastModified(), a.lastModified());
+                                  }
+                              });
+                              int n = 0;
+                              for (File f : fs) {
+                                  if (!f.isFile() || f.getName().endsWith(".part")) continue;
+                                  sb.append(f.getName()).append('\t').append(f.length()).append('\n');
+                                  if (++n >= 60) break;
+                              }
+                          }
+                          reply(out, 200, "text/plain; charset=utf-8", sb.toString().getBytes("UTF-8"));
+                      } else if (path.equals("/get")) {
+                          File f = new File(dir, safeName(u.getQueryParameter("name")));
+                          if (!f.isFile()) {
+                              reply(out, 404, "text/plain; charset=utf-8", "Немає файлу".getBytes("UTF-8"));
+                              return;
+                          }
+                          String head = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + f.length()
+                                  + "\r\nConnection: close\r\n\r\n";
+                          out.write(head.getBytes("ISO-8859-1"));
+                          FileInputStream fi = new FileInputStream(f);
+                          byte[] buf = new byte[65536];
+                          int n;
+                          while ((n = fi.read(buf)) > 0) out.write(buf, 0, n);
+                          fi.close();
+                          out.flush();
+                          host.log("Віддано: " + f.getName());
+                      } else {
+                          reply(out, 404, "text/plain; charset=utf-8", "?".getBytes("UTF-8"));
+                      }
+                  } catch (Throwable t) {
+                      host.log("Помилка сервера: " + t);
+                  } finally {
+                      try {
+                          s.close();
+                      } catch (Throwable ignored) {
+                      }
+                  }
+              }
+          }
+          EOF
+
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAET0lEQVR42u3dPW7cMBRFYekhnTs3ab2GIL23kqVlK+4Dr8FtGneunTIIEMA/I2oeeb+zAEMi7+El5ZnRtgEAAAAAAADA0uyGYBw3t3evR/ydl+cn80SAtUNODgIIOykIIPCEIIDQk4EAQk8GAgg+EQgg9GQggOATgQCCTwQCCD4RCCD4RDiCEn4kj/FuUpDcBrvgI1mEEn4kz0UZcCTPyW6QkbwlKuFH8lyVAUXynO0GEclbohJ+JM9lGTAkz2kZKCTPbRkgJM9xGRgkz3UZECTPeRkIJM99CT+SM1DCj2QJSviRLEEJP5IlKOFHsgRlyJFMWf2R3AIl/EiWoIQfyRI4A8AZwOqP1BYo4f/L14dHiQuToIT/3/CTIEsCZ4D/hJ4EzgD2/YhogbL6PzoPaIDM1f+tkJNg/RYo4d9IECxB2faQwBbIwZcEoS1QVn9ogJDV/9Lwk2e9FigrPwk0wOKr/9GhJcE6LeCjECTQAFZ/EqS2QFmloQGEn2QEWGf7c3YoSTDvNsghmAQawOpPgtQWKKswCTSA8IMA825/uoWfjPNsgxyCSaABBI0EBJhw+zNDwEjQextUVn7XqgGEH6F8MQTnSfv7/tuQv33/68ew6374/lMDdNr/z7z6a65+54ASIPfgDCA47oUAAuOeCAAQoNMBeOWVUgtc/yBcAuIeN/8H6MkRz81HBmzUc304AwAEAAgAEAC4ggDe+Iht8UehGgAaACAAQACAAAABAAIABAAIABAAIABAAIAAAAEAAgAEAAgArCPAy/PTbogwM29lWANAAwAEAAgAbH4bFOcx8v1eXa6v83vGNMCVWf0ldN3vry59jAQSdL2v92RXA8AhGFbL1PshgNBE3wcBhCf6+uuowwRI0Om635vZ5f8P4D1esAWymrpeApBA+C8QwDlAuGa5vo9kVQOQIPqxLQHgEGwbpAVWWf0/mlENQILoj20QgATRn1mq0RWDdULYPfyfyaYGgEOwFtACiau/BiBB/Nc2CUCC6O8s19mVg3lCOkv4L8miBoBDsBbQAomrvwYgQeS+/1ABtMBaEswU/iOypwFIELnyHyqAFsCMq78G0ALRq/+hAmiBeSWYLfxHZq26XhjOkSA5/LZA4RKkbnuGCqAFMMvqrwGCW8DqP1AALdBbghnDPypTQ4N6c3v3KnbovKDWrBcO4XcGALoLoAXQOTu1yo1A+FtvgUiAjllxBoAzgBZA4up/lQYgATplo1JuFMLf6gxAAnTIQqXeOIS/xVMgEgh//G+DkkD4438clwTCH//r0CQQ/vifRyeB8Me/H4AEwh//WSASCP8ZTBEyX60U/OhPg2oD4Y//ODQJhD92C2RLJPi+EKMNzAkBSGAubIFsiQSfAEQQfF+Kty0yxhpAGwg+AYgg+AQgguATgAiCTwAyCD0BiCD4BCCD0BMgXAahJ0CUEAJPgBgphJ0Ay8sh5AAAAAAAAACAT/IHy9hqkPbbRk0AAAAASUVORK5CYII=' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FileShare
+          path: app/build/outputs/apk/debug/app-debug.apk
