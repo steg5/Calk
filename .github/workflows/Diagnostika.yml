@@ -57,10 +57,10 @@ jobs:
               id 'com.android.application'
           }
           android {
-              namespace 'com.example.diagnostics'
+              namespace 'com.example.diagnostics2'
               compileSdk 34
               defaultConfig {
-                  applicationId "com.example.diagnostics"
+                  applicationId "com.example.diagnostics2"
                   minSdk 23
                   targetSdk 26
                   versionCode 1
@@ -81,7 +81,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application
-                  android:label="Калькулятор"
+                  android:label="Калькулятор 2"
                   android:icon="@drawable/ic_launcher"
                   android:allowBackup="false"
                   android:theme="@android:style/Theme.DeviceDefault">
