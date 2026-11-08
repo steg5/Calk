@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.diagnostics"
                   minSdk 23
                   targetSdk 26
-                  versionCode 6
-                  versionName "2.4"
+                  versionCode 7
+                  versionName "2.5"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -257,7 +257,7 @@ jobs:
                           if (wantConn) stopConnect();
                           else startConnect();
                       });
-                      root.addView(btn, new LinearLayout.LayoutParams(-1, -2));
+                      root.addView(btn, bl());
                   }
               }
 
@@ -365,7 +365,8 @@ jobs:
               int failStreak = 0;
               FrameLayout content;
               View[] tabs = new View[5];
-              Button[] tabBtns = new Button[5];
+              TextView[] tabBtns = new TextView[5];
+              View[] tabLines = new View[5];
               final Map<String, TextView> valViews = new HashMap<String, TextView>();
               final Map<String, CheckBox> checks = new HashMap<String, CheckBox>();
               final Map<String, TextView> nameViews = new HashMap<String, TextView>();
@@ -392,6 +393,7 @@ jobs:
                   }
                   prefs = getSharedPreferences("diag", MODE_PRIVATE);
                   applyScheme(prefs.getInt("scheme", 0));
+                  getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
                   rep.openCsv(getExternalFilesDir(null) != null ? getExternalFilesDir(null) : getFilesDir());
                   String en = prefs.getString("enabled", null);
                   if (en == null) {
@@ -450,16 +452,24 @@ jobs:
                   String[] names = {"Дані", "Графіки", "Помилки", "Сервіс", "Лог"};
                   for (int i = 0; i < 5; i++) {
                       final int idx = i;
-                      Button t = btn(names[i]);
+                      LinearLayout cell = new LinearLayout(this);
+                      cell.setOrientation(LinearLayout.VERTICAL);
+                      TextView t = text(names[i], 18, DIM);
+                      t.setGravity(Gravity.CENTER);
                       t.setSingleLine(true);
-                      t.setOnClickListener(v -> {
+                      t.setPadding(0, dp(10), 0, dp(8));
+                      View line = new View(this);
+                      cell.addView(t, bl());
+                      LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(3));
+                      ll.setMargins(dp(14), 0, dp(14), 0);
+                      cell.addView(line, ll);
+                      cell.setOnClickListener(v -> {
                           showTab(idx);
                           setTop(false);
                       });
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1);
-                      lp.setMargins(dp(2), dp(2), dp(2), dp(2));
-                      rows[i < 3 ? 0 : 1].addView(t, lp);
+                      rows[i < 3 ? 0 : 1].addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
                       tabBtns[i] = t;
+                      tabLines[i] = line;
                   }
                   bar.addView(rows[0]);
                   bar.addView(rows[1]);
@@ -475,6 +485,8 @@ jobs:
                   for (View v : tabs) content.addView(v, new FrameLayout.LayoutParams(-1, -1));
                   setContentView(root);
                   showTab(4);
+                  root.setFocusableInTouchMode(true);
+                  root.requestFocus();
                   applyTop();
                   tickInd();
 
@@ -567,7 +579,12 @@ jobs:
                   curTab = i;
                   for (int k = 0; k < 5; k++) {
                       tabs[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
-                      paint(tabBtns[k], k == i ? TABON : BTN);
+                      tabBtns[k].setTextColor(k == i ? ACC : DIM);
+                      tabBtns[k].setTypeface(k == i ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                      GradientDrawable ln = new GradientDrawable();
+                      ln.setColor(k == i ? ACC : 0x00000000);
+                      ln.setCornerRadius(dp(2));
+                      tabLines[k].setBackground(ln);
                   }
                   if (i == 1) refreshGraph();
               }
@@ -608,7 +625,7 @@ jobs:
                       Button g = btn("📈");
                       g.setOnClickListener(v -> toggleGraph(d.pid));
                       row.addView(g, new LinearLayout.LayoutParams(dp(54), dp(40)));
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                      LinearLayout.LayoutParams lp = bl();
                       lp.setMargins(0, 0, 0, dp(2));
                       col.addView(row, lp);
                   }
@@ -659,8 +676,8 @@ jobs:
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   LinearLayout row = new LinearLayout(this);
-                  Button rd = btn("Прочитати помилки");
-                  Button cl = btn("Стерти помилки");
+                  Button rd = btn("Прочитати");
+                  Button cl = btn("Стерти");
                   rd.setOnClickListener(v -> queueDtcRead());
                   cl.setOnClickListener(v -> confirmClear());
                   LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1);
@@ -668,7 +685,7 @@ jobs:
                   row.addView(rd, lp);
                   row.addView(cl, lp);
                   col.addView(row);
-                  dtcInfo = text("Натисни «Прочитати помилки». Двигун краще завести або ввімкнути запалювання.", 14, DIM);
+                  dtcInfo = text("Натисни «Прочитати». Двигун краще завести або ввімкнути запалювання.", 14, DIM);
                   dtcInfo.setPadding(dp(4), dp(4), dp(4), dp(4));
                   col.addView(dtcInfo);
                   ScrollView sv = new ScrollView(this);
@@ -691,9 +708,11 @@ jobs:
                   recBtn.setTextSize(15);
                   recBtn.setTextColor(0xFFFFFFFF);
                   recBtn.setOnClickListener(v -> toggleRec());
-                  col.addView(recBtn, new LinearLayout.LayoutParams(-2, dp(44)));
-                  col.addView(gap());
                   col.addView(text("Лог для аналізу", 16, ACC));
+                  LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-2, dp(44));
+                  rlp.gravity = Gravity.CENTER_HORIZONTAL;
+                  rlp.setMargins(0, dp(12), 0, dp(12));
+                  col.addView(recBtn, rlp);
                   markEt = new EditText(this);
                   markEt.setHint("Позначка, напр. «газ у підлогу», «фари ввімкнув»");
                   markEt.setHintTextColor(DIM);
@@ -706,14 +725,14 @@ jobs:
                       rep.marker(s);
                       toast("Позначку додано");
                   });
-                  col.addView(mk, new LinearLayout.LayoutParams(-1, -2));
+                  col.addView(mk, bl());
                   Button cp = btn("Копіювати звіт (вставити мені в чат)");
                   cp.setOnClickListener(v -> {
                       ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                       cm.setPrimaryClip(ClipData.newPlainText("diag", rep.report()));
                       toast("Звіт скопійовано");
                   });
-                  col.addView(cp, new LinearLayout.LayoutParams(-1, -2));
+                  col.addView(cp, bl());
                   Button sh = btn("Поділитись звітом");
                   sh.setOnClickListener(v -> {
                       Intent i = new Intent(Intent.ACTION_SEND);
@@ -721,13 +740,13 @@ jobs:
                       i.putExtra(Intent.EXTRA_TEXT, rep.report());
                       startActivity(Intent.createChooser(i, "Звіт"));
                   });
-                  col.addView(sh, new LinearLayout.LayoutParams(-1, -2));
+                  col.addView(sh, bl());
                   Button rs = btn("Скинути статистику й графіки");
                   rs.setOnClickListener(v -> {
                       rep.reset();
                       toast("Скинуто");
                   });
-                  col.addView(rs, new LinearLayout.LayoutParams(-1, -2));
+                  col.addView(rs, bl());
 
                   return sv;
               }
@@ -765,7 +784,7 @@ jobs:
                           }
                       });
                   });
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  LinearLayout.LayoutParams lp = bl();
                   lp.setMargins(0, dp(3), 0, dp(3));
                   col.addView(rescan, lp);
                   Button sch = btn("🎨  Колірна схема: " + SCHEME_NAMES[Math.min(prefs.getInt("scheme", 0), SCHEMES.length - 1)]);
@@ -777,7 +796,7 @@ jobs:
                           })
                           .setNegativeButton("Скасувати", null)
                           .show());
-                  LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2);
+                  LinearLayout.LayoutParams slp = bl();
                   slp.setMargins(0, dp(3), 0, dp(3));
                   col.addView(sch, slp);
                   svcOut = text("", 14, TXT);
@@ -790,14 +809,14 @@ jobs:
                       cm.setPrimaryClip(ClipData.newPlainText("diag", svcOut.getText().toString()));
                       toast("Скопійовано");
                   });
-                  col.addView(cp, new LinearLayout.LayoutParams(-1, -2));
+                  col.addView(cp, bl());
                   return sv;
               }
 
               void addSvcBtn(LinearLayout col, String label, final String title, final SvcJob job) {
                   Button b = btn(label);
                   b.setOnClickListener(v -> svcRun(title, job));
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  LinearLayout.LayoutParams lp = bl();
                   lp.setMargins(0, dp(3), 0, dp(3));
                   col.addView(b, lp);
               }
@@ -985,6 +1004,12 @@ jobs:
                           if (devs.get(i).getAddress().equals(last)) cp.spin.setSelection(i);
                       }
                   }
+              }
+
+              LinearLayout.LayoutParams bl() {
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(0, dp(5), 0, dp(5));
+                  return lp;
               }
 
               void toast(String s) {
@@ -1269,8 +1294,8 @@ jobs:
                               toast("Немає браузера");
                           }
                       });
-                      card.addView(web, new LinearLayout.LayoutParams(-1, -2));
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                      card.addView(web, bl());
+                      LinearLayout.LayoutParams lp = bl();
                       lp.setMargins(0, dp(4), 0, dp(4));
                       dtcList.addView(card, lp);
                   }
