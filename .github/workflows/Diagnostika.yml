@@ -21,7 +21,7 @@ jobs:
 
       - name: Write project
         run: |
-          mkdir -p app/src/main/java/com/example/diagnostics2
+          mkdir -p app/src/main/java/com/example/diagnostics app/src/main/res/drawable
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -57,10 +57,10 @@ jobs:
               id 'com.android.application'
           }
           android {
-              namespace 'com.example.diagnostics2'
+              namespace 'com.example.diagnostics'
               compileSdk 34
               defaultConfig {
-                  applicationId "com.example.diagnostics2"
+                  applicationId "com.example.diagnostics"
                   minSdk 23
                   targetSdk 26
                   versionCode 1
@@ -84,10 +84,11 @@ jobs:
                   android:label="Калькулятор 2"
                   android:icon="@drawable/ic_launcher"
                   android:allowBackup="false"
-                  android:theme="@android:style/Theme.DeviceDefault">
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
                   <activity
-                      android:name="com.example.diagnostics2.MainActivity"
-                      android:exported="true">
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
                           <category android:name="android.intent.category.LAUNCHER"/>
@@ -97,8 +98,8 @@ jobs:
           </manifest>
           EOF
 
-          cat > app/src/main/java/com/example/diagnostics2/MainActivity.java <<'EOF'
-          package com.example.diagnostics2;
+          cat > app/src/main/java/com/example/diagnostics/MainActivity.java <<'EOF'
+          package com.example.diagnostics;
 
           import android.app.Activity;
           import android.graphics.Color;
@@ -123,7 +124,7 @@ jobs:
 
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setBackgroundColor(0xFF121212);
+                  root.setBackgroundColor(0xFF101418);
                   root.setPadding(24, 48, 24, 24);
 
                   display = new TextView(this);
