@@ -1,0 +1,716 @@
+name: TW probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/Tw_probe.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/twprobe
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'TwProbe'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.twprobe'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.twprobe"
+                  minSdk 21
+                  targetSdk 26
+                  versionCode 7
+                  versionName "1.7"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+              <application
+                  android:label="TwProbe"
+                  android:allowBackup="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/twprobe/MainActivity.java <<'EOF'
+          package com.example.twprobe;
+
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.graphics.Typeface;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.Message;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.ArrayAdapter;
+          import android.widget.EditText;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.Spinner;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.lang.reflect.InvocationTargetException;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.Date;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.Map;
+          import java.util.TreeMap;
+
+          public class MainActivity extends Activity {
+
+              // Повідомлення, на які підписується системний сервіс com.tw.service (+ кілька додаткових)
+              static final int[] ID_LIST = {
+                  0x104, 0x106, 0x107, 0x10a, 0x112, 0x201, 0x202, 0x203, 0x204, 0x205, 0x20b, 0x20c,
+                  0x301, 0x302, 0x304, 0x404, 0x501, 0x505, 0x506, 0x507, 0x508, 0x509, 0x50e,
+                  0x9e00, 0x9f00, 0x9e11, 0x9f10, 0x9f1b, 0x9f1c,
+                  0x401, 0x402, 0x405, 0x406,
+                  0x102, 0x10b, 0x270f, 0x8201, 0x909, 0x9f1d
+              };
+
+              static final String[] MARKS = {
+                  "габарити ВКЛ", "габарити ВИКЛ",
+                  "ближнє ВКЛ", "ближнє ВИКЛ",
+                  "дальнє ВКЛ", "дальнє ВИКЛ",
+                  "задня передача ВКЛ", "задня передача ВИКЛ",
+                  "ручник ВКЛ", "ручник ВИКЛ",
+                  "двері відкрито", "двері закрито",
+                  "поворот ВКЛ", "поворот ВИКЛ",
+                  "радіо: частота +1 крок", "радіо: частота -1 крок",
+                  "радіо: наступна станція", "радіо: попередня станція",
+                  "радіо: перемкнув діапазон", "радіо: вибрав пресет",
+                  "радіо: ввімкнув RDS станцію", "тест: надіслав команду",
+                  "інше"
+              };
+
+              static class Rec {
+                  int count;
+                  int changes;
+                  int arg1, arg2;
+                  String obj = "";
+              }
+
+              final TreeMap<Integer, Rec> table = new TreeMap<Integer, Rec>();
+              final List<String> changes = new ArrayList<String>();
+              final SimpleDateFormat tf = new SimpleDateFormat("HH:mm:ss.SSS", Locale.US);
+              String status = "Не запущено";
+              boolean renderPending;
+              volatile String lastFull = "";
+
+              Object util;
+              Class<?> cls;
+              boolean running;
+
+              TextView tv;
+              Button btnGo, btnMark, btnCopy;
+              Spinner spMark;
+              EditText etWhat, etA1, etA2;
+
+              final Handler handler = new Handler(Looper.getMainLooper()) {
+                  @Override
+                  public void handleMessage(Message msg) {
+                      onTwMessage(msg);
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  registerReceiver(cmdRx, new android.content.IntentFilter("tw.cmd"));
+                  appendFile("==== запуск програми ====");
+                  startServer();
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(16, 16, 16, 16);
+
+                  LinearLayout row1 = new LinearLayout(this);
+                  row1.setOrientation(LinearLayout.HORIZONTAL);
+                  btnGo = new Button(this);
+                  btnGo.setText("Запустити");
+                  btnCopy = new Button(this);
+                  btnCopy.setText("Копіювати");
+                  row1.addView(btnGo, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  row1.addView(btnCopy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  root.addView(row1);
+
+                  LinearLayout row2 = new LinearLayout(this);
+                  row2.setOrientation(LinearLayout.HORIZONTAL);
+                  spMark = new Spinner(this);
+                  ArrayAdapter<String> aa = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, MARKS);
+                  aa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                  spMark.setAdapter(aa);
+                  btnMark = new Button(this);
+                  btnMark.setText("Позначка");
+                  row2.addView(spMark, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
+                  row2.addView(btnMark, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  root.addView(row2);
+                  LinearLayout row3 = new LinearLayout(this);
+                  row3.setOrientation(LinearLayout.HORIZONTAL);
+                  final Spinner spCmd = new Spinner(this);
+                  final String[] CMD_NAMES = {"вручну", "0x401 a1=1 a2=0", "0x401 a1=1 a2=1", "0x401 a1=5 a2=0", "0x401 a1=5 a2=2", "0x401 a1=0 a2=0", "0x401 a1=8 a2=0", "0x402 a1=0 a2=0", "0x402 a1=1 a2=0", "0x402 a1=2 a2=0"};
+                  final int[][] CMDS = {{0x401, 0, 0}, {0x401, 1, 0}, {0x401, 1, 1}, {0x401, 5, 0}, {0x401, 5, 2}, {0x401, 0, 0}, {0x401, 8, 0}, {0x402, 0, 0}, {0x402, 1, 0}, {0x402, 2, 0}};
+                  ArrayAdapter<String> ac = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, CMD_NAMES);
+                  ac.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                  spCmd.setAdapter(ac);
+                  etWhat = new EditText(this);
+                  etWhat.setHint("what hex");
+                  etWhat.setText("401");
+                  etA1 = new EditText(this);
+                  etA1.setHint("a1");
+                  etA1.setText("1");
+                  etA1.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+                  etA2 = new EditText(this);
+                  etA2.setHint("a2");
+                  etA2.setText("0");
+                  etA2.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+                  Button btnTx = new Button(this);
+                  btnTx.setText("Надіслати");
+                  row3.addView(spCmd, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 3f));
+                  row3.addView(etWhat, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  row3.addView(etA1, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  row3.addView(etA2, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                  row3.addView(btnTx, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
+                  root.addView(row3);
+                  spCmd.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                      @Override
+                      public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                          if (pos == 0) return;
+                          etWhat.setText(Integer.toHexString(CMDS[pos][0]));
+                          etA1.setText(String.valueOf(CMDS[pos][1]));
+                          etA2.setText(String.valueOf(CMDS[pos][2]));
+                      }
+                      @Override
+                      public void onNothingSelected(android.widget.AdapterView<?> p) {
+                      }
+                  });
+                  btnTx.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          try {
+                              int w = Integer.parseInt(etWhat.getText().toString().trim().replace("0x", ""), 16);
+                              int a1 = Integer.parseInt(etA1.getText().toString().trim());
+                              int a2 = Integer.parseInt(etA2.getText().toString().trim());
+                              sendTw(w, a1, a2);
+                          } catch (Throwable t) {
+                              Toast.makeText(MainActivity.this, "Невірні числа", Toast.LENGTH_SHORT).show();
+                          }
+                      }
+                  });
+
+                  ScrollView sv = new ScrollView(this);
+                  tv = new TextView(this);
+                  tv.setTypeface(Typeface.MONOSPACE);
+                  tv.setTextSize(13);
+                  tv.setText("Натисни «Запустити». Потім виконуй дію в авто і одразу тисни «Позначка» з відповідним описом.");
+                  sv.addView(tv);
+                  root.addView(sv);
+                  setContentView(root);
+
+                  btnGo.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          if (running) stopTw();
+                          else startTw();
+                      }
+                  });
+                  btnMark.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          String label = (String) spMark.getSelectedItem();
+                          addChange("======== ПОЗНАЧКА: " + label + " ========");
+                          scheduleRender();
+                      }
+                  });
+                  btnCopy.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                          cm.setPrimaryClip(ClipData.newPlainText("tw", lastFull));
+                          Toast.makeText(MainActivity.this, "Скопійовано", Toast.LENGTH_SHORT).show();
+                      }
+                  });
+              }
+
+              void sendTw(int what, int a1, int a2) {
+                  if (util == null) {
+                      addChange("Спочатку натисни «Запустити»");
+                      scheduleRender();
+                      return;
+                  }
+                  try {
+                      Object r = cls.getMethod("write", int.class, int.class, int.class).invoke(util, what, a1, a2);
+                      addChange(String.format(Locale.US, "TX  0x%04x  a1=%d  a2=%d  -> %s", what, a1, a2, r));
+                  } catch (Throwable t) {
+                      addChange("TX помилка: " + root(t));
+                  }
+                  scheduleRender();
+              }
+
+              static Throwable root(Throwable t) {
+                  while (t instanceof InvocationTargetException && t.getCause() != null) t = t.getCause();
+                  return t;
+              }
+
+              void startTw() {
+                  try {
+                      cls = Class.forName("android.tw.john.TWUtil");
+                      util = cls.getConstructor().newInstance();
+                      short[] ids = new short[ID_LIST.length];
+                      for (int i = 0; i < ids.length; i++) ids[i] = (short) ID_LIST[i];
+                      Object r = cls.getMethod("open", short[].class).invoke(util, (Object) ids);
+                      addChange("open() = " + r + " (0 = успішно)");
+                      cls.getMethod("start").invoke(util);
+                      cls.getMethod("addHandler", String.class, Handler.class).invoke(util, "twprobe", handler);
+                      running = true;
+                      status = "Слухаю повідомлення MCU";
+                      btnGo.setText("Зупинити");
+                  } catch (Throwable t) {
+                      status = "ПОМИЛКА";
+                      addChange("ПОМИЛКА: " + root(t));
+                  }
+                  scheduleRender();
+              }
+
+              void stopTw() {
+                  try {
+                      if (util != null && cls != null) {
+                          try { cls.getMethod("removeHandler", String.class).invoke(util, "twprobe"); } catch (Throwable ignored) { }
+                          try { cls.getMethod("stop").invoke(util); } catch (Throwable ignored) { }
+                          try { cls.getMethod("close").invoke(util); } catch (Throwable ignored) { }
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  util = null;
+                  running = false;
+                  status = "Зупинено";
+                  btnGo.setText("Запустити");
+                  scheduleRender();
+              }
+
+              static String fmtObj(Object o) {
+                  if (o == null) return "-";
+                  if (o instanceof byte[]) {
+                      byte[] bb = (byte[]) o;
+                      StringBuilder sb = new StringBuilder("bytes:");
+                      for (int i = 0; i < bb.length && i < 24; i++) sb.append(String.format(Locale.US, "%02x", bb[i] & 0xff));
+                      if (bb.length > 24) sb.append("..");
+                      return sb.toString();
+                  }
+                  if (o instanceof int[]) return Arrays.toString((int[]) o);
+                  String s = String.valueOf(o);
+                  return s.length() > 60 ? s.substring(0, 60) : s;
+              }
+
+              void onTwMessage(Message msg) {
+                  int w = msg.what;
+                  String o = fmtObj(msg.obj);
+                  if (w == 0x401 && msg.obj instanceof byte[]) {
+                      o = o + "  " + decRadio((byte[]) msg.obj);
+                      byte[] bb0 = (byte[]) msg.obj;
+                      if (bb0.length >= 4) lastFreq = ((bb0[2] & 0xff) << 8) | (bb0[3] & 0xff);
+                  }
+                  Rec r = table.get(w);
+                  boolean changed;
+                  if (r == null) {
+                      r = new Rec();
+                      table.put(w, r);
+                      changed = true;
+                  } else {
+                      changed = r.arg1 != msg.arg1 || r.arg2 != msg.arg2 || !r.obj.equals(o);
+                  }
+                  r.count++;
+                  r.arg1 = msg.arg1;
+                  r.arg2 = msg.arg2;
+                  r.obj = o;
+                  if (changed) {
+                      r.changes++;
+                      if (r.changes <= 60 || w == 0x401) {
+                          addChange(String.format(Locale.US, "0x%04x  a1=%d (0x%x)  a2=%d (0x%x)  obj=%s",
+                                  w, msg.arg1, msg.arg1, msg.arg2, msg.arg2, o));
+                      } else if (r.changes == 61) {
+                          addChange(String.format(Locale.US, "0x%04x  шумить, далі не логуємо", w));
+                      }
+                  }
+                  scheduleRender();
+              }
+
+              java.io.FileWriter logw;
+
+              void appendFile(String line) {
+                  try {
+                      if (logw == null) {
+                          java.io.File dir = getExternalFilesDir(null);
+                          if (dir == null) dir = getFilesDir();
+                          dir.mkdirs();
+                          logw = new java.io.FileWriter(new java.io.File(dir, "tw_log.txt"), true);
+                      }
+                      logw.write(line + "\n");
+                      logw.flush();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              final android.content.BroadcastReceiver cmdRx = new android.content.BroadcastReceiver() {
+                  @Override
+                  public void onReceive(Context c, android.content.Intent i) {
+                      String act = i.getStringExtra("act");
+                      if ("start".equals(act)) {
+                          if (!running) startTw();
+                          return;
+                      }
+                      if ("stop".equals(act)) {
+                          if (running) stopTw();
+                          return;
+                      }
+                      String mark = i.getStringExtra("mark");
+                      if (mark != null) {
+                          addChange("======== ПОЗНАЧКА: " + mark + " ========");
+                          scheduleRender();
+                          return;
+                      }
+                      if (!i.hasExtra("what")) return;
+                      sendTw(i.getIntExtra("what", 0), i.getIntExtra("a1", 0), i.getIntExtra("a2", 0));
+                  }
+              };
+
+              volatile int lastFreq = 0;
+
+              void openRadio(Float f) {
+                  try {
+                      android.content.Intent in = new android.content.Intent();
+                      in.setClassName("com.tw.radio", "com.tw.radio.RadioActivity");
+                      in.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                      if (f != null) in.putExtra("frequency", f.floatValue());
+                      startActivity(in);
+                      addChange("Запуск радіо" + (f != null ? " з частотою " + f : ""));
+                  } catch (Throwable t) {
+                      addChange("Запуск радіо помилка: " + t);
+                  }
+              }
+
+              void gotoFreq(final int target) {
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              int guard = 0;
+                              while (guard++ < 500) {
+                                  final int cur = lastFreq;
+                                  if (cur == 0 || Math.abs(target - cur) < 3) break;
+                                  final int dir = target > cur ? 0 : 1;
+                                  handler.post(new Runnable() {
+                                      @Override
+                                      public void run() {
+                                          sendTw(0x401, 2, dir);
+                                      }
+                                  });
+                                  Thread.sleep(60);
+                              }
+                              handler.post(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      addChange("goto завершено, частота " + (lastFreq / 100.0));
+                                  }
+                              });
+                          } catch (Throwable t) {
+                              addChange("goto помилка: " + t);
+                          }
+                      }
+                  }).start();
+              }
+
+              void startServer() {
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              java.net.ServerSocket ss = new java.net.ServerSocket(8099);
+                              while (true) {
+                                  final java.net.Socket c = ss.accept();
+                                  new Thread(new Runnable() {
+                                      @Override
+                                      public void run() {
+                                          serve(c);
+                                      }
+                                  }).start();
+                              }
+                          } catch (Throwable t) {
+                              addChange("HTTP помилка: " + t);
+                          }
+                      }
+                  }, "http").start();
+              }
+
+              void brightDump() {
+                  try {
+                      addChange("BRIGHT: canWrite=" + (android.os.Build.VERSION.SDK_INT >= 23 && android.provider.Settings.System.canWrite(this))
+                              + " sdk=" + android.os.Build.VERSION.SDK_INT);
+                      android.net.Uri[] uris = {android.provider.Settings.System.CONTENT_URI,
+                              android.provider.Settings.Secure.CONTENT_URI, android.provider.Settings.Global.CONTENT_URI};
+                      String[] names = {"system", "secure", "global"};
+                      for (int k = 0; k < 3; k++) {
+                          android.database.Cursor c = null;
+                          try {
+                              c = getContentResolver().query(uris[k], new String[]{"name", "value"}, null, null, null);
+                              while (c != null && c.moveToNext()) {
+                                  String n = c.getString(0);
+                                  String low = n.toLowerCase(Locale.US);
+                                  if (low.contains("bright") || low.contains("backlight") || low.contains("lcd") || low.contains("light")
+                                          || low.contains("dim") || low.contains("night") || low.startsWith("tw") || low.contains("_tw")
+                                          || low.contains("tw_")) {
+                                      addChange("BRIGHT " + names[k] + ": " + n + " = " + c.getString(1));
+                                  }
+                              }
+                          } catch (Throwable t) {
+                              addChange("BRIGHT " + names[k] + " помилка: " + t);
+                          } finally {
+                              if (c != null) c.close();
+                          }
+                      }
+                  } catch (Throwable t) {
+                      addChange("BRIGHT dump помилка: " + t);
+                  }
+              }
+
+              void brightSet(int v, String key) {
+                  try {
+                      android.content.ContentResolver cr = getContentResolver();
+                      if (key == null) {
+                          android.provider.Settings.System.putInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE, 0);
+                          key = android.provider.Settings.System.SCREEN_BRIGHTNESS;
+                      }
+                      android.provider.Settings.System.putInt(cr, key, v);
+                      addChange("BRIGHT set " + key + "=" + v + " OK, назад: " + android.provider.Settings.System.getInt(cr, key, -999));
+                  } catch (Throwable t) {
+                      addChange("BRIGHT set помилка: " + t);
+                  }
+              }
+
+              void brightPerm() {
+                  try {
+                      android.content.Intent in = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                              android.net.Uri.parse("package:" + getPackageName()));
+                      in.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                      startActivity(in);
+                      addChange("BRIGHT: відкрито екран дозволу WRITE_SETTINGS");
+                  } catch (Throwable t) {
+                      addChange("BRIGHT perm помилка: " + t);
+                  }
+              }
+
+              String tailText(int n) {
+                  StringBuilder sb = new StringBuilder();
+                  sb.append("Стан: ").append(status).append("\n");
+                  int from = Math.max(0, changes.size() - n);
+                  for (int i = from; i < changes.size(); i++) sb.append(changes.get(i)).append("\n");
+                  return sb.toString();
+              }
+
+              void serve(java.net.Socket c) {
+                  try {
+                      c.setSoTimeout(3000);
+                      java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(c.getInputStream()));
+                      String line = r.readLine();
+                      String path = "/";
+                      if (line != null && line.split(" ").length > 1) path = line.split(" ")[1];
+                      final android.net.Uri u = android.net.Uri.parse("http://x" + path);
+                      final String p = u.getPath() == null ? "/" : u.getPath();
+                      final java.util.concurrent.CountDownLatch l1 = new java.util.concurrent.CountDownLatch(1);
+                      handler.post(new Runnable() {
+                          @Override
+                          public void run() {
+                              try {
+                                  if (p.equals("/start")) {
+                                      if (!running) startTw();
+                                  } else if (p.equals("/stop")) {
+                                      if (running) stopTw();
+                                  } else if (p.equals("/mark")) {
+                                      addChange("======== ПОЗНАЧКА: " + u.getQueryParameter("t") + " ========");
+                                  } else if (p.equals("/open")) {
+                                      openRadio(null);
+                                  } else if (p.equals("/tune")) {
+                                      openRadio(Float.valueOf(u.getQueryParameter("f")));
+                                  } else if (p.equals("/goto")) {
+                                      gotoFreq((int) Math.round(Double.parseDouble(u.getQueryParameter("f")) * 100));
+                                  } else if (p.equals("/bdump")) {
+                                      brightDump();
+                                  } else if (p.equals("/bperm")) {
+                                      brightPerm();
+                                  } else if (p.equals("/bset")) {
+                                      brightSet(Integer.parseInt(u.getQueryParameter("v")), u.getQueryParameter("k"));
+                                  } else if (p.equals("/send")) {
+                                      sendTw(Integer.parseInt(u.getQueryParameter("what")),
+                                              Integer.parseInt(u.getQueryParameter("a1")),
+                                              Integer.parseInt(u.getQueryParameter("a2")));
+                                  }
+                              } catch (Throwable t) {
+                                  addChange("HTTP команда помилка: " + t);
+                              }
+                              l1.countDown();
+                          }
+                      });
+                      l1.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                      Thread.sleep(p.equals("/send") ? 900 : (p.equals("/goto") ? 100 : (p.equals("/tune") ? 1500 : 100)));
+                      final String[] out = new String[1];
+                      final java.util.concurrent.CountDownLatch l2 = new java.util.concurrent.CountDownLatch(1);
+                      final int n = u.getQueryParameter("n") != null ? Integer.parseInt(u.getQueryParameter("n")) : 20;
+                      handler.post(new Runnable() {
+                          @Override
+                          public void run() {
+                              out[0] = tailText(n);
+                              l2.countDown();
+                          }
+                      });
+                      l2.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                      byte[] body = String.valueOf(out[0]).getBytes("UTF-8");
+                      java.io.OutputStream o = c.getOutputStream();
+                      o.write(("HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n").getBytes("US-ASCII"));
+                      o.write(body);
+                      o.flush();
+                  } catch (Throwable ignored) {
+                  } finally {
+                      try { c.close(); } catch (Throwable ignored) { }
+                  }
+              }
+
+              static String decRadio(byte[] b) {
+                  if (b.length < 13) return "";
+                  int f = ((b[2] & 0xff) << 8) | (b[3] & 0xff);
+                  StringBuilder ps = new StringBuilder();
+                  for (int i = 5; i < 13; i++) {
+                      int c = b[i] & 0xff;
+                      ps.append(c >= 32 && c < 127 ? (char) c : '.');
+                  }
+                  return String.format(Locale.US, "[fl=%02x b1=%02x f=%d.%02d PS=%s]", b[0] & 0xff, b[1] & 0xff, f / 100, f % 100, ps);
+              }
+
+              void addChange(String s) {
+                  String line = tf.format(new Date()) + "  " + s;
+                  changes.add(line);
+                  appendFile(line);
+                  if (changes.size() > 1500) changes.remove(0);
+              }
+
+              void scheduleRender() {
+                  if (renderPending) return;
+                  renderPending = true;
+                  handler.postDelayed(new Runnable() {
+                      @Override
+                      public void run() {
+                          renderPending = false;
+                          render();
+                      }
+                  }, 200);
+              }
+
+              void render() {
+                  StringBuilder head = new StringBuilder();
+                  head.append("Стан: ").append(status).append("\n\n");
+                  head.append("ПОТОЧНІ ЗНАЧЕННЯ (what: кількість, a1, a2, obj)\n");
+                  for (Map.Entry<Integer, Rec> e : table.entrySet()) {
+                      Rec r = e.getValue();
+                      head.append(String.format(Locale.US, "0x%04x  n=%d  a1=%d  a2=%d  %s\n",
+                              e.getKey(), r.count, r.arg1, r.arg2, r.obj));
+                  }
+                  StringBuilder all = new StringBuilder();
+                  for (String c : changes) all.append(c).append("\n");
+                  lastFull = head + "\nЗМІНИ (старі зверху)\n" + all;
+
+                  StringBuilder tail = new StringBuilder();
+                  int from = Math.max(0, changes.size() - 40);
+                  for (int i = from; i < changes.size(); i++) tail.append(changes.get(i)).append("\n");
+                  tv.setText(head + "\nЗМІНИ (останні 40)\n" + tail);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (running) stopTw();
+                  try { unregisterReceiver(cmdRx); } catch (Throwable ignored) { }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TwProbe
+          path: app/build/outputs/apk/debug/app-debug.apk
