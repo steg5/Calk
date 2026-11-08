@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.diagnostics"
                   minSdk 23
                   targetSdk 26
-                  versionCode 8
-                  versionName "2.6"
+                  versionCode 9
+                  versionName "2.7"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -149,6 +149,30 @@ jobs:
           public class MainActivity extends Activity {
               static final int RED = 0xFFEF5350, GRN = 0xFF81C784;
               int BG, CARD, TXT, DIM, ACC, BTN, TABON;
+              int[] gcol;
+              final Map<String, Button> graphBtns = new HashMap<String, Button>();
+
+              static boolean isLight(int c) {
+                  return (((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255)) / 3 > 128;
+              }
+
+              static int onColor(int c) {
+                  return isLight(c) && (((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255)) / 3 > 150 ? 0xFF10141A : 0xFFFFFFFF;
+              }
+
+              void refreshGraphBtns() {
+                  for (Map.Entry<String, Button> e : graphBtns.entrySet()) {
+                      int i = graphPids.indexOf(e.getKey());
+                      Button b = e.getValue();
+                      if (i >= 0) {
+                          paint(b, gcol[i % gcol.length]);
+                          b.setTextColor(0xFFFFFFFF);
+                      } else {
+                          paint(b, BTN);
+                          b.setTextColor(TXT);
+                      }
+                  }
+              }
 
               static final String[] SCHEME_NAMES = {"Темна синя", "Світла", "Зелена ніч", "Бурштин", "Чорна (AMOLED)",
                       "Лаванда", "М'ята", "Персик", "Небо", "Рожевий туман", "Темна лаванда", "Морська ніч"};
@@ -176,6 +200,9 @@ jobs:
                   ACC = c[4];
                   BTN = c[5];
                   TABON = c[6];
+                  gcol = isLight(BG)
+                          ? new int[]{0xFF0277BD, 0xFFE65100, 0xFF2E7D32, 0xFF8E24AA, 0xFFC62828}
+                          : new int[]{0xFF4FC3F7, 0xFFFFB74D, 0xFF81C784, 0xFFBA68C8, 0xFFF06292};
               }
 
               void paint(View v, int color) {
@@ -293,7 +320,7 @@ jobs:
               void applyTop() {
                   connLogSv.setVisibility(topShown ? View.VISIBLE : View.GONE);
                   arrowBtn.setVisibility(topShown ? View.VISIBLE : View.GONE);
-                  arrowBtn.setText(connOpen ? "▴" : "▾");
+                  arrowBtn.setText("Параметри");
                   pTop.root.setVisibility(topShown && connOpen ? View.VISIBLE : View.GONE);
                   LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) rightCol.getLayoutParams();
                   lp.width = topShown ? dp(150) : -1;
@@ -410,7 +437,7 @@ jobs:
                       for (String s : en.split(",")) if (!s.isEmpty()) enabled.add(s);
                   }
                   String gp = prefs.getString("graph", "010C,010D");
-                  for (String s : gp.split(",")) if (!s.isEmpty() && graphPids.size() < 3) graphPids.add(s);
+                  for (String s : gp.split(",")) if (!s.isEmpty() && graphPids.size() < 5) graphPids.add(s);
                   btMode = prefs.getBoolean("bt", false);
 
                   LinearLayout root = new LinearLayout(this);
@@ -436,8 +463,8 @@ jobs:
                   indBtn.setTextColor(0xFFFFFFFF);
                   indBtn.setOnClickListener(v -> setTop(!topShown));
                   rightCol.addView(indBtn, new LinearLayout.LayoutParams(-1, dp(60)));
-                  arrowBtn = btn("▾");
-                  arrowBtn.setTextSize(16);
+                  arrowBtn = btn("Параметри");
+                  arrowBtn.setTextSize(14);
                   arrowBtn.setMinHeight(0);
                   arrowBtn.setMinimumHeight(0);
                   arrowBtn.setPadding(0, 0, 0, 0);
@@ -497,6 +524,7 @@ jobs:
                   root.requestFocus();
                   applyTop();
                   tickInd();
+                  refreshGraphBtns();
 
                   new Thread(this::worker, "elm-worker").start();
                   if (prefs.getBoolean("auto", false)) startConnect();
@@ -545,12 +573,14 @@ jobs:
                       savePrefs();
                       rep.recStart(cols);
                       recStartMs = System.currentTimeMillis();
-                      paint(recBtn, 0xFF455A64);
+                      paint(recBtn, 0xFFC62828);
+                      recBtn.setTextColor(0xFFFFFFFF);
                       tickRec();
                   } else {
                       String rpt = rep.recStop();
                       recBtn.setText("● Почати запис");
-                      paint(recBtn, 0xFF2E7D32);
+                      paint(recBtn, ACC);
+                      recBtn.setTextColor(onColor(ACC));
                       ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                       cm.setPrimaryClip(ClipData.newPlainText("diag", rpt));
                       try {
@@ -602,7 +632,7 @@ jobs:
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   sv.addView(col);
-                  TextView hint = text("Галочка — опитувати параметр. Кнопка «📈» — додати на графік (до 3).", 13, DIM);
+                  TextView hint = text("Галочка — опитувати параметр. Кнопка «📈» — додати на графік (до 5), вона підсвічується кольором лінії.", 13, DIM);
                   hint.setPadding(dp(4), dp(6), dp(4), dp(6));
                   col.addView(hint);
                   for (final Pids.Def d : Pids.ALL) {
@@ -620,19 +650,31 @@ jobs:
                       });
                       checks.put(d.pid, cb);
                       row.addView(cb);
-                      TextView name = text(d.name + "  (" + d.pid.substring(2) + ")", 16, TXT);
+                      TextView name = text(d.name, 15, TXT);
+                      name.setSingleLine(true);
+                      name.setEllipsize(android.text.TextUtils.TruncateAt.END);
                       nameViews.put(d.pid, name);
                       row.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-                      TextView val = text("—", 22, ACC);
+                      TextView val = text("—", 20, ACC);
                       val.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
                       val.setGravity(Gravity.END);
+                      val.setSingleLine(true);
+                      val.setMinWidth(dp(46));
                       valViews.put(d.pid, val);
-                      row.addView(val, new LinearLayout.LayoutParams(dp(110), -2));
-                      TextView unit = text(d.unit, 13, DIM);
-                      row.addView(unit, new LinearLayout.LayoutParams(dp(56), -2));
+                      row.addView(val, new LinearLayout.LayoutParams(-2, -2));
+                      TextView unit = text(d.unit, 12, DIM);
+                      unit.setSingleLine(true);
+                      unit.setPadding(dp(4), 0, 0, 0);
+                      row.addView(unit, new LinearLayout.LayoutParams(-2, -2));
                       Button g = btn("📈");
+                      g.setMinWidth(0);
+                      g.setMinimumWidth(0);
+                      g.setPadding(0, 0, 0, 0);
                       g.setOnClickListener(v -> toggleGraph(d.pid));
-                      row.addView(g, new LinearLayout.LayoutParams(dp(54), dp(40)));
+                      graphBtns.put(d.pid, g);
+                      LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(dp(44), dp(38));
+                      glp.setMargins(dp(6), 0, 0, 0);
+                      row.addView(g, glp);
                       LinearLayout.LayoutParams lp = bl();
                       lp.setMargins(0, 0, 0, dp(2));
                       col.addView(row, lp);
@@ -643,11 +685,12 @@ jobs:
               void toggleGraph(String pid) {
                   if (graphPids.contains(pid)) graphPids.remove(pid);
                   else {
-                      if (graphPids.size() >= 3) graphPids.remove(0);
+                      if (graphPids.size() >= 5) graphPids.remove(0);
                       graphPids.add(pid);
                   }
                   savePrefs();
-                  Toast.makeText(this, "На графіку: " + graphPids.size() + " з 3", Toast.LENGTH_SHORT).show();
+                  refreshGraphBtns();
+                  Toast.makeText(this, "На графіку: " + graphPids.size() + " з 5", Toast.LENGTH_SHORT).show();
               }
 
               View buildGraph() {
@@ -670,6 +713,7 @@ jobs:
                   col.addView(row);
                   graph = new GraphView(this);
                   graph.rep = rep;
+                  graph.style(BG, BTN, DIM, gcol);
                   col.addView(graph, new LinearLayout.LayoutParams(-1, 0, 1));
                   return col;
               }
@@ -712,9 +756,9 @@ jobs:
                   sv.addView(col);
 
                   recBtn = btn("● Почати запис");
-                  paint(recBtn, 0xFF2E7D32);
+                  paint(recBtn, ACC);
                   recBtn.setTextSize(15);
-                  recBtn.setTextColor(0xFFFFFFFF);
+                  recBtn.setTextColor(onColor(ACC));
                   recBtn.setOnClickListener(v -> toggleRec());
                   LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-2, dp(44));
                   rlp.gravity = Gravity.CENTER_HORIZONTAL;
@@ -2289,9 +2333,17 @@ jobs:
           import java.util.List;
           import java.util.Locale;
 
-          /** Графік до 3 PID, у кожного власна шкала. */
+          /** Графік до 5 PID, у кожного власна шкала. */
           final class GraphView extends View {
-              static final int[] COLORS = {0xFF4FC3F7, 0xFFFFB74D, 0xFF81C784};
+              int[] colors = {0xFF4FC3F7, 0xFFFFB74D, 0xFF81C784, 0xFFBA68C8, 0xFFF06292};
+              int gridC = 0xFF2A3238, txtC = 0xFF8899A6;
+
+              void style(int bg, int grid, int txt, int[] cols) {
+                  setBackgroundColor(bg);
+                  gridC = grid;
+                  txtC = txt;
+                  colors = cols;
+              }
               Rep rep;
               final List<String> pids = new ArrayList<String>();
               long windowMs = 60000;
@@ -2306,11 +2358,11 @@ jobs:
               protected void onDraw(Canvas cv) {
                   float w = getWidth(), h = getHeight();
                   float d = getResources().getDisplayMetrics().density;
-                  float legendH = 22 * d * Math.max(1, pids.size());
+                  float legendH = 17 * d * Math.max(1, pids.size());
                   float top = legendH + 6 * d, bottom = h - 18 * d, left = 6 * d, right = w - 6 * d;
                   p.setStyle(Paint.Style.STROKE);
                   p.setStrokeWidth(1);
-                  p.setColor(0xFF2A3238);
+                  p.setColor(gridC);
                   for (int i = 0; i <= 4; i++) {
                       float y = top + (bottom - top) * i / 4f;
                       cv.drawLine(left, y, right, y, p);
@@ -2321,7 +2373,7 @@ jobs:
                   }
                   p.setStyle(Paint.Style.FILL);
                   p.setTextSize(11 * d);
-                  p.setColor(0xFF8899A6);
+                  p.setColor(txtC);
                   cv.drawText("−" + (windowMs / 1000) + " с", left, h - 4 * d, p);
                   cv.drawText("зараз", right - 30 * d, h - 4 * d, p);
                   if (rep == null) return;
@@ -2329,15 +2381,15 @@ jobs:
                   long since = now - windowMs;
                   for (int si = 0; si < pids.size(); si++) {
                       String pid = pids.get(si);
-                      int col = COLORS[si % COLORS.length];
+                      int col = colors[si % colors.length];
                       List<Long> ts = new ArrayList<Long>();
                       List<Double> vs = rep.values(pid, since, ts);
                       Pids.Def def = Pids.find(pid);
                       String name = def != null ? def.name + ", " + def.unit : pid;
                       p.setStyle(Paint.Style.FILL);
                       p.setColor(col);
-                      p.setTextSize(15 * d);
-                      float ty = 18 * d * (si + 1) + 2 * d * si;
+                      p.setTextSize(13 * d);
+                      float ty = 17 * d * (si + 1) - 3 * d;
                       if (vs.isEmpty()) {
                           cv.drawText(name + ": немає даних", left, ty, p);
                           continue;
