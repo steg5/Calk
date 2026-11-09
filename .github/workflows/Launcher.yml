@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "1.4"
+                  versionCode 6
+                  versionName "1.5"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -245,21 +245,115 @@ jobs:
               // медіа
               MediaController ctl;
 
-              static final String[] FN = {"Звичайний", "Тонкий", "Середній", "Вузький", "З засічками", "Моноширинний", "Рукописний"};
-              static final String[] FF = {"sans-serif", "sans-serif-light", "sans-serif-medium", "sans-serif-condensed", "serif", "monospace", "casual"};
+              Typeface fontCache;
+              String fontCachePath = "";
 
               Typeface tf(boolean bold) {
-                  int i = Math.min(FF.length - 1, Math.max(0, sp.getInt("font", 0)));
-                  return Typeface.create(FF[i], bold ? Typeface.BOLD : Typeface.NORMAL);
+                  String fp = sp.getString("fontfile", "");
+                  Typeface base = null;
+                  if (!fp.isEmpty()) {
+                      if (!fp.equals(fontCachePath)) {
+                          fontCachePath = fp;
+                          try {
+                              fontCache = Typeface.createFromFile(fp);
+                          } catch (Throwable e) {
+                              fontCache = null;
+                          }
+                      }
+                      base = fontCache;
+                  }
+                  if (base == null) return bold ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT;
+                  return Typeface.create(base, bold ? Typeface.BOLD : Typeface.NORMAL);
               }
 
               void fontMenu() {
-                  new AlertDialog.Builder(this).setTitle("Шрифт")
-                          .setSingleChoiceItems(FN, sp.getInt("font", 0), (d, i) -> {
-                              sp.edit().putInt("font", i).apply();
+                  File[] fs = new File("/system/fonts").listFiles();
+                  List<File> l = new ArrayList<File>();
+                  if (fs != null) {
+                      for (File f : fs) {
+                          String n = f.getName().toLowerCase(Locale.US);
+                          if (!(n.endsWith(".ttf") || n.endsWith(".otf"))) continue;
+                          if (n.contains("emoji") || n.contains("symbol") || n.contains("icon") || n.contains("color") || n.contains("italic")) continue;
+                          l.add(f);
+                      }
+                  }
+                  Collections.sort(l, new Comparator<File>() {
+                      @Override
+                      public int compare(File a, File b) {
+                          return a.getName().compareToIgnoreCase(b.getName());
+                      }
+                  });
+                  final String[] names = new String[l.size() + 1];
+                  final String[] paths = new String[l.size() + 1];
+                  names[0] = "Стандартний";
+                  paths[0] = "";
+                  String cur = sp.getString("fontfile", "");
+                  int sel = 0;
+                  for (int i = 0; i < l.size(); i++) {
+                      String n = l.get(i).getName();
+                      names[i + 1] = n.substring(0, n.lastIndexOf('.'));
+                      paths[i + 1] = l.get(i).getAbsolutePath();
+                      if (paths[i + 1].equals(cur)) sel = i + 1;
+                  }
+                  new AlertDialog.Builder(this).setTitle("Шрифт (" + l.size() + ")")
+                          .setSingleChoiceItems(names, sel, (d, i) -> {
+                              sp.edit().putString("fontfile", paths[i]).apply();
                               d.dismiss();
                               recreate();
                           }).show();
+              }
+
+              boolean magnet = true;
+
+              float[][] copyRects() {
+                  float[][] c = new float[5][];
+                  for (int i = 0; i < 5; i++) c[i] = rect(i).clone();
+                  return c;
+              }
+
+              void restore(float[][] b) {
+                  for (int i = 0; i < 5; i++) rc[i] = b[i];
+              }
+
+              boolean over(int a, int b) {
+                  float[] p = rect(a), q = rect(b);
+                  float ox = Math.min(p[0] + p[2], q[0] + q[2]) - Math.max(p[0], q[0]);
+                  float oy = Math.min(p[1] + p[3], q[1] + q[3]) - Math.max(p[1], q[1]);
+                  return ox * cwPx() > 2 && oy * chPx() > 2;
+              }
+
+              boolean resolve(int i) {
+                  if (!resolve2(i, -1, 0)) return false;
+                  for (int a = 0; a < 5; a++) for (int b = a + 1; b < 5; b++) if (over(a, b)) return false;
+                  return true;
+              }
+
+              boolean resolve2(int i, int skip, int d) {
+                  for (int j = 0; j < 5; j++) {
+                      if (j == i || j == skip) continue;
+                      if (over(i, j) && !push(j, i, d + 1)) return false;
+                  }
+                  return true;
+              }
+
+              boolean push(int j, int i, int d) {
+                  if (d > 8) return false;
+                  float[] a = rect(i), b = rect(j);
+                  int cw = cwPx(), ch = chPx();
+                  float ox = (Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0])) * cw;
+                  float oy = (Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1])) * ch;
+                  if (ox < oy) {
+                      boolean right = b[0] + b[2] / 2 > a[0] + a[2] / 2;
+                      float nx = right ? a[0] + a[2] : a[0] - b[2];
+                      if (nx < 0 || nx + b[2] > 1.0001f) return false;
+                      b[0] = nx;
+                  } else {
+                      boolean down = b[1] + b[3] / 2 > a[1] + a[3] / 2;
+                      float ny = down ? a[1] + a[3] : a[1] - b[3];
+                      if (ny < 0 || ny + b[3] > 1.0001f) return false;
+                      b[1] = ny;
+                  }
+                  return resolve2(j, i, d);
               }
 
               // ================= розкладка блоків =================
@@ -421,6 +515,7 @@ jobs:
                               float dx = (x - lx) / cw, dy = (y - ly) / ch;
                               lx = x;
                               ly = y;
+                              float[][] bk = copyRects();
                               float[] f = rect(sel);
                               if (rs) {
                                   f[2] = Math.max(px(110) / (float) cw, Math.min(1 - f[0], f[2] + dx));
@@ -429,18 +524,21 @@ jobs:
                                   f[0] = Math.max(0, Math.min(1 - f[2], f[0] + dx));
                                   f[1] = Math.max(0, Math.min(1 - f[3], f[1] + dy));
                               }
+                              if (magnet && !resolve(sel)) restore(bk);
                               layoutBlocks();
                               invalidate();
                               return true;
                           case MotionEvent.ACTION_UP:
                           case MotionEvent.ACTION_CANCEL:
                               if (sel >= 0) {
+                                  float[][] bk2 = copyRects();
                                   float[] g = rect(sel);
                                   float st = px(10);
                                   g[0] = Math.round(g[0] * cw / st) * st / cw;
                                   g[1] = Math.round(g[1] * ch / st) * st / ch;
                                   g[2] = Math.max(px(110) / (float) cw, Math.min(1 - g[0], Math.round(g[2] * cw / st) * st / cw));
                                   g[3] = Math.max(px(90) / (float) ch, Math.min(1 - g[1], Math.round(g[3] * ch / st) * st / ch));
+                                  if (magnet && !resolve(sel)) restore(bk2);
                                   saveRects();
                                   layoutBlocks();
                               }
@@ -573,6 +671,7 @@ jobs:
                   sp = getSharedPreferences("launcher", MODE_PRIVATE);
                   pm = getPackageManager();
                   applyTheme();
+                  magnet = sp.getBoolean("magnet", true);
                   android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
                   u = Math.min(dm.widthPixels, dm.heightPixels) / 720f;
                   maxKmh = sp.getFloat("max", 0);
@@ -824,7 +923,7 @@ jobs:
                   eb.setOrientation(LinearLayout.HORIZONTAL);
                   Button done = btn("Готово", 26);
                   done.setOnClickListener(v -> exitEdit());
-                  Button rst = btn("Скинути розкладку", 26);
+                  Button rst = btn("Скинути", 26);
                   rst.setOnClickListener(v -> {
                       SharedPreferences.Editor ed = sp.edit();
                       for (int k = 0; k < 5; k++) {
@@ -835,10 +934,19 @@ jobs:
                       layoutBlocks();
                       editView.invalidate();
                   });
-                  LinearLayout.LayoutParams b1 = lp(200, 64, 0);
+                  LinearLayout.LayoutParams b1 = lp(170, 64, 0);
                   b1.setMargins(0, px(10), px(12), 0);
                   eb.addView(done, b1);
-                  LinearLayout.LayoutParams b2 = lp(300, 64, 0);
+                  final Button mg = btn(magnet ? "Магніт: вкл" : "Магніт: викл", 24);
+                  mg.setOnClickListener(v -> {
+                      magnet = !magnet;
+                      sp.edit().putBoolean("magnet", magnet).apply();
+                      mg.setText(magnet ? "Магніт: вкл" : "Магніт: викл");
+                  });
+                  LinearLayout.LayoutParams bm = lp(240, 64, 0);
+                  bm.setMargins(0, px(10), px(12), 0);
+                  eb.addView(mg, bm);
+                  LinearLayout.LayoutParams b2 = lp(170, 64, 0);
                   b2.setMargins(0, px(10), 0, 0);
                   eb.addView(rst, b2);
                   editBar.addView(eb, lp(-2, -2, 0));
