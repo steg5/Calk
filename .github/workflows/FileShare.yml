@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.fileshare"
                   minSdk 23
                   targetSdk 26
-                  versionCode 2
-                  versionName "1.1"
+                  versionCode 3
+                  versionName "1.2"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -241,6 +241,23 @@ jobs:
                   r1.addView(recv, lp);
                   root.addView(r1);
 
+                  LinearLayout r2 = new LinearLayout(this);
+                  Button csend = btn("📋  Передати буфер", 0xFF0EA5E9);
+                  Button crecv = btn("📋  Прийняти буфер", 0xFF14B8A6);
+                  csend.setOnClickListener(v -> {
+                      save();
+                      clipSend();
+                  });
+                  crecv.setOnClickListener(v -> {
+                      save();
+                      clipRecv();
+                  });
+                  LinearLayout.LayoutParams lpc = new LinearLayout.LayoutParams(0, dp(64), 1);
+                  lpc.setMargins(dp(4), dp(4), dp(4), dp(4));
+                  r2.addView(csend, lpc);
+                  r2.addView(crecv, lpc);
+                  root.addView(r2);
+
                   Button inst = btn("📦  Встановити APK з цього пристрою", 0xFF7C3AED);
                   inst.setOnClickListener(v -> listLocalApk());
                   LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-1, dp(64));
@@ -350,6 +367,97 @@ jobs:
                       final Uri u = data.getData();
                       new Thread(() -> upload(u)).start();
                   }
+              }
+
+              String readClip() {
+                  try {
+                      android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                      android.content.ClipData d = cm.getPrimaryClip();
+                      if (d != null && d.getItemCount() > 0) {
+                          CharSequence c = d.getItemAt(0).coerceToText(this);
+                          if (c != null) return c.toString();
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  return "";
+              }
+
+              @Override
+              public String clipText() {
+                  if (Looper.myLooper() == Looper.getMainLooper()) return readClip();
+                  final String[] r = {""};
+                  final java.util.concurrent.CountDownLatch l = new java.util.concurrent.CountDownLatch(1);
+                  runOnUiThread(() -> {
+                      r[0] = readClip();
+                      l.countDown();
+                  });
+                  try {
+                      l.await(3, java.util.concurrent.TimeUnit.SECONDS);
+                  } catch (Exception ignored) {
+                  }
+                  return r[0];
+              }
+
+              @Override
+              public void setClip(final String t) {
+                  runOnUiThread(() -> {
+                      try {
+                          android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                          cm.setPrimaryClip(android.content.ClipData.newPlainText("Передача", t));
+                      } catch (Throwable ignored) {
+                      }
+                  });
+              }
+
+              void clipSend() {
+                  final String t = readClip();
+                  if (t.isEmpty()) {
+                      log("Буфер порожній (на Android 10+ застосунок має бути на екрані)");
+                      return;
+                  }
+                  new Thread(() -> {
+                      try {
+                          byte[] b = t.getBytes("UTF-8");
+                          HttpURLConnection c = (HttpURLConnection) new URL(base() + "/clipset?pin=" + q(etPin.getText().toString().trim())).openConnection();
+                          c.setConnectTimeout(5000);
+                          c.setReadTimeout(10000);
+                          c.setDoOutput(true);
+                          c.setRequestMethod("POST");
+                          c.setFixedLengthStreamingMode(b.length);
+                          java.io.OutputStream o = c.getOutputStream();
+                          o.write(b);
+                          o.close();
+                          int rc = c.getResponseCode();
+                          log(rc == 200 ? "Буфер передано (" + t.length() + " символів)" : "Помилка передачі: " + rc);
+                      } catch (Throwable e) {
+                          log("Помилка: " + e);
+                      }
+                  }).start();
+              }
+
+              void clipRecv() {
+                  new Thread(() -> {
+                      try {
+                          HttpURLConnection c = (HttpURLConnection) new URL(base() + "/clipget?pin=" + q(etPin.getText().toString().trim())).openConnection();
+                          c.setConnectTimeout(5000);
+                          c.setReadTimeout(10000);
+                          if (c.getResponseCode() != 200) {
+                              log("Помилка: " + c.getResponseCode());
+                              return;
+                          }
+                          java.io.InputStream in = c.getInputStream();
+                          java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                          byte[] buf = new byte[8192];
+                          int n;
+                          while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                          in.close();
+                          String t = new String(bo.toByteArray(), "UTF-8");
+                          setClip(t);
+                          log(t.isEmpty() ? "Буфер на тому пристрої порожній" : "Буфер прийнято (" + t.length() + " символів)");
+                      } catch (Throwable e) {
+                          log("Помилка: " + e);
+                      }
+                  }).start();
               }
 
               String base() {
@@ -548,6 +656,10 @@ jobs:
                   void received(File f);
 
                   void log(String s);
+
+                  String clipText();
+
+                  void setClip(String t);
               }
 
               private final Host host;
@@ -705,6 +817,22 @@ jobs:
                           fi.close();
                           out.flush();
                           host.log("Віддано: " + f.getName());
+                      } else if (path.equals("/clipget")) {
+                          reply(out, 200, "text/plain; charset=utf-8", host.clipText().getBytes("UTF-8"));
+                          host.log("Буфер віддано");
+                      } else if (path.equals("/clipset")) {
+                          java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                          byte[] cb = new byte[8192];
+                          long cl = Math.min(len, 1048576);
+                          while (cl > 0) {
+                              int n = in.read(cb, 0, (int) Math.min(cb.length, cl));
+                              if (n < 0) break;
+                              bo.write(cb, 0, n);
+                              cl -= n;
+                          }
+                          host.setClip(new String(bo.toByteArray(), "UTF-8"));
+                          reply(out, 200, "text/plain; charset=utf-8", "OK".getBytes("UTF-8"));
+                          host.log("Буфер отримано (" + bo.size() + " байт)");
                       } else {
                           reply(out, 404, "text/plain; charset=utf-8", "?".getBytes("UTF-8"));
                       }
