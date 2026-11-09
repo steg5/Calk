@@ -1,0 +1,1089 @@
+name: Launcher
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/Launcher.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/launcher app/src/main/res/drawable
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'Launcher'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.launcher'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.launcher"
+                  minSdk 23
+                  targetSdk 26
+                  versionCode 1
+                  versionName "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+              <application
+                  android:label="Лаунчер"
+                  android:icon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|density">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.HOME"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/MainActivity.java <<'EOF'
+          package com.example.launcher;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.location.GpsSatellite;
+          import android.location.GpsStatus;
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.SeekBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Comparator;
+          import java.util.Date;
+          import java.util.List;
+          import java.util.Locale;
+
+          public class MainActivity extends Activity implements Tuner.Listener {
+              static final int ACC = 0xFF4FC3F7, TXT = 0xFFF1F5F9, DIM = 0xFFA9B8CC, CARD = 0xB3101A28, BTN = 0xFF2A3A52;
+              static final String[] KEYS = {"igo", "aimp", "radio"};
+              static final String[] TITLES = {"iGO", "AIMP", "Радіо"};
+
+              final Handler ui = new Handler(Looper.getMainLooper());
+              SharedPreferences sp;
+              PackageManager pm;
+              Tuner tuner;
+              LocationManager lm;
+              boolean ready = false;
+              float u = 1f;
+              long lastFix = 0;
+              int satUsed = 0, satTotal = 0;
+
+              ImageView bg;
+              TextView tvClock, tvDate, tvSpeed, tvSats, tvStation, tvFreq;
+              Button dayNight;
+              final ImageView[] tileIcon = new ImageView[3];
+              final TextView[] tileText = new TextView[3];
+
+              int px(float v) {
+                  return Math.round(v * u);
+              }
+
+              TextView text(String s, float size, int color, boolean bold) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextColor(color);
+                  t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
+                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  return t;
+              }
+
+              GradientDrawable rounded(int color, float r) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  g.setCornerRadius(px(r));
+                  return g;
+              }
+
+              Button btn(String s, float size) {
+                  Button b = new Button(this);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  b.setTextColor(TXT);
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
+                  b.setBackground(rounded(BTN, 18));
+                  b.setPadding(px(10), 0, px(10), 0);
+                  return b;
+              }
+
+              LinearLayout.LayoutParams lp(float w, float h, float weight) {
+                  return new LinearLayout.LayoutParams(w < 0 ? (int) w : px(w), h < 0 ? (int) h : px(h), weight);
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  CrashGuard.install(this);
+                  String tr = CrashGuard.take(this);
+                  if (tr != null) {
+                      CrashGuard.show(this, tr);
+                      return;
+                  }
+                  sp = getSharedPreferences("launcher", MODE_PRIVATE);
+                  pm = getPackageManager();
+                  android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+                  u = Math.min(dm.widthPixels, dm.heightPixels) / 720f;
+
+                  FrameLayout root = new FrameLayout(this);
+                  GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF12335C, 0xFF0A1424});
+                  root.setBackground(base);
+                  bg = new ImageView(this);
+                  bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  root.addView(bg, new FrameLayout.LayoutParams(-1, -1));
+                  View dim = new View(this);
+                  dim.setBackgroundColor(0x55000000);
+                  root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+
+                  LinearLayout main = new LinearLayout(this);
+                  main.setOrientation(LinearLayout.HORIZONTAL);
+                  main.setPadding(px(22), px(22), px(22), px(22));
+                  root.addView(main, new FrameLayout.LayoutParams(-1, -1));
+
+                  // ---- ліва колонка ----
+                  LinearLayout left = new LinearLayout(this);
+                  left.setOrientation(LinearLayout.VERTICAL);
+                  left.setGravity(Gravity.CENTER_HORIZONTAL);
+                  left.setBackground(rounded(CARD, 26));
+                  left.setPadding(px(16), px(14), px(16), px(16));
+                  LinearLayout.LayoutParams llp = lp(0, -1, 4);
+                  llp.setMargins(0, 0, px(18), 0);
+                  main.addView(left, llp);
+
+                  tvClock = text("00:00", 96, TXT, true);
+                  tvClock.setGravity(Gravity.CENTER);
+                  left.addView(tvClock, lp(-1, -2, 0));
+                  tvDate = text("", 24, DIM, false);
+                  tvDate.setGravity(Gravity.CENTER);
+                  left.addView(tvDate, lp(-1, -2, 0));
+                  View sp1 = new View(this);
+                  left.addView(sp1, lp(-1, 0, 1));
+                  tvSpeed = text("—", 130, ACC, true);
+                  tvSpeed.setGravity(Gravity.CENTER);
+                  left.addView(tvSpeed, lp(-1, -2, 0));
+                  TextView kmh = text("км/год", 26, DIM, false);
+                  kmh.setGravity(Gravity.CENTER);
+                  left.addView(kmh, lp(-1, -2, 0));
+                  tvSats = text("Супутники: —", 22, DIM, false);
+                  tvSats.setGravity(Gravity.CENTER);
+                  left.addView(tvSats, lp(-1, -2, 0));
+                  View sp2 = new View(this);
+                  left.addView(sp2, lp(-1, 0, 1));
+                  dayNight = btn("", 34);
+                  dayNight.setOnClickListener(v -> toggleBright());
+                  dayNight.setOnLongClickListener(v -> {
+                      minDialog();
+                      return true;
+                  });
+                  left.addView(dayNight, lp(-1, 130, 0));
+
+                  // ---- права колонка ----
+                  LinearLayout right = new LinearLayout(this);
+                  right.setOrientation(LinearLayout.VERTICAL);
+                  main.addView(right, lp(0, -1, 7));
+
+                  LinearLayout tiles = new LinearLayout(this);
+                  tiles.setOrientation(LinearLayout.HORIZONTAL);
+                  right.addView(tiles, lp(-1, 0, 5));
+                  for (int i = 0; i < 3; i++) {
+                      final int idx = i;
+                      LinearLayout tile = new LinearLayout(this);
+                      tile.setOrientation(LinearLayout.VERTICAL);
+                      tile.setGravity(Gravity.CENTER);
+                      tile.setBackground(rounded(CARD, 26));
+                      tile.setClickable(true);
+                      tile.setOnClickListener(v -> launchTile(idx));
+                      tile.setOnLongClickListener(v -> {
+                          chooseApp(idx);
+                          return true;
+                      });
+                      tileIcon[i] = new ImageView(this);
+                      tileIcon[i].setScaleType(ImageView.ScaleType.FIT_CENTER);
+                      tile.addView(tileIcon[i], lp(150, 150, 0));
+                      tileText[i] = text(TITLES[i], 32, TXT, true);
+                      tileText[i].setGravity(Gravity.CENTER);
+                      tile.addView(tileText[i], lp(-2, -2, 0));
+                      LinearLayout.LayoutParams tl = lp(0, -1, 1);
+                      if (i > 0) tl.setMargins(px(18), 0, 0, 0);
+                      tiles.addView(tile, tl);
+                  }
+
+                  LinearLayout radio = new LinearLayout(this);
+                  radio.setOrientation(LinearLayout.HORIZONTAL);
+                  radio.setGravity(Gravity.CENTER_VERTICAL);
+                  radio.setBackground(rounded(CARD, 26));
+                  radio.setPadding(px(26), px(10), px(18), px(10));
+                  radio.setOnClickListener(v -> launchTile(2));
+                  LinearLayout rt = new LinearLayout(this);
+                  rt.setOrientation(LinearLayout.VERTICAL);
+                  tvStation = text(sp.getString("lname", "Радіо"), 40, TXT, true);
+                  tvStation.setSingleLine(true);
+                  rt.addView(tvStation, lp(-1, -2, 0));
+                  tvFreq = text(sp.getString("lfreq", ""), 26, DIM, false);
+                  rt.addView(tvFreq, lp(-1, -2, 0));
+                  radio.addView(rt, lp(0, -2, 1));
+                  Button prev = btn("⏮", 44);
+                  prev.setOnClickListener(v -> tuner.prev());
+                  Button next = btn("⏭", 44);
+                  next.setOnClickListener(v -> tuner.next());
+                  LinearLayout.LayoutParams pl = lp(130, 100, 0);
+                  pl.setMargins(px(10), 0, 0, 0);
+                  radio.addView(prev, pl);
+                  radio.addView(next, pl);
+                  LinearLayout.LayoutParams rlp = lp(-1, 0, 2);
+                  rlp.setMargins(0, px(18), 0, 0);
+                  right.addView(radio, rlp);
+
+                  LinearLayout bottom = new LinearLayout(this);
+                  bottom.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams blp = lp(-1, 0, 1);
+                  blp.setMargins(0, px(18), 0, 0);
+                  right.addView(bottom, blp);
+                  Button all = btn("Усі програми", 28);
+                  all.setOnClickListener(v -> allApps());
+                  Button wall = btn("Фон", 28);
+                  wall.setOnClickListener(v -> bgDialog());
+                  bottom.addView(all, lp(0, -1, 2));
+                  LinearLayout.LayoutParams wl = lp(0, -1, 1);
+                  wl.setMargins(px(18), 0, 0, 0);
+                  bottom.addView(wall, wl);
+
+                  setContentView(root);
+                  ready = true;
+                  loadBg();
+                  tick();
+                  startGps();
+                  tuner = new Tuner(this);
+                  tuner.setHost(this, MainActivity.class);
+                  tuner.start();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (!ready) return;
+                  refreshTiles();
+                  updateBright();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (ready) {
+                      try {
+                          tuner.stop();
+                      } catch (Throwable ignored) {
+                      }
+                      try {
+                          if (lm != null) {
+                              lm.removeUpdates(locL);
+                              lm.removeGpsStatusListener(stL);
+                          }
+                      } catch (Throwable ignored) {
+                      }
+                  }
+                  super.onDestroy();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  // це головний екран: «Назад» нічого не закриває
+              }
+
+              // ---- годинник ----
+              void tick() {
+                  Date d = new Date();
+                  tvClock.setText(new SimpleDateFormat("HH:mm", Locale.US).format(d));
+                  String ds = new SimpleDateFormat("EEEE, d MMMM yyyy", new Locale("uk", "UA")).format(d);
+                  if (!ds.isEmpty()) ds = ds.substring(0, 1).toUpperCase(new Locale("uk", "UA")) + ds.substring(1);
+                  tvDate.setText(ds);
+                  if (System.currentTimeMillis() - lastFix > 6000) tvSpeed.setText("—");
+                  ui.postDelayed(this::tick, 1000);
+              }
+
+              // ---- GPS ----
+              final LocationListener locL = new LocationListener() {
+                  @Override
+                  public void onLocationChanged(Location l) {
+                      lastFix = System.currentTimeMillis();
+                      float v = l.hasSpeed() ? l.getSpeed() * 3.6f : 0f;
+                      tvSpeed.setText(String.valueOf(v < 2f ? 0 : Math.round(v)));
+                  }
+
+                  @Override
+                  public void onStatusChanged(String p, int s, Bundle e) {
+                  }
+
+                  @Override
+                  public void onProviderEnabled(String p) {
+                  }
+
+                  @Override
+                  public void onProviderDisabled(String p) {
+                  }
+              };
+
+              final GpsStatus.Listener stL = new GpsStatus.Listener() {
+                  @Override
+                  public void onGpsStatusChanged(int event) {
+                      try {
+                          if (event != GpsStatus.GPS_EVENT_SATELLITE_STATUS || lm == null) return;
+                          GpsStatus st = lm.getGpsStatus(null);
+                          int used = 0, total = 0;
+                          for (GpsSatellite s : st.getSatellites()) {
+                              total++;
+                              if (s.usedInFix()) used++;
+                          }
+                          tvSats.setText("Супутники: " + used + " / " + total);
+                      } catch (Throwable ignored) {
+                      }
+                  }
+              };
+
+              @SuppressWarnings("deprecation")
+              void startGps() {
+                  if (Build.VERSION.SDK_INT >= 23
+                          && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
+                      return;
+                  }
+                  try {
+                      lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+                      lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locL);
+                      lm.addGpsStatusListener(stL);
+                  } catch (Throwable t) {
+                      tvSats.setText("GPS недоступний");
+                  }
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+                  super.onRequestPermissionsResult(req, perms, res);
+                  if (req == 2) startGps();
+              }
+
+              // ---- яскравість ----
+              int minB() {
+                  return sp.getInt("minb", 10);
+              }
+
+              int curB() {
+                  return Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 255);
+              }
+
+              void updateBright() {
+                  boolean night = curB() < 100;
+                  dayNight.setText(night ? "☾  НІЧ\nнатисни — день" : "☀  ДЕНЬ\nнатисни — ніч");
+              }
+
+              void toggleBright() {
+                  if (Build.VERSION.SDK_INT >= 23 && !Settings.System.canWrite(this)) {
+                      try {
+                          startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + getPackageName())));
+                      } catch (Throwable ignored) {
+                      }
+                      Toast.makeText(this, "Дозволь зміну системних налаштувань і натисни ще раз", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  setBright(curB() < 100 ? 255 : minB());
+              }
+
+              void setBright(int v) {
+                  try {
+                      Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE, 0);
+                      Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, v);
+                  } catch (Throwable t) {
+                      Toast.makeText(this, "Не вдалось змінити яскравість: " + t, Toast.LENGTH_LONG).show();
+                  }
+                  updateBright();
+              }
+
+              void minDialog() {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(30), px(20), px(30), px(10));
+                  final TextView tv = new TextView(this);
+                  tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, 28 * u);
+                  tv.setText("Нічна яскравість: " + minB());
+                  col.addView(tv);
+                  final SeekBar sb = new SeekBar(this);
+                  sb.setMax(119);
+                  sb.setProgress(minB() - 1);
+                  sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(SeekBar s, int p, boolean f) {
+                          tv.setText("Нічна яскравість: " + (p + 1));
+                      }
+
+                      @Override
+                      public void onStartTrackingTouch(SeekBar s) {
+                      }
+
+                      @Override
+                      public void onStopTrackingTouch(SeekBar s) {
+                      }
+                  });
+                  col.addView(sb);
+                  new AlertDialog.Builder(this).setTitle("Мінімальна яскравість").setView(col)
+                          .setPositiveButton("Зберегти", (d, w) -> {
+                              sp.edit().putInt("minb", sb.getProgress() + 1).apply();
+                              if (curB() < 100 && (Build.VERSION.SDK_INT < 23 || Settings.System.canWrite(this))) setBright(minB());
+                          })
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              // ---- програми ----
+              List<ResolveInfo> launchables() {
+                  Intent i = new Intent(Intent.ACTION_MAIN);
+                  i.addCategory(Intent.CATEGORY_LAUNCHER);
+                  List<ResolveInfo> l = pm.queryIntentActivities(i, 0);
+                  List<ResolveInfo> r = new ArrayList<ResolveInfo>();
+                  for (ResolveInfo ri : l) if (!ri.activityInfo.packageName.equals(getPackageName())) r.add(ri);
+                  return r;
+              }
+
+              String pkgFor(int i) {
+                  String p = sp.getString("pkg_" + KEYS[i], null);
+                  if (p != null && pm.getLaunchIntentForPackage(p) != null) return p;
+                  if (i == 2 && pm.getLaunchIntentForPackage("com.example.radioapp") != null) return "com.example.radioapp";
+                  for (ResolveInfo ri : launchables()) {
+                      String label = String.valueOf(ri.loadLabel(pm)).toLowerCase(Locale.US);
+                      String pk = ri.activityInfo.packageName.toLowerCase(Locale.US);
+                      if (i == 0 && (label.contains("igo") || pk.contains("igo"))) return ri.activityInfo.packageName;
+                      if (i == 1 && (label.contains("aimp") || pk.contains("aimp"))) return ri.activityInfo.packageName;
+                  }
+                  return null;
+              }
+
+              void refreshTiles() {
+                  for (int i = 0; i < 3; i++) {
+                      String p = pkgFor(i);
+                      try {
+                          if (p != null) tileIcon[i].setImageDrawable(pm.getApplicationIcon(p));
+                          else tileIcon[i].setImageDrawable(null);
+                      } catch (Throwable ignored) {
+                      }
+                  }
+              }
+
+              void launchTile(int i) {
+                  String p = pkgFor(i);
+                  if (p == null) {
+                      chooseApp(i);
+                      return;
+                  }
+                  launch(p);
+              }
+
+              void launch(String pkg) {
+                  try {
+                      Intent in = pm.getLaunchIntentForPackage(pkg);
+                      if (in != null) startActivity(in);
+                  } catch (Throwable t) {
+                      Toast.makeText(this, "Не вдалось запустити: " + t, Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              interface Pick {
+                  void on(ResolveInfo ri);
+              }
+
+              void appPicker(String title, final Pick cb) {
+                  final List<ResolveInfo> l = launchables();
+                  Collections.sort(l, new Comparator<ResolveInfo>() {
+                      @Override
+                      public int compare(ResolveInfo a, ResolveInfo b) {
+                          return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
+                      }
+                  });
+                  String[] names = new String[l.size()];
+                  for (int i = 0; i < names.length; i++) names[i] = String.valueOf(l.get(i).loadLabel(pm));
+                  new AlertDialog.Builder(this).setTitle(title).setItems(names, (d, i) -> cb.on(l.get(i)))
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              void chooseApp(final int idx) {
+                  appPicker("Програма для «" + TITLES[idx] + "»", ri -> {
+                      sp.edit().putString("pkg_" + KEYS[idx], ri.activityInfo.packageName).apply();
+                      refreshTiles();
+                  });
+              }
+
+              void allApps() {
+                  appPicker("Усі програми", ri -> launch(ri.activityInfo.packageName));
+              }
+
+              // ---- фон ----
+              void bgDialog() {
+                  new AlertDialog.Builder(this).setTitle("Фон")
+                          .setItems(new String[]{"Вибрати з галереї", "Прибрати картинку"}, (d, i) -> {
+                              if (i == 0) {
+                                  Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                                  in.addCategory(Intent.CATEGORY_OPENABLE);
+                                  in.setType("image/*");
+                                  startActivityForResult(in, 5);
+                              } else {
+                                  new File(getFilesDir(), "bg.jpg").delete();
+                                  loadBg();
+                              }
+                          }).show();
+              }
+
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req != 5 || res != RESULT_OK || data == null || data.getData() == null) return;
+                  final Uri uri = data.getData();
+                  new Thread(() -> {
+                      try {
+                          BitmapFactory.Options o = new BitmapFactory.Options();
+                          o.inJustDecodeBounds = true;
+                          InputStream in = getContentResolver().openInputStream(uri);
+                          BitmapFactory.decodeStream(in, null, o);
+                          in.close();
+                          int s = 1;
+                          while (o.outWidth / (s * 2) >= 1600) s *= 2;
+                          o = new BitmapFactory.Options();
+                          o.inSampleSize = s;
+                          in = getContentResolver().openInputStream(uri);
+                          Bitmap bm = BitmapFactory.decodeStream(in, null, o);
+                          in.close();
+                          FileOutputStream fo = new FileOutputStream(new File(getFilesDir(), "bg.jpg"));
+                          bm.compress(Bitmap.CompressFormat.JPEG, 88, fo);
+                          fo.close();
+                          ui.post(this::loadBg);
+                      } catch (Throwable t) {
+                          ui.post(() -> Toast.makeText(this, "Не вдалось: " + t, Toast.LENGTH_LONG).show());
+                      }
+                  }).start();
+              }
+
+              void loadBg() {
+                  File f = new File(getFilesDir(), "bg.jpg");
+                  try {
+                      if (f.exists()) {
+                          bg.setImageBitmap(BitmapFactory.decodeFile(f.getAbsolutePath()));
+                          return;
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  bg.setImageDrawable(null);
+              }
+
+              // ---- міні-радіо ----
+              @Override
+              public void onState() {
+                  if (!ready || tuner == null) return;
+                  int f = tuner.freq;
+                  if (f <= 0) return;
+                  String name = tuner.ps;
+                  if (name == null || name.isEmpty()) {
+                      int k = Lviv.match(f);
+                      name = k >= 0 ? (String) Lviv.LIST[k][1] : "FM";
+                  }
+                  String fr = (f / 100) + "." + String.format(Locale.US, "%02d", f % 100) + " МГц";
+                  tvStation.setText(name);
+                  tvFreq.setText(fr);
+                  sp.edit().putString("lname", name).putString("lfreq", fr).apply();
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/Tuner.java <<'EOF'
+          package com.example.launcher;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.Message;
+
+          import java.lang.reflect.Method;
+
+          /** Зв'язок із тюнером магнітоли (TWUtil через reflection) і керування штатним радіо. */
+          final class Tuner {
+              interface Listener {
+                  void onState();
+              }
+
+              static final int[] IDS = {0x401, 0x402, 0x404, 0x405, 0x406, 0x9e00, 0x9e11};
+
+              private Object util;
+              private Class<?> cls;
+              private Method wr, wr2;
+              private boolean inited;
+              boolean directFailed, directOk;
+              private final Listener listener;
+              private final Handler h;
+
+              volatile int freq, flags, b1;
+              volatile String ps = "";
+              volatile boolean seeking, haveState;
+              volatile long lastMsg;
+              String error = "";
+
+              Tuner(Listener l) {
+                  listener = l;
+                  h = new Handler(Looper.getMainLooper(), new Handler.Callback() {
+                      @Override
+                      public boolean handleMessage(Message m) {
+                          onMsg(m);
+                          return true;
+                      }
+                  });
+              }
+
+              boolean start() {
+                  try {
+                      cls = Class.forName("android.tw.john.TWUtil");
+                      util = cls.getConstructor().newInstance();
+                      short[] ids = new short[IDS.length];
+                      for (int i = 0; i < ids.length; i++) ids[i] = (short) IDS[i];
+                      Object r = cls.getMethod("open", short[].class).invoke(util, (Object) ids);
+                      cls.getMethod("start").invoke(util);
+                      cls.getMethod("addHandler", String.class, Handler.class).invoke(util, "twlauncher", h);
+                      wr = cls.getMethod("write", int.class, int.class, int.class);
+                      try { wr2 = cls.getMethod("write", int.class, int.class); } catch (Throwable ignored) { wr2 = null; }
+                      error = "";
+                      return r != null;
+                  } catch (Throwable t) {
+                      error = String.valueOf(t.getCause() != null ? t.getCause() : t);
+                      return false;
+                  }
+              }
+
+              void stop() {
+                  try {
+                      if (util != null) {
+                          try { cls.getMethod("removeHandler", String.class).invoke(util, "twlauncher"); } catch (Throwable ignored) { }
+                          try { cls.getMethod("stop").invoke(util); } catch (Throwable ignored) { }
+                          try { cls.getMethod("close").invoke(util); } catch (Throwable ignored) { }
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  util = null;
+              }
+
+              private void onMsg(Message m) {
+                  if (m.what != 0x401 || !(m.obj instanceof byte[])) return;
+                  byte[] b = (byte[]) m.obj;
+                  if (b.length < 13) return;
+                  int f = ((b[2] & 0xff) << 8) | (b[3] & 0xff);
+                  flags = b[0] & 0xff;
+                  b1 = b[1] & 0xff;
+                  seeking = (flags & 0x40) != 0;
+                  StringBuilder sb = new StringBuilder();
+                  boolean ok = true;
+                  for (int i = 5; i < 13; i++) {
+                      int c = b[i] & 0xff;
+                      if (c == 0) continue;
+                      if (c < 32 || c > 126) {
+                          ok = false;
+                          break;
+                      }
+                      sb.append((char) c);
+                  }
+                  ps = ok ? sb.toString().trim() : "";
+                  freq = f;
+                  haveState = true;
+                  lastMsg = System.currentTimeMillis();
+                  if (listener != null) listener.onState();
+              }
+
+              int write(int what, int a1, int a2) {
+                  try {
+                      if (wr == null) return -1;
+                      Object r = wr.invoke(util, what, a1, a2);
+                      return r instanceof Integer ? (Integer) r : 0;
+                  } catch (Throwable t) {
+                      return -2;
+                  }
+              }
+
+              int write2(int what, int a1) {
+                  try {
+                      if (wr2 == null) return -1;
+                      Object r = wr2.invoke(util, what, a1);
+                      return r instanceof Integer ? (Integer) r : 0;
+                  } catch (Throwable t) {
+                      return -2;
+                  }
+              }
+
+              /** Те, що штатне радіо робить у onResume: вмикає режим радіо й просить поточний стан. */
+              void initRadio() {
+                  write2(0x9e00, 1);
+                  write(0x9e11, 192, 1);
+                  write2(0x406, 0);
+                  write2(0x401, 255);
+                  write2(0x404, 255);
+                  inited = true;
+              }
+
+              private Context host;
+              private Class<?> front;
+              private boolean waking;
+              volatile boolean stepping;
+              private volatile int tgt;
+              private int lastFreq, lastSentFrom, nearSends, stuck;
+              private long lastMoveAt, lastSendAt;
+
+              void setHost(Context c, Class<?> f) {
+                  host = c;
+                  front = f;
+              }
+
+              /** Виконує дію, коли тюнер відповідає; якщо ні — тихо запускає штатне радіо (один раз), щоб воно «розбудило» тюнер. */
+              void ensure(final Runnable then) {
+                  if (haveState) {
+                      then.run();
+                      return;
+                  }
+                  initRadio();
+                  h.postDelayed(new Runnable() {
+                      @Override
+                      public void run() {
+                          if (!haveState) initRadio();
+                          h.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  if (!haveState && !waking && host != null) {
+                                      waking = true;
+                                      toast("Тюнер не відповідає. Відкрий штатне радіо один раз і повернись.");
+                                  }
+                                  then.run();
+                              }
+                          }, 1200);
+                      }
+                  }, 1000);
+              }
+
+              private void toast(String t) {
+                  try {
+                      android.widget.Toast.makeText(host, t, android.widget.Toast.LENGTH_LONG).show();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              void next() { ensure(new Runnable() { public void run() { write(0x401, 1, 0); } }); }
+              void prev() { ensure(new Runnable() { public void run() { write(0x401, 1, 1); } }); }
+              void stepUp() { ensure(new Runnable() { public void run() { write(0x401, 2, 0); } }); }
+              void stepDown() { ensure(new Runnable() { public void run() { write(0x401, 2, 1); } }); }
+
+              /** Налаштування на частоту (одиниці 10 кГц) кроками ±0.05 МГц — без відкриття штатного радіо. */
+              void tune(final Context c, final int f10k, final Class<?> fr) {
+                  host = c;
+                  front = fr;
+                  ensure(new Runnable() {
+                      @Override
+                      public void run() {
+                          if (f10k <= 0) return;
+                          tgt = f10k;
+                          if (stepping) return;
+                          stepping = true;
+                          lastFreq = freq;
+                          lastSentFrom = -1;
+                          nearSends = 0;
+                          lastMoveAt = System.currentTimeMillis();
+                          h.post(stepper);
+                      }
+                  });
+              }
+
+              private final Runnable stepper = new Runnable() {
+                  @Override
+                  public void run() {
+                      long now = System.currentTimeMillis();
+                      int diff = tgt - freq;
+                      int ad = Math.abs(diff);
+                      if (ad <= 2 || (ad <= 5 && nearSends >= 2)) {
+                          stepping = false;
+                          return;
+                      }
+                      if (freq != lastFreq) {
+                          lastFreq = freq;
+                          lastMoveAt = now;
+                          stuck = 0;
+                      }
+                      if (now - lastMoveAt > 2500) {
+                          if (stuck++ < 1) {
+                              initRadio();
+                              lastMoveAt = now;
+                          } else {
+                              stepping = false;
+                              stuck = 0;
+                              toast("Тюнер не реагує на кроки.");
+                              return;
+                          }
+                      }
+                      boolean far = ad > 15;
+                      if (far || freq != lastSentFrom || now - lastSendAt > 400) {
+                          write(0x401, 2, diff > 0 ? 0 : 1);
+                          lastSentFrom = freq;
+                          lastSendAt = now;
+                          if (ad <= 5) nearSends++;
+                      }
+                      h.postDelayed(this, far ? 30 : 60);
+                  }
+              };
+
+              void launchStock(Context c, int f10k, Class<?> front) {
+                  try {
+                      Intent in = new Intent();
+                      in.setClassName("com.tw.radio", "com.tw.radio.RadioActivity");
+                      in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      if (f10k > 0) in.putExtra("frequency", f10k / 10f);
+                      c.startActivity(in);
+                  } catch (Throwable t) {
+                      error = String.valueOf(t);
+                  }
+                  final Context cc = c;
+                  final Class<?> fr = front;
+                  h.postDelayed(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              Intent b = new Intent(cc, fr);
+                              b.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                              cc.startActivity(b);
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                  }, 700);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/Lviv.java <<'EOF'
+          package com.example.launcher;
+
+          /** Довідник FM-станцій Львова (з відкритих джерел; сигнал RDS має пріоритет над назвою звідси). */
+          final class Lviv {
+              private Lviv() {
+              }
+
+              // частота (10 кГц), назва, назва для пошуку логотипа
+              static final Object[][] LIST = {
+                  {8820, "Перше", "Перше радіо"},
+                  {8860, "Радіо НВ", "Radio NV"},
+                  {8910, "Radio ROKS", "Radio ROKS"},
+                  {8970, "ФМ Галичина", "FM Galychyna"},
+                  {9040, "Шлягер FM", "Shlyager FM"},
+                  {9110, "Kiss FM", "Kiss FM Ukraine"},
+                  {9150, "Мелодія FM", "Melodia FM"},
+                  {9190, "Радіо П'ятниця", "Radio Pyatnytsya"},
+                  {9240, "Армія FM", "Army FM"},
+                  {9330, "Relax", "Radio Relax"},
+                  {9530, "Перець FM", "Perets FM"},
+                  {9700, "Ностальжі", "Nostalgie"},
+                  {10080, "Львівська хвиля", "Lvivska Khvylia"},
+                  {10130, "Країна FM", "Krayina FM"},
+                  {10170, "Хіт FM", "Hit FM"},
+                  {10210, "Радіо Максимум", "Radio Maximum"},
+                  {10250, "Ретро FM", "Retro FM"},
+                  {10330, "Українське радіо", "Ukrainske Radio"},
+                  {10390, "Радіо Культура", "Radio Kultura"},
+                  {10430, "Дуже радіо", "Duzhe Radio"},
+                  {10470, "Люкс FM", "Lux FM"},
+                  {10540, "Авторадіо", "Avtoradio Ukraine"},
+                  {10600, "Наше радіо", "Nashe Radio"},
+                  {10670, "Радіо Незалежність", "Radio Nezalezhnist"},
+                  {10720, "Вголос", "Vgolos"},
+              };
+
+              static int match(int f) {
+                  for (int i = 0; i < LIST.length; i++) {
+                      if (Math.abs(((Integer) LIST[i][0]) - f) <= 5) return i;
+                  }
+                  return -1;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/CrashGuard.java <<'EOF'
+          package com.example.launcher;
+
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+
+          import java.io.PrintWriter;
+          import java.io.StringWriter;
+
+          /** Записує причину збою програми й показує її при наступному запуску, щоб її можна було скопіювати. */
+          final class CrashGuard {
+              private CrashGuard() {
+              }
+
+              static void install(final Context ctx) {
+                  final SharedPreferences sp = ctx.getSharedPreferences("crash", Context.MODE_PRIVATE);
+                  final Thread.UncaughtExceptionHandler old = Thread.getDefaultUncaughtExceptionHandler();
+                  Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+                      @Override
+                      public void uncaughtException(Thread t, Throwable e) {
+                          try {
+                              StringWriter sw = new StringWriter();
+                              e.printStackTrace(new PrintWriter(sw));
+                              sp.edit().putString("trace", sw.toString()).commit();
+                          } catch (Throwable ignored) {
+                          }
+                          if (old != null) old.uncaughtException(t, e);
+                      }
+                  });
+              }
+
+              static String take(Context ctx) {
+                  SharedPreferences sp = ctx.getSharedPreferences("crash", Context.MODE_PRIVATE);
+                  String s = sp.getString("trace", null);
+                  if (s != null) sp.edit().remove("trace").commit();
+                  return s;
+              }
+
+              static void show(final Activity a, final String trace) {
+                  LinearLayout col = new LinearLayout(a);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setBackgroundColor(0xFF101418);
+                  col.setPadding(24, 24, 24, 24);
+                  TextView h = new TextView(a);
+                  h.setText("Попередній запуск завершився збоєм. Натисни «Копіювати» і встав текст у чат, потім запусти програму ще раз.");
+                  h.setTextColor(0xFFFFB74D);
+                  h.setTextSize(16);
+                  col.addView(h);
+                  Button b = new Button(a);
+                  b.setText("Копіювати");
+                  b.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          ClipboardManager cm = (ClipboardManager) a.getSystemService(Context.CLIPBOARD_SERVICE);
+                          cm.setPrimaryClip(ClipData.newPlainText("crash", trace));
+                      }
+                  });
+                  col.addView(b);
+                  ScrollView sv = new ScrollView(a);
+                  TextView t = new TextView(a);
+                  t.setText(trace);
+                  t.setTextColor(0xFFECEFF1);
+                  t.setTextSize(11);
+                  t.setTextIsSelectable(true);
+                  sv.addView(t);
+                  col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+                  a.setContentView(col);
+              }
+          }
+          EOF
+
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADk0lEQVR42u3dMVLcQBQEUKlrT8BViH0TUnIfxblTbuKYq3AFHDnGVexKf9Tv5a4Sf7o1o9WCtw0AAAAAALiqfdULf3p++bR8s3y8v+0KIOwsVIpd6Gkuwy70NJdhF3yai7ALPs1F2AWf5iJE+Gl+Dozw01yCXfBpPhJF+GneDSL8NJcgwk9zCSL8NJcgwk9zCSL8NJcgwk9zCSL8NJcgxkizuPvTvAtE+GkuQYSf5hJ4BsAzgLs/rbuAHQA7gLs/rbuAHeBkP379NoRVdgB3/8eEXwnO2wXsAEPu/Eqw6Jtg7nfsUYLBBXD8OebMrwTHHoPsAAMfeJXgODcjmPlJz79/8+fnqwGefQRy/DnvY067wWOPQY5AC3zGrwQ+Bap/waUEClD/dlcJFKD+qw1KcHABPADPC6cS3O9B2A6waCiVwBGo/hudSqAA9V9nVoLNm+D24HlrbAdw17UbKICQKYECCJcSKIBQKYEC1IdJCRSgPkRKoAD14VECBagPjRIoQH1YlGDzJrg9IN4a2wHcHe0GCiAMSqAAQlD/88fi0zyHWHSa5xGLTfNcYpFpnk8sLs1zikWleV43C0nzW+MIP81zjEWjeZ6xWDTPNRaJ5vnG4tA851gUmucdi0Hz3GMRaJ5/DJ/mdbgZOM1vjSP8NK9PDJfmdYqh0rxeMUya1y2GSPP6xfBoXscYGs3rGcOieV1jSDSv781gaH5rHOGned1jCDSvf4Sf5hJE+GkuwWkPwfd+AFKo9dfQx6CgAKAAoACgAKAAoACgAKAAoACgAKAAoACgAKAAoACgALBd8D/I2Ip/U8pvvtkBQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQALhSAT7e33ZjYlVf5dcOgB0AFAAK/df5/un55dOoqH0G8CDMFcPvCIRnACNAARyDKDz+2AGwAxgBCuAYROHxxw6AHeCR7YLJd387AHaAI1oGE+/+dgDsAEe2DSbd/b+9AygBK4f/LkcgJWDV8HsGwDPAhBbCWbnLpIuBo/OWiRcFR+Usky8OHp2vrHCR8KhcZaWLRfiX+oUYJWB6jrLyxSP82xF/GOte/IEtpt04c8UfCuEf+1UIJWBSPk4NoyMRZ98YR9yNFUHwt8l/HVoRuOpReOx5XBmEvroAyiD0CqAUwg4AAAAAwHf8BR4ClMJX+VFFAAAAAElFTkSuQmCC' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Launcher
+          path: app/build/outputs/apk/debug/app-debug.apk
