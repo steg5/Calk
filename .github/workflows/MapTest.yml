@@ -1,0 +1,627 @@
+name: MapTest
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/MapTest.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/maptest app/src/main/res/drawable
+          echo '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' | base64 -d > debug.keystore
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'MapTest'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.maptest'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.maptest"
+                  minSdk 23
+                  targetSdk 26
+                  versionCode 1
+                  versionName "1.0"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+              <application
+                  android:label="Карта"
+                  android:icon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|density">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/maptest/MapView.java <<'EOF'
+          package com.example.maptest;
+
+          import android.content.Context;
+          import android.database.Cursor;
+          import android.database.sqlite.SQLiteDatabase;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.ColorMatrix;
+          import android.graphics.ColorMatrixColorFilter;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.util.LruCache;
+          import android.view.GestureDetector;
+          import android.view.MotionEvent;
+          import android.view.ScaleGestureDetector;
+          import android.view.View;
+
+          import java.util.Set;
+          import java.util.concurrent.ConcurrentHashMap;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+
+          /** Проста офлайн-карта з файлу MBTiles (растрові плитки). */
+          public class MapView extends View {
+              public interface Listener {
+                  void onMarkChanged();
+              }
+
+              SQLiteDatabase db;
+              int minZ = 0, maxZ = 18;
+              public double lat = 49.8397, lon = 24.0297; // Львів
+              public double zoom = 12;
+              public boolean follow = true, night = false, hasFix = false;
+              public double myLat, myLon;
+              public float myBearing = 0;
+              public Double markLat, markLon;
+              public Listener listener;
+              public String error = null;
+              float density;
+
+              final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(160);
+              final Set<String> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+              final ExecutorService ex = Executors.newSingleThreadExecutor();
+              final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+              final Paint tp = new Paint(Paint.FILTER_BITMAP_FLAG);
+              final Paint nightP = new Paint(Paint.FILTER_BITMAP_FLAG);
+              final ScaleGestureDetector sg;
+              final GestureDetector gd;
+
+              public MapView(Context c) {
+                  super(c);
+                  density = c.getResources().getDisplayMetrics().density;
+                  ColorMatrix cm = new ColorMatrix(new float[]{
+                          -1, 0, 0, 0, 255,
+                          0, -1, 0, 0, 255,
+                          0, 0, -1, 0, 255,
+                          0, 0, 0, 1, 0});
+                  nightP.setColorFilter(new ColorMatrixColorFilter(cm));
+                  sg = new ScaleGestureDetector(c, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                      @Override
+                      public boolean onScale(ScaleGestureDetector d) {
+                          zoom = Math.max(minZ, Math.min(maxZ + 3, zoom + Math.log(d.getScaleFactor()) / Math.log(2)));
+                          invalidate();
+                          return true;
+                      }
+                  });
+                  gd = new GestureDetector(c, new GestureDetector.SimpleOnGestureListener() {
+                      @Override
+                      public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
+                          if (sg.isInProgress()) return true;
+                          follow = false;
+                          double s = worldPx();
+                          lon += dx / s * 360.0;
+                          double ty = latToY(lat) + dy / s;
+                          lat = yToLat(Math.max(0.001, Math.min(0.999, ty)));
+                          invalidate();
+                          return true;
+                      }
+
+                      @Override
+                      public boolean onDoubleTap(MotionEvent e) {
+                          zoom = Math.min(maxZ + 3, zoom + 1);
+                          invalidate();
+                          return true;
+                      }
+
+                      @Override
+                      public void onLongPress(MotionEvent e) {
+                          double s = worldPx();
+                          double x = lonToX(lon) + (e.getX() - getWidth() / 2f) / s;
+                          double y = latToY(lat) + (e.getY() - getHeight() / 2f) / s;
+                          markLon = x * 360.0 - 180.0;
+                          markLat = yToLat(Math.max(0.001, Math.min(0.999, y)));
+                          if (listener != null) listener.onMarkChanged();
+                          invalidate();
+                      }
+                  });
+              }
+
+              // ---- математика Web Mercator (0..1) ----
+              static double lonToX(double lon) {
+                  return (lon + 180.0) / 360.0;
+              }
+
+              static double latToY(double lat) {
+                  double r = Math.toRadians(lat);
+                  return (1.0 - Math.log(Math.tan(r) + 1.0 / Math.cos(r)) / Math.PI) / 2.0;
+              }
+
+              static double yToLat(double y) {
+                  double n = Math.PI * (1 - 2 * y);
+                  return Math.toDegrees(Math.atan(Math.sinh(n)));
+              }
+
+              /** Розмір всього світу в пікселях при поточному масштабі. */
+              double worldPx() {
+                  return 256.0 * density * Math.pow(2, zoom);
+              }
+
+              public boolean open(String path) {
+                  try {
+                      db = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY);
+                      Cursor c = db.rawQuery("select min(zoom_level), max(zoom_level) from tiles", null);
+                      if (c.moveToFirst()) {
+                          minZ = c.getInt(0);
+                          maxZ = c.getInt(1);
+                      }
+                      c.close();
+                      zoom = Math.max(minZ, Math.min(maxZ, zoom));
+                      return true;
+                  } catch (Throwable t) {
+                      error = String.valueOf(t);
+                      return false;
+                  }
+              }
+
+              public void close() {
+                  ex.shutdownNow();
+                  try {
+                      if (db != null) db.close();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              Bitmap tile(final int z, final int x, final int y) {
+                  final String key = z + "/" + x + "/" + y;
+                  Bitmap b = cache.get(key);
+                  if (b != null) return b;
+                  if (db != null && pending.add(key)) {
+                      try {
+                          ex.execute(() -> {
+                              try {
+                                  int row = (1 << z) - 1 - y;
+                                  Cursor c = db.rawQuery("select tile_data from tiles where zoom_level=? and tile_column=? and tile_row=?",
+                                          new String[]{String.valueOf(z), String.valueOf(x), String.valueOf(row)});
+                                  Bitmap bm = null;
+                                  if (c.moveToFirst()) {
+                                      byte[] d = c.getBlob(0);
+                                      bm = BitmapFactory.decodeByteArray(d, 0, d.length);
+                                  }
+                                  c.close();
+                                  if (bm != null) cache.put(key, bm);
+                              } catch (Throwable ignored) {
+                              }
+                              pending.remove(key);
+                              postInvalidate();
+                          });
+                      } catch (Throwable ignored) {
+                          pending.remove(key);
+                      }
+                  }
+                  return null;
+              }
+
+              public void setMyLocation(double la, double lo, float bearing) {
+                  myLat = la;
+                  myLon = lo;
+                  if (bearing >= 0) myBearing = bearing;
+                  hasFix = true;
+                  if (follow) {
+                      lat = la;
+                      lon = lo;
+                  }
+                  postInvalidate();
+              }
+
+              public void zoomBy(double d) {
+                  zoom = Math.max(minZ, Math.min(maxZ + 3, zoom + d));
+                  invalidate();
+              }
+
+              public void goToMe() {
+                  follow = true;
+                  if (hasFix) {
+                      lat = myLat;
+                      lon = myLon;
+                  }
+                  invalidate();
+              }
+
+              public static double distKm(double a1, double o1, double a2, double o2) {
+                  double R = 6371.0;
+                  double dLa = Math.toRadians(a2 - a1), dLo = Math.toRadians(o2 - o1);
+                  double h = Math.sin(dLa / 2) * Math.sin(dLa / 2)
+                          + Math.cos(Math.toRadians(a1)) * Math.cos(Math.toRadians(a2)) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+                  return 2 * R * Math.asin(Math.sqrt(h));
+              }
+
+              public static double bearing(double a1, double o1, double a2, double o2) {
+                  double y = Math.sin(Math.toRadians(o2 - o1)) * Math.cos(Math.toRadians(a2));
+                  double x = Math.cos(Math.toRadians(a1)) * Math.sin(Math.toRadians(a2))
+                          - Math.sin(Math.toRadians(a1)) * Math.cos(Math.toRadians(a2)) * Math.cos(Math.toRadians(o2 - o1));
+                  return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360;
+              }
+
+              float sx(double lo) {
+                  return (float) (getWidth() / 2.0 + (lonToX(lo) - lonToX(lon)) * worldPx());
+              }
+
+              float sy(double la) {
+                  return (float) (getHeight() / 2.0 + (latToY(la) - latToY(lat)) * worldPx());
+              }
+
+              @Override
+              protected void onDraw(Canvas cv) {
+                  cv.drawColor(night ? 0xFF111111 : 0xFFE8E4DC);
+                  if (db == null) {
+                      p.setColor(0xFF888888);
+                      p.setTextSize(28 * density);
+                      p.setTextAlign(Paint.Align.CENTER);
+                      cv.drawText(error == null ? "Немає файлу карти" : "Помилка карти", getWidth() / 2f, getHeight() / 2f, p);
+                      return;
+                  }
+                  int tz = (int) Math.max(minZ, Math.min(maxZ, Math.floor(zoom)));
+                  double scale = Math.pow(2, zoom - tz); // 1..2 і більше при перезумі
+                  float ts = (float) (256.0 * density * scale);
+                  double n = Math.pow(2, tz);
+                  double cx = lonToX(lon) * n, cy = latToY(lat) * n;
+                  int x0 = (int) Math.floor(cx - getWidth() / 2.0 / ts), x1 = (int) Math.floor(cx + getWidth() / 2.0 / ts);
+                  int y0 = (int) Math.floor(cy - getHeight() / 2.0 / ts), y1 = (int) Math.floor(cy + getHeight() / 2.0 / ts);
+                  int max = (int) n;
+                  for (int ty = y0; ty <= y1; ty++) {
+                      if (ty < 0 || ty >= max) continue;
+                      for (int tx = x0; tx <= x1; tx++) {
+                          int txx = ((tx % max) + max) % max;
+                          Bitmap b = tile(tz, txx, ty);
+                          float l = (float) (getWidth() / 2.0 + (tx - cx) * ts), t = (float) (getHeight() / 2.0 + (ty - cy) * ts);
+                          if (b != null) cv.drawBitmap(b, null, new RectF(l, t, l + ts + 1, t + ts + 1), night ? nightP : tp);
+                      }
+                  }
+                  // мітка і лінія
+                  if (markLat != null) {
+                      float mx = sx(markLon), my = sy(markLat);
+                      if (hasFix) {
+                          p.setColor(0xFFE53935);
+                          p.setStrokeWidth(4 * density);
+                          p.setStyle(Paint.Style.STROKE);
+                          cv.drawLine(sx(myLon), sy(myLat), mx, my, p);
+                      }
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFFE53935);
+                      cv.drawCircle(mx, my, 11 * density, p);
+                      p.setColor(0xFFFFFFFF);
+                      cv.drawCircle(mx, my, 4 * density, p);
+                  }
+                  // моя позиція
+                  if (hasFix) {
+                      float mx = sx(myLon), my = sy(myLat);
+                      cv.save();
+                      cv.translate(mx, my);
+                      cv.rotate(myBearing);
+                      Path a = new Path();
+                      float s = 18 * density;
+                      a.moveTo(0, -s);
+                      a.lineTo(s * 0.75f, s * 0.8f);
+                      a.lineTo(0, s * 0.4f);
+                      a.lineTo(-s * 0.75f, s * 0.8f);
+                      a.close();
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFF1E88E5);
+                      cv.drawPath(a, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(2.5f * density);
+                      p.setColor(0xFFFFFFFF);
+                      cv.drawPath(a, p);
+                      cv.restore();
+                  }
+                  p.setStyle(Paint.Style.FILL);
+              }
+
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  sg.onTouchEvent(e);
+                  gd.onTouchEvent(e);
+                  return true;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/maptest/MainActivity.java <<'EOF'
+          package com.example.maptest;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.graphics.Color;
+          import android.graphics.drawable.GradientDrawable;
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.TextView;
+
+          import java.io.File;
+          import java.util.Locale;
+
+          public class MainActivity extends Activity implements MapView.Listener {
+              MapView map;
+              TextView info;
+              SharedPreferences sp;
+              LocationManager lm;
+              boolean opened = false;
+
+              Button btn(String t, int size) {
+                  Button b = new Button(this);
+                  b.setText(t);
+                  b.setAllCaps(false);
+                  b.setTextSize(size);
+                  b.setTextColor(Color.WHITE);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(0xCC1B2838);
+                  g.setCornerRadius(16);
+                  b.setBackground(g);
+                  b.setMinWidth(0);
+                  b.setMinimumWidth(0);
+                  b.setMinHeight(0);
+                  b.setMinimumHeight(0);
+                  return b;
+              }
+
+              @Override
+              protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  sp = getSharedPreferences("map", MODE_PRIVATE);
+                  FrameLayout root = new FrameLayout(this);
+                  map = new MapView(this);
+                  map.listener = this;
+                  root.addView(map, new FrameLayout.LayoutParams(-1, -1));
+                  info = new TextView(this);
+                  info.setTextColor(Color.WHITE);
+                  info.setTextSize(18);
+                  info.setPadding(20, 12, 20, 12);
+                  GradientDrawable ig = new GradientDrawable();
+                  ig.setColor(0xAA101A28);
+                  ig.setCornerRadius(16);
+                  info.setBackground(ig);
+                  FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+                  ip.setMargins(16, 16, 0, 0);
+                  root.addView(info, ip);
+
+                  int sz = (int) (64 * getResources().getDisplayMetrics().density);
+                  Button plus = btn("+", 30), minus = btn("−", 30), me = btn("◎", 26), nt = btn("Ніч", 16), clr = btn("✕", 22);
+                  plus.setOnClickListener(v -> map.zoomBy(1));
+                  minus.setOnClickListener(v -> map.zoomBy(-1));
+                  me.setOnClickListener(v -> map.goToMe());
+                  nt.setOnClickListener(v -> {
+                      map.night = !map.night;
+                      sp.edit().putBoolean("night", map.night).apply();
+                      map.invalidate();
+                  });
+                  clr.setOnClickListener(v -> {
+                      map.markLat = null;
+                      map.markLon = null;
+                      sp.edit().remove("mlat").remove("mlon").apply();
+                      onMarkChanged();
+                      map.invalidate();
+                  });
+                  Button[] bs = {plus, minus, me, nt, clr};
+                  for (int i = 0; i < bs.length; i++) {
+                      FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(sz, sz, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                      bp.setMargins(0, 0, 16, 0);
+                      bs[i].setTranslationY((i - 2) * (sz + 12));
+                      root.addView(bs[i], bp);
+                  }
+                  setContentView(root);
+
+                  map.night = sp.getBoolean("night", false);
+                  if (sp.contains("mlat")) {
+                      map.markLat = (double) sp.getFloat("mlat", 0);
+                      map.markLon = (double) sp.getFloat("mlon", 0);
+                  }
+                  if (sp.contains("clat")) {
+                      map.lat = sp.getFloat("clat", 49.84f);
+                      map.lon = sp.getFloat("clon", 24.03f);
+                      map.zoom = sp.getFloat("czoom", 12);
+                  }
+                  if (Build.VERSION.SDK_INT >= 23 && (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+                          || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)) {
+                      requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+                  } else {
+                      init();
+                  }
+              }
+
+              void init() {
+                  if (opened) return;
+                  opened = true;
+                  File ext = getExternalFilesDir(null);
+                  String[] paths = {"/sdcard/map.mbtiles", ext == null ? "" : ext.getAbsolutePath() + "/map.mbtiles"};
+                  boolean ok = false;
+                  for (String p : paths) {
+                      if (!p.isEmpty() && new File(p).canRead() && map.open(p)) {
+                          ok = true;
+                          break;
+                      }
+                  }
+                  if (!ok) info.setText("Файл карти не знайдено.\nПоклади /sdcard/map.mbtiles" + (map.error == null ? "" : "\n" + map.error));
+                  startGps();
+                  onMarkChanged();
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int r, String[] p, int[] g) {
+                  super.onRequestPermissionsResult(r, p, g);
+                  init();
+                  startGps();
+              }
+
+              final LocationListener ll = new LocationListener() {
+                  @Override
+                  public void onLocationChanged(Location l) {
+                      float b = l.hasBearing() && l.getSpeed() > 1.5f ? l.getBearing() : -1;
+                      map.setMyLocation(l.getLatitude(), l.getLongitude(), b);
+                      onMarkChanged();
+                  }
+
+                  @Override
+                  public void onStatusChanged(String s, int i, Bundle b) {
+                  }
+
+                  @Override
+                  public void onProviderEnabled(String s) {
+                  }
+
+                  @Override
+                  public void onProviderDisabled(String s) {
+                  }
+              };
+
+              boolean gps = false;
+
+              void startGps() {
+                  if (gps) return;
+                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+                  try {
+                      lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+                      lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, ll);
+                      gps = true;
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              @Override
+              public void onMarkChanged() {
+                  if (map.db == null) return;
+                  String t = String.format(Locale.US, "Масштаб %.1f   %s", map.zoom, map.hasFix ? "GPS ✓" : "GPS: чекаю…");
+                  if (map.markLat != null) {
+                      sp.edit().putFloat("mlat", map.markLat.floatValue()).putFloat("mlon", map.markLon.floatValue()).apply();
+                      if (map.hasFix) {
+                          double d = MapView.distKm(map.myLat, map.myLon, map.markLat, map.markLon);
+                          double br = MapView.bearing(map.myLat, map.myLon, map.markLat, map.markLon);
+                          t += String.format(Locale.US, "\nДо мітки: %.1f км, азимут %d°", d, Math.round(br));
+                      }
+                  } else {
+                      t += "\nДовге натискання на карті — поставити мітку";
+                  }
+                  info.setText(t);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  sp.edit().putFloat("clat", (float) map.lat).putFloat("clon", (float) map.lon).putFloat("czoom", (float) map.zoom).apply();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  try {
+                      if (lm != null) lm.removeUpdates(ll);
+                  } catch (Throwable ignored) {
+                  }
+                  map.close();
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADk0lEQVR42u3dMVLcQBQEUKlrT8BViH0TUnIfxblTbuKYq3AFHDnGVexKf9Tv5a4Sf7o1o9WCtw0AAAAAALiqfdULf3p++bR8s3y8v+0KIOwsVIpd6Gkuwy70NJdhF3yai7ALPs1F2AWf5iJE+Gl+Dozw01yCXfBpPhJF+GneDSL8NJcgwk9zCSL8NJcgwk9zCSL8NJcgwk9zCSL8NJcgxkizuPvTvAtE+GkuQYSf5hJ4BsAzgLs/rbuAHQA7gLs/rbuAHeBkP379NoRVdgB3/8eEXwnO2wXsAEPu/Eqw6Jtg7nfsUYLBBXD8OebMrwTHHoPsAAMfeJXgODcjmPlJz79/8+fnqwGefQRy/DnvY067wWOPQY5AC3zGrwQ+Bap/waUEClD/dlcJFKD+qw1KcHABPADPC6cS3O9B2A6waCiVwBGo/hudSqAA9V9nVoLNm+D24HlrbAdw17UbKICQKYECCJcSKIBQKYEC1IdJCRSgPkRKoAD14VECBagPjRIoQH1YlGDzJrg9IN4a2wHcHe0GCiAMSqAAQlD/88fi0zyHWHSa5xGLTfNcYpFpnk8sLs1zikWleV43C0nzW+MIP81zjEWjeZ6xWDTPNRaJ5vnG4tA851gUmucdi0Hz3GMRaJ5/DJ/mdbgZOM1vjSP8NK9PDJfmdYqh0rxeMUya1y2GSPP6xfBoXscYGs3rGcOieV1jSDSv781gaH5rHOGned1jCDSvf4Sf5hJE+GkuwWkPwfd+AFKo9dfQx6CgAKAAoACgAKAAoACgAKAAoACgAKAAoACgAKAAoACgALBd8D/I2Ip/U8pvvtkBQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQAFAAUABQALhSAT7e33ZjYlVf5dcOgB0AFAAK/df5/un55dOoqH0G8CDMFcPvCIRnACNAARyDKDz+2AGwAxgBCuAYROHxxw6AHeCR7YLJd387AHaAI1oGE+/+dgDsAEe2DSbd/b+9AygBK4f/LkcgJWDV8HsGwDPAhBbCWbnLpIuBo/OWiRcFR+Usky8OHp2vrHCR8KhcZaWLRfiX+oUYJWB6jrLyxSP82xF/GOte/IEtpt04c8UfCuEf+1UIJWBSPk4NoyMRZ98YR9yNFUHwt8l/HVoRuOpReOx5XBmEvroAyiD0CqAUwg4AAAAAwHf8BR4ClMJX+VFFAAAAAElFTkSuQmCC' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MapTest
+          path: app/build/outputs/apk/debug/app-debug.apk
