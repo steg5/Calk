@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 2
+                  versionName "1.1"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -103,6 +103,15 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+                  <service
+                      android:name=".MediaListener"
+                      android:label="Лаунчер"
+                      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.service.notification.NotificationListenerService"/>
+                      </intent-filter>
+                  </service>
               </application>
           </manifest>
           EOF
@@ -112,21 +121,34 @@ jobs:
 
           import android.Manifest;
           import android.app.Activity;
+          import android.app.ActivityOptions;
           import android.app.AlertDialog;
+          import android.content.ComponentName;
+          import android.content.Context;
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
           import android.content.pm.ResolveInfo;
           import android.graphics.Bitmap;
           import android.graphics.BitmapFactory;
-          import android.graphics.Color;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.RectF;
+          import android.graphics.SurfaceTexture;
           import android.graphics.Typeface;
           import android.graphics.drawable.GradientDrawable;
+          import android.hardware.display.DisplayManager;
+          import android.hardware.display.VirtualDisplay;
           import android.location.GpsSatellite;
           import android.location.GpsStatus;
           import android.location.Location;
           import android.location.LocationListener;
           import android.location.LocationManager;
+          import android.media.AudioManager;
+          import android.media.MediaMetadata;
+          import android.media.session.MediaController;
+          import android.media.session.MediaSessionManager;
+          import android.media.session.PlaybackState;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
@@ -135,9 +157,13 @@ jobs:
           import android.provider.Settings;
           import android.util.TypedValue;
           import android.view.Gravity;
+          import android.view.KeyEvent;
+          import android.view.Surface;
+          import android.view.TextureView;
           import android.view.View;
           import android.widget.Button;
           import android.widget.FrameLayout;
+          import android.widget.HorizontalScrollView;
           import android.widget.ImageView;
           import android.widget.LinearLayout;
           import android.widget.SeekBar;
@@ -147,6 +173,7 @@ jobs:
           import java.io.File;
           import java.io.FileOutputStream;
           import java.io.InputStream;
+          import java.lang.reflect.Method;
           import java.text.SimpleDateFormat;
           import java.util.ArrayList;
           import java.util.Collections;
@@ -157,8 +184,6 @@ jobs:
 
           public class MainActivity extends Activity implements Tuner.Listener {
               static final int ACC = 0xFF4FC3F7, TXT = 0xFFF1F5F9, DIM = 0xFFA9B8CC, CARD = 0xB3101A28, BTN = 0xFF2A3A52;
-              static final String[] KEYS = {"igo", "aimp", "radio"};
-              static final String[] TITLES = {"iGO", "AIMP", "Радіо"};
 
               final Handler ui = new Handler(Looper.getMainLooper());
               SharedPreferences sp;
@@ -167,14 +192,29 @@ jobs:
               LocationManager lm;
               boolean ready = false;
               float u = 1f;
-              long lastFix = 0;
+
+              // GPS і поїздка
+              long lastFix = 0, lastLoc = 0;
               int satUsed = 0, satTotal = 0;
+              float maxKmh = 0, distKm = 0, movH = 0;
+              long lastSave = 0;
 
               ImageView bg;
-              TextView tvClock, tvDate, tvSpeed, tvSats, tvStation, tvFreq;
-              Button dayNight;
-              final ImageView[] tileIcon = new ImageView[3];
-              final TextView[] tileText = new TextView[3];
+              TextView tvClock, tvDate, tvSpeed, tvAvg, tvMax, tvSats, tvStation, tvFreq, tvTrack, tvArtist, navNote;
+              Button dayNight, rPlay, aPlay;
+              ImageView cover, navIcon;
+              LinearLayout appsRow;
+              boolean radioOn = true, needAccess = false;
+
+              // вікно навігації
+              TextureView navView;
+              Surface navSurface;
+              VirtualDisplay navVd;
+              boolean navFailed = false;
+              int navW = 0, navH = 0;
+
+              // медіа
+              MediaController ctl;
 
               int px(float v) {
                   return Math.round(v * u);
@@ -202,13 +242,51 @@ jobs:
                   b.setAllCaps(false);
                   b.setTextColor(TXT);
                   b.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
-                  b.setBackground(rounded(BTN, 18));
-                  b.setPadding(px(10), 0, px(10), 0);
+                  b.setBackground(rounded(BTN, 16));
+                  b.setPadding(0, 0, 0, 0);
+                  b.setMinWidth(0);
+                  b.setMinimumWidth(0);
+                  b.setMinHeight(0);
+                  b.setMinimumHeight(0);
                   return b;
               }
 
               LinearLayout.LayoutParams lp(float w, float h, float weight) {
                   return new LinearLayout.LayoutParams(w < 0 ? (int) w : px(w), h < 0 ? (int) h : px(h), weight);
+              }
+
+              LinearLayout card(int orientation) {
+                  LinearLayout c = new LinearLayout(this);
+                  c.setOrientation(orientation);
+                  c.setBackground(rounded(CARD, 24));
+                  return c;
+              }
+
+              /** Іконка супутника, намальована кодом. */
+              class SatView extends View {
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  SatView(Context c) {
+                      super(c);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), s = Math.min(w, h);
+                      p.setColor(ACC);
+                      p.setStyle(Paint.Style.FILL);
+                      cv.save();
+                      cv.translate(w / 2, h / 2);
+                      cv.rotate(-40);
+                      cv.drawRoundRect(new RectF(-s * 0.14f, -s * 0.14f, s * 0.14f, s * 0.14f), s * 0.04f, s * 0.04f, p);
+                      cv.drawRect(-s * 0.46f, -s * 0.10f, -s * 0.20f, s * 0.10f, p);
+                      cv.drawRect(s * 0.20f, -s * 0.10f, s * 0.46f, s * 0.10f, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(s * 0.05f);
+                      cv.drawLine(0, s * 0.14f, 0, s * 0.30f, p);
+                      cv.drawArc(new RectF(-s * 0.16f, s * 0.20f, s * 0.16f, s * 0.44f), 0, 180, false, p);
+                      cv.restore();
+                  }
               }
 
               @Override
@@ -224,10 +302,12 @@ jobs:
                   pm = getPackageManager();
                   android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
                   u = Math.min(dm.widthPixels, dm.heightPixels) / 720f;
+                  maxKmh = sp.getFloat("max", 0);
+                  distKm = sp.getFloat("dist", 0);
+                  movH = sp.getFloat("mov", 0);
 
                   FrameLayout root = new FrameLayout(this);
-                  GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF12335C, 0xFF0A1424});
-                  root.setBackground(base);
+                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF12335C, 0xFF0A1424}));
                   bg = new ImageView(this);
                   bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
                   root.addView(bg, new FrameLayout.LayoutParams(-1, -1));
@@ -237,116 +317,215 @@ jobs:
 
                   LinearLayout main = new LinearLayout(this);
                   main.setOrientation(LinearLayout.HORIZONTAL);
-                  main.setPadding(px(22), px(22), px(22), px(22));
+                  main.setPadding(px(20), px(20), px(20), px(20));
                   root.addView(main, new FrameLayout.LayoutParams(-1, -1));
 
-                  // ---- ліва колонка ----
+                  // ================= ліва колонка (40 %) =================
                   LinearLayout left = new LinearLayout(this);
                   left.setOrientation(LinearLayout.VERTICAL);
-                  left.setGravity(Gravity.CENTER_HORIZONTAL);
-                  left.setBackground(rounded(CARD, 26));
-                  left.setPadding(px(16), px(14), px(16), px(16));
                   LinearLayout.LayoutParams llp = lp(0, -1, 4);
-                  llp.setMargins(0, 0, px(18), 0);
+                  llp.setMargins(0, 0, px(16), 0);
                   main.addView(left, llp);
 
-                  tvClock = text("00:00", 96, TXT, true);
-                  tvClock.setGravity(Gravity.CENTER);
-                  left.addView(tvClock, lp(-1, -2, 0));
-                  tvDate = text("", 24, DIM, false);
-                  tvDate.setGravity(Gravity.CENTER);
-                  left.addView(tvDate, lp(-1, -2, 0));
-                  View sp1 = new View(this);
-                  left.addView(sp1, lp(-1, 0, 1));
-                  tvSpeed = text("—", 130, ACC, true);
-                  tvSpeed.setGravity(Gravity.CENTER);
-                  left.addView(tvSpeed, lp(-1, -2, 0));
-                  TextView kmh = text("км/год", 26, DIM, false);
-                  kmh.setGravity(Gravity.CENTER);
-                  left.addView(kmh, lp(-1, -2, 0));
-                  tvSats = text("Супутники: —", 22, DIM, false);
-                  tvSats.setGravity(Gravity.CENTER);
-                  left.addView(tvSats, lp(-1, -2, 0));
-                  View sp2 = new View(this);
-                  left.addView(sp2, lp(-1, 0, 1));
-                  dayNight = btn("", 34);
+                  // --- плитка з годинником і швидкістю ---
+                  LinearLayout clockCard = card(LinearLayout.VERTICAL);
+                  clockCard.setPadding(px(22), px(12), px(22), px(12));
+                  clockCard.setClickable(true);
+                  clockCard.setOnLongClickListener(v -> {
+                      settingsMenu();
+                      return true;
+                  });
+                  left.addView(clockCard, lp(-1, 0, 5.4f));
+                  tvClock = text("00:00", 80, TXT, true);
+                  clockCard.addView(tvClock, lp(-2, -2, 0));
+                  tvDate = text("", 22, DIM, false);
+                  tvDate.setSingleLine(true);
+                  clockCard.addView(tvDate, lp(-2, -2, 0));
+                  LinearLayout speedRow = new LinearLayout(this);
+                  speedRow.setOrientation(LinearLayout.HORIZONTAL);
+                  speedRow.setGravity(Gravity.CENTER_VERTICAL);
+                  speedRow.setClickable(true);
+                  speedRow.setOnLongClickListener(v -> {
+                      resetTrip();
+                      return true;
+                  });
+                  clockCard.addView(speedRow, lp(-1, 0, 1));
+                  LinearLayout sbox = new LinearLayout(this);
+                  sbox.setOrientation(LinearLayout.VERTICAL);
+                  tvSpeed = text("—", 100, ACC, true);
+                  sbox.addView(tvSpeed, lp(-2, -2, 0));
+                  sbox.addView(text("км/год", 22, DIM, false), lp(-2, -2, 0));
+                  speedRow.addView(sbox, lp(0, -2, 1));
+                  LinearLayout stats = new LinearLayout(this);
+                  stats.setOrientation(LinearLayout.VERTICAL);
+                  tvAvg = text("Сер.  0", 26, TXT, false);
+                  tvMax = text("Макс. 0", 26, TXT, false);
+                  stats.addView(tvAvg, lp(-2, -2, 0));
+                  stats.addView(tvMax, lp(-2, -2, 0));
+                  LinearLayout satRow = new LinearLayout(this);
+                  satRow.setOrientation(LinearLayout.HORIZONTAL);
+                  satRow.setGravity(Gravity.CENTER_VERTICAL);
+                  satRow.addView(new SatView(this), lp(34, 34, 0));
+                  tvSats = text(" —", 24, DIM, false);
+                  satRow.addView(tvSats, lp(-2, -2, 0));
+                  stats.addView(satRow, lp(-2, -2, 0));
+                  speedRow.addView(stats, lp(-2, -2, 0));
+
+                  // --- радіо ---
+                  LinearLayout radio = card(LinearLayout.HORIZONTAL);
+                  radio.setGravity(Gravity.CENTER_VERTICAL);
+                  radio.setPadding(px(20), px(8), px(12), px(8));
+                  radio.setClickable(true);
+                  radio.setOnClickListener(v -> launchKey("radio"));
+                  LinearLayout rt = new LinearLayout(this);
+                  rt.setOrientation(LinearLayout.VERTICAL);
+                  tvStation = text(sp.getString("lname", "Радіо"), 30, TXT, true);
+                  tvStation.setSingleLine(true);
+                  tvStation.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                  rt.addView(tvStation, lp(-1, -2, 0));
+                  tvFreq = text(sp.getString("lfreq", ""), 20, DIM, false);
+                  rt.addView(tvFreq, lp(-1, -2, 0));
+                  radio.addView(rt, lp(0, -2, 1));
+                  Button rPrev = btn("⏮", 34);
+                  rPrev.setOnClickListener(v -> tuner.prev());
+                  rPlay = btn("■", 34);
+                  rPlay.setOnClickListener(v -> toggleRadio());
+                  Button rNext = btn("⏭", 34);
+                  rNext.setOnClickListener(v -> tuner.next());
+                  for (Button x : new Button[]{rPrev, rPlay, rNext}) {
+                      LinearLayout.LayoutParams bp = lp(76, 76, 0);
+                      bp.setMargins(px(8), 0, 0, 0);
+                      radio.addView(x, bp);
+                  }
+                  LinearLayout.LayoutParams rlp = lp(-1, 0, 2.1f);
+                  rlp.setMargins(0, px(14), 0, 0);
+                  left.addView(radio, rlp);
+
+                  // --- AIMP ---
+                  LinearLayout aimp = card(LinearLayout.HORIZONTAL);
+                  aimp.setGravity(Gravity.CENTER_VERTICAL);
+                  aimp.setPadding(px(14), px(8), px(12), px(8));
+                  aimp.setClickable(true);
+                  aimp.setOnClickListener(v -> launchKey("aimp"));
+                  cover = new ImageView(this);
+                  cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                  cover.setBackground(rounded(BTN, 14));
+                  aimp.addView(cover, lp(104, 104, 0));
+                  LinearLayout at = new LinearLayout(this);
+                  at.setOrientation(LinearLayout.VERTICAL);
+                  at.setPadding(px(12), 0, 0, 0);
+                  tvTrack = text("AIMP", 24, TXT, true);
+                  tvTrack.setSingleLine(true);
+                  tvTrack.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                  tvTrack.setOnClickListener(v -> {
+                      if (needAccess) startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+                      else launchKey("aimp");
+                  });
+                  at.addView(tvTrack, lp(-1, -2, 0));
+                  tvArtist = text("", 20, DIM, false);
+                  tvArtist.setSingleLine(true);
+                  tvArtist.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                  at.addView(tvArtist, lp(-1, -2, 0));
+                  aimp.addView(at, lp(0, -2, 1));
+                  Button aPrev = btn("⏮", 30);
+                  aPrev.setOnClickListener(v -> mediaCmd(0));
+                  aPlay = btn("⏯", 30);
+                  aPlay.setOnClickListener(v -> mediaCmd(1));
+                  Button aNext = btn("⏭", 30);
+                  aNext.setOnClickListener(v -> mediaCmd(2));
+                  for (Button x : new Button[]{aPrev, aPlay, aNext}) {
+                      LinearLayout.LayoutParams bp = lp(66, 66, 0);
+                      bp.setMargins(px(6), 0, 0, 0);
+                      aimp.addView(x, bp);
+                  }
+                  LinearLayout.LayoutParams alp = lp(-1, 0, 2.4f);
+                  alp.setMargins(0, px(14), 0, 0);
+                  left.addView(aimp, alp);
+
+                  // --- день / ніч ---
+                  dayNight = btn("", 28);
                   dayNight.setOnClickListener(v -> toggleBright());
                   dayNight.setOnLongClickListener(v -> {
                       minDialog();
                       return true;
                   });
-                  left.addView(dayNight, lp(-1, 130, 0));
+                  LinearLayout.LayoutParams dlp = lp(-1, 0, 1.3f);
+                  dlp.setMargins(0, px(14), 0, 0);
+                  left.addView(dayNight, dlp);
 
-                  // ---- права колонка ----
+                  // ================= права колонка (60 %) =================
                   LinearLayout right = new LinearLayout(this);
                   right.setOrientation(LinearLayout.VERTICAL);
-                  main.addView(right, lp(0, -1, 7));
+                  main.addView(right, lp(0, -1, 6));
 
-                  LinearLayout tiles = new LinearLayout(this);
-                  tiles.setOrientation(LinearLayout.HORIZONTAL);
-                  right.addView(tiles, lp(-1, 0, 5));
-                  for (int i = 0; i < 3; i++) {
-                      final int idx = i;
-                      LinearLayout tile = new LinearLayout(this);
-                      tile.setOrientation(LinearLayout.VERTICAL);
-                      tile.setGravity(Gravity.CENTER);
-                      tile.setBackground(rounded(CARD, 26));
-                      tile.setClickable(true);
-                      tile.setOnClickListener(v -> launchTile(idx));
-                      tile.setOnLongClickListener(v -> {
-                          chooseApp(idx);
+                  // --- вікно навігації ---
+                  FrameLayout nav = new FrameLayout(this);
+                  nav.setBackground(rounded(0xFF000000, 24));
+                  nav.setClickable(true);
+                  nav.setOnClickListener(v -> launchKey("nav"));
+                  nav.setOnLongClickListener(v -> {
+                      chooseApp("nav", "Навігація");
+                      return true;
+                  });
+                  navView = new TextureView(this);
+                  navView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+                      @Override
+                      public void onSurfaceTextureAvailable(SurfaceTexture st, int w, int h) {
+                          navW = w;
+                          navH = h;
+                          st.setDefaultBufferSize(w, h);
+                          navSurface = new Surface(st);
+                          startNav();
+                      }
+
+                      @Override
+                      public void onSurfaceTextureSizeChanged(SurfaceTexture st, int w, int h) {
+                      }
+
+                      @Override
+                      public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
+                          releaseNav();
                           return true;
-                      });
-                      tileIcon[i] = new ImageView(this);
-                      tileIcon[i].setScaleType(ImageView.ScaleType.FIT_CENTER);
-                      tile.addView(tileIcon[i], lp(150, 150, 0));
-                      tileText[i] = text(TITLES[i], 32, TXT, true);
-                      tileText[i].setGravity(Gravity.CENTER);
-                      tile.addView(tileText[i], lp(-2, -2, 0));
-                      LinearLayout.LayoutParams tl = lp(0, -1, 1);
-                      if (i > 0) tl.setMargins(px(18), 0, 0, 0);
-                      tiles.addView(tile, tl);
-                  }
+                      }
 
-                  LinearLayout radio = new LinearLayout(this);
-                  radio.setOrientation(LinearLayout.HORIZONTAL);
-                  radio.setGravity(Gravity.CENTER_VERTICAL);
-                  radio.setBackground(rounded(CARD, 26));
-                  radio.setPadding(px(26), px(10), px(18), px(10));
-                  radio.setOnClickListener(v -> launchTile(2));
-                  LinearLayout rt = new LinearLayout(this);
-                  rt.setOrientation(LinearLayout.VERTICAL);
-                  tvStation = text(sp.getString("lname", "Радіо"), 40, TXT, true);
-                  tvStation.setSingleLine(true);
-                  rt.addView(tvStation, lp(-1, -2, 0));
-                  tvFreq = text(sp.getString("lfreq", ""), 26, DIM, false);
-                  rt.addView(tvFreq, lp(-1, -2, 0));
-                  radio.addView(rt, lp(0, -2, 1));
-                  Button prev = btn("⏮", 44);
-                  prev.setOnClickListener(v -> tuner.prev());
-                  Button next = btn("⏭", 44);
-                  next.setOnClickListener(v -> tuner.next());
-                  LinearLayout.LayoutParams pl = lp(130, 100, 0);
-                  pl.setMargins(px(10), 0, 0, 0);
-                  radio.addView(prev, pl);
-                  radio.addView(next, pl);
-                  LinearLayout.LayoutParams rlp = lp(-1, 0, 2);
-                  rlp.setMargins(0, px(18), 0, 0);
-                  right.addView(radio, rlp);
+                      @Override
+                      public void onSurfaceTextureUpdated(SurfaceTexture st) {
+                      }
+                  });
+                  nav.addView(navView, new FrameLayout.LayoutParams(-1, -1));
+                  LinearLayout navHint = new LinearLayout(this);
+                  navHint.setOrientation(LinearLayout.VERTICAL);
+                  navHint.setGravity(Gravity.CENTER);
+                  navHint.setClickable(false);
+                  navIcon = new ImageView(this);
+                  navHint.addView(navIcon, lp(150, 150, 0));
+                  navNote = text("Навігація", 30, TXT, true);
+                  navNote.setGravity(Gravity.CENTER);
+                  navHint.addView(navNote, lp(-2, -2, 0));
+                  nav.addView(navHint, new FrameLayout.LayoutParams(-1, -1));
+                  navHintView = navHint;
+                  right.addView(nav, lp(-1, 0, 8.4f));
 
-                  LinearLayout bottom = new LinearLayout(this);
-                  bottom.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout.LayoutParams blp = lp(-1, 0, 1);
-                  blp.setMargins(0, px(18), 0, 0);
-                  right.addView(bottom, blp);
-                  Button all = btn("Усі програми", 28);
-                  all.setOnClickListener(v -> allApps());
-                  Button wall = btn("Фон", 28);
-                  wall.setOnClickListener(v -> bgDialog());
-                  bottom.addView(all, lp(0, -1, 2));
-                  LinearLayout.LayoutParams wl = lp(0, -1, 1);
-                  wl.setMargins(px(18), 0, 0, 0);
-                  bottom.addView(wall, wl);
+                  // --- ряд програм ---
+                  HorizontalScrollView hs = new HorizontalScrollView(this);
+                  hs.setHorizontalScrollBarEnabled(false);
+                  hs.setBackground(rounded(CARD, 24));
+                  appsRow = new LinearLayout(this);
+                  appsRow.setOrientation(LinearLayout.HORIZONTAL);
+                  appsRow.setGravity(Gravity.CENTER_VERTICAL);
+                  appsRow.setPadding(px(14), px(8), px(14), px(8));
+                  appsRow.setOnLongClickListener(v -> {
+                      pickApps();
+                      return true;
+                  });
+                  hs.addView(appsRow, new FrameLayout.LayoutParams(-2, -1));
+                  hs.setOnLongClickListener(v -> {
+                      pickApps();
+                      return true;
+                  });
+                  LinearLayout.LayoutParams hlp = lp(-1, 0, 1.6f);
+                  hlp.setMargins(0, px(14), 0, 0);
+                  right.addView(hs, hlp);
 
                   setContentView(root);
                   ready = true;
@@ -358,17 +537,29 @@ jobs:
                   tuner.start();
               }
 
+              View navHintView;
+
               @Override
               protected void onResume() {
                   super.onResume();
                   if (!ready) return;
-                  refreshTiles();
+                  refreshApps();
                   updateBright();
+                  refreshMedia();
+                  if (navVd == null && navSurface != null && !navFailed) startNav();
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  if (ready) saveTrip();
               }
 
               @Override
               protected void onDestroy() {
                   if (ready) {
+                      saveTrip();
+                      releaseNav();
                       try {
                           tuner.stop();
                       } catch (Throwable ignored) {
@@ -386,27 +577,42 @@ jobs:
 
               @Override
               public void onBackPressed() {
-                  // це головний екран: «Назад» нічого не закриває
+                  // це головний екран
               }
 
-              // ---- годинник ----
+              // ================= годинник =================
+              int tickN = 0;
+
               void tick() {
                   Date d = new Date();
                   tvClock.setText(new SimpleDateFormat("HH:mm", Locale.US).format(d));
-                  String ds = new SimpleDateFormat("EEEE, d MMMM yyyy", new Locale("uk", "UA")).format(d);
-                  if (!ds.isEmpty()) ds = ds.substring(0, 1).toUpperCase(new Locale("uk", "UA")) + ds.substring(1);
+                  Locale uk = new Locale("uk", "UA");
+                  String ds = new SimpleDateFormat("EEEE, d MMMM yyyy", uk).format(d);
+                  if (!ds.isEmpty()) ds = ds.substring(0, 1).toUpperCase(uk) + ds.substring(1);
                   tvDate.setText(ds);
                   if (System.currentTimeMillis() - lastFix > 6000) tvSpeed.setText("—");
+                  if (++tickN % 3 == 0) refreshMedia();
                   ui.postDelayed(this::tick, 1000);
               }
 
-              // ---- GPS ----
+              // ================= GPS і поїздка =================
               final LocationListener locL = new LocationListener() {
                   @Override
                   public void onLocationChanged(Location l) {
-                      lastFix = System.currentTimeMillis();
+                      long now = System.currentTimeMillis();
                       float v = l.hasSpeed() ? l.getSpeed() * 3.6f : 0f;
-                      tvSpeed.setText(String.valueOf(v < 2f ? 0 : Math.round(v)));
+                      if (v < 2f) v = 0f;
+                      if (lastLoc > 0 && v > 0) {
+                          float dt = Math.min(3f, (now - lastLoc) / 1000f);
+                          distKm += v * dt / 3600f;
+                          movH += dt / 3600f;
+                      }
+                      lastLoc = now;
+                      lastFix = now;
+                      if (v > maxKmh) maxKmh = v;
+                      tvSpeed.setText(String.valueOf(Math.round(v)));
+                      showTrip();
+                      if (now - lastSave > 15000) saveTrip();
                   }
 
                   @Override
@@ -422,6 +628,26 @@ jobs:
                   }
               };
 
+              void showTrip() {
+                  float avg = movH > 0.0005f ? distKm / movH : 0f;
+                  tvAvg.setText("Сер.  " + Math.round(avg));
+                  tvMax.setText("Макс. " + Math.round(maxKmh));
+              }
+
+              void saveTrip() {
+                  lastSave = System.currentTimeMillis();
+                  sp.edit().putFloat("max", maxKmh).putFloat("dist", distKm).putFloat("mov", movH).apply();
+              }
+
+              void resetTrip() {
+                  maxKmh = 0;
+                  distKm = 0;
+                  movH = 0;
+                  saveTrip();
+                  showTrip();
+                  Toast.makeText(this, "Поїздку скинуто", Toast.LENGTH_SHORT).show();
+              }
+
               final GpsStatus.Listener stL = new GpsStatus.Listener() {
                   @Override
                   public void onGpsStatusChanged(int event) {
@@ -433,7 +659,7 @@ jobs:
                               total++;
                               if (s.usedInFix()) used++;
                           }
-                          tvSats.setText("Супутники: " + used + " / " + total);
+                          tvSats.setText(" " + used + "/" + total);
                       } catch (Throwable ignored) {
                       }
                   }
@@ -441,6 +667,7 @@ jobs:
 
               @SuppressWarnings("deprecation")
               void startGps() {
+                  showTrip();
                   if (Build.VERSION.SDK_INT >= 23
                           && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                       requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
@@ -451,7 +678,7 @@ jobs:
                       lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locL);
                       lm.addGpsStatusListener(stL);
                   } catch (Throwable t) {
-                      tvSats.setText("GPS недоступний");
+                      tvSats.setText(" ✕");
                   }
               }
 
@@ -461,7 +688,7 @@ jobs:
                   if (req == 2) startGps();
               }
 
-              // ---- яскравість ----
+              // ================= яскравість =================
               int minB() {
                   return sp.getInt("minb", 10);
               }
@@ -471,8 +698,7 @@ jobs:
               }
 
               void updateBright() {
-                  boolean night = curB() < 100;
-                  dayNight.setText(night ? "☾  НІЧ\nнатисни — день" : "☀  ДЕНЬ\nнатисни — ніч");
+                  dayNight.setText(curB() < 100 ? "☾  НІЧ  (натисни — день)" : "☀  ДЕНЬ  (натисни — ніч)");
               }
 
               void toggleBright() {
@@ -531,99 +757,31 @@ jobs:
                           .setNegativeButton("Скасувати", null).show();
               }
 
-              // ---- програми ----
-              List<ResolveInfo> launchables() {
-                  Intent i = new Intent(Intent.ACTION_MAIN);
-                  i.addCategory(Intent.CATEGORY_LAUNCHER);
-                  List<ResolveInfo> l = pm.queryIntentActivities(i, 0);
-                  List<ResolveInfo> r = new ArrayList<ResolveInfo>();
-                  for (ResolveInfo ri : l) if (!ri.activityInfo.packageName.equals(getPackageName())) r.add(ri);
-                  return r;
-              }
-
-              String pkgFor(int i) {
-                  String p = sp.getString("pkg_" + KEYS[i], null);
-                  if (p != null && pm.getLaunchIntentForPackage(p) != null) return p;
-                  if (i == 2 && pm.getLaunchIntentForPackage("com.example.radioapp") != null) return "com.example.radioapp";
-                  for (ResolveInfo ri : launchables()) {
-                      String label = String.valueOf(ri.loadLabel(pm)).toLowerCase(Locale.US);
-                      String pk = ri.activityInfo.packageName.toLowerCase(Locale.US);
-                      if (i == 0 && (label.contains("igo") || pk.contains("igo"))) return ri.activityInfo.packageName;
-                      if (i == 1 && (label.contains("aimp") || pk.contains("aimp"))) return ri.activityInfo.packageName;
-                  }
-                  return null;
-              }
-
-              void refreshTiles() {
-                  for (int i = 0; i < 3; i++) {
-                      String p = pkgFor(i);
-                      try {
-                          if (p != null) tileIcon[i].setImageDrawable(pm.getApplicationIcon(p));
-                          else tileIcon[i].setImageDrawable(null);
-                      } catch (Throwable ignored) {
-                      }
-                  }
-              }
-
-              void launchTile(int i) {
-                  String p = pkgFor(i);
-                  if (p == null) {
-                      chooseApp(i);
-                      return;
-                  }
-                  launch(p);
-              }
-
-              void launch(String pkg) {
-                  try {
-                      Intent in = pm.getLaunchIntentForPackage(pkg);
-                      if (in != null) startActivity(in);
-                  } catch (Throwable t) {
-                      Toast.makeText(this, "Не вдалось запустити: " + t, Toast.LENGTH_SHORT).show();
-                  }
-              }
-
-              interface Pick {
-                  void on(ResolveInfo ri);
-              }
-
-              void appPicker(String title, final Pick cb) {
-                  final List<ResolveInfo> l = launchables();
-                  Collections.sort(l, new Comparator<ResolveInfo>() {
-                      @Override
-                      public int compare(ResolveInfo a, ResolveInfo b) {
-                          return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
-                      }
-                  });
-                  String[] names = new String[l.size()];
-                  for (int i = 0; i < names.length; i++) names[i] = String.valueOf(l.get(i).loadLabel(pm));
-                  new AlertDialog.Builder(this).setTitle(title).setItems(names, (d, i) -> cb.on(l.get(i)))
-                          .setNegativeButton("Скасувати", null).show();
-              }
-
-              void chooseApp(final int idx) {
-                  appPicker("Програма для «" + TITLES[idx] + "»", ri -> {
-                      sp.edit().putString("pkg_" + KEYS[idx], ri.activityInfo.packageName).apply();
-                      refreshTiles();
-                  });
-              }
-
-              void allApps() {
-                  appPicker("Усі програми", ri -> launch(ri.activityInfo.packageName));
-              }
-
-              // ---- фон ----
-              void bgDialog() {
-                  new AlertDialog.Builder(this).setTitle("Фон")
-                          .setItems(new String[]{"Вибрати з галереї", "Прибрати картинку"}, (d, i) -> {
+              // ================= меню налаштувань (довге натискання на годинник) =================
+              void settingsMenu() {
+                  new AlertDialog.Builder(this).setTitle("Налаштування")
+                          .setItems(new String[]{"Фон: вибрати з галереї", "Фон: прибрати картинку", "Нічна яскравість",
+                                  "Скинути поїздку (середня, макс.)", "Навігація: обрати програму", "Доступ до сповіщень (для AIMP)"}, (d, i) -> {
                               if (i == 0) {
                                   Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                                   in.addCategory(Intent.CATEGORY_OPENABLE);
                                   in.setType("image/*");
                                   startActivityForResult(in, 5);
-                              } else {
+                              } else if (i == 1) {
                                   new File(getFilesDir(), "bg.jpg").delete();
                                   loadBg();
+                              } else if (i == 2) {
+                                  minDialog();
+                              } else if (i == 3) {
+                                  resetTrip();
+                              } else if (i == 4) {
+                                  chooseApp("nav", "Навігація");
+                              } else {
+                                  try {
+                                      startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+                                  } catch (Throwable t) {
+                                      Toast.makeText(this, "" + t, Toast.LENGTH_LONG).show();
+                                  }
                               }
                           }).show();
               }
@@ -669,12 +827,191 @@ jobs:
                   bg.setImageDrawable(null);
               }
 
-              // ---- міні-радіо ----
+              // ================= програми =================
+              List<ResolveInfo> launchables() {
+                  Intent i = new Intent(Intent.ACTION_MAIN);
+                  i.addCategory(Intent.CATEGORY_LAUNCHER);
+                  List<ResolveInfo> l = pm.queryIntentActivities(i, 0);
+                  List<ResolveInfo> r = new ArrayList<ResolveInfo>();
+                  for (ResolveInfo ri : l) if (!ri.activityInfo.packageName.equals(getPackageName())) r.add(ri);
+                  Collections.sort(r, new Comparator<ResolveInfo>() {
+                      @Override
+                      public int compare(ResolveInfo a, ResolveInfo b) {
+                          return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
+                      }
+                  });
+                  return r;
+              }
+
+              String pkgFor(String key) {
+                  String p = sp.getString("pkg_" + key, null);
+                  if (p != null && pm.getLaunchIntentForPackage(p) != null) return p;
+                  if (key.equals("radio") && pm.getLaunchIntentForPackage("com.example.radioapp") != null) return "com.example.radioapp";
+                  for (ResolveInfo ri : launchables()) {
+                      String label = String.valueOf(ri.loadLabel(pm)).toLowerCase(Locale.US);
+                      String pk = ri.activityInfo.packageName.toLowerCase(Locale.US);
+                      if (key.equals("nav") && (label.contains("igo") || pk.contains("igo"))) return ri.activityInfo.packageName;
+                      if (key.equals("nav") && (label.contains("organic") || pk.contains("organicmaps"))) return ri.activityInfo.packageName;
+                      if (key.equals("aimp") && (label.contains("aimp") || pk.contains("aimp"))) return ri.activityInfo.packageName;
+                  }
+                  return null;
+              }
+
+              void launchKey(String key) {
+                  String p = pkgFor(key);
+                  if (p == null) {
+                      chooseApp(key, key.equals("nav") ? "Навігація" : key.equals("aimp") ? "AIMP" : "Радіо");
+                      return;
+                  }
+                  launch(p);
+              }
+
+              void launch(String pkg) {
+                  try {
+                      Intent in = pm.getLaunchIntentForPackage(pkg);
+                      if (in != null) startActivity(in);
+                  } catch (Throwable t) {
+                      Toast.makeText(this, "Не вдалось запустити: " + t, Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              interface Pick {
+                  void on(ResolveInfo ri);
+              }
+
+              void chooseApp(final String key, String title) {
+                  final List<ResolveInfo> l = launchables();
+                  String[] names = new String[l.size()];
+                  for (int i = 0; i < names.length; i++) names[i] = String.valueOf(l.get(i).loadLabel(pm));
+                  new AlertDialog.Builder(this).setTitle("Програма: " + title).setItems(names, (d, i) -> {
+                      sp.edit().putString("pkg_" + key, l.get(i).activityInfo.packageName).apply();
+                      refreshApps();
+                      if (key.equals("nav")) {
+                          releaseNav();
+                          navFailed = false;
+                          startNav();
+                      }
+                  }).setNegativeButton("Скасувати", null).show();
+              }
+
+              List<String> chosenApps() {
+                  List<String> r = new ArrayList<String>();
+                  String s = sp.getString("apps", "");
+                  if (!s.isEmpty()) for (String x : s.split(",")) if (pm.getLaunchIntentForPackage(x) != null) r.add(x);
+                  return r;
+              }
+
+              void refreshApps() {
+                  appsRow.removeAllViews();
+                  List<String> l = chosenApps();
+                  if (l.isEmpty()) {
+                      appsRow.addView(text("Утримуй тут, щоб обрати програми", 24, DIM, false));
+                  }
+                  for (final String p : l) {
+                      ImageView iv = new ImageView(this);
+                      try {
+                          iv.setImageDrawable(pm.getApplicationIcon(p));
+                      } catch (Throwable ignored) {
+                      }
+                      iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                      iv.setOnClickListener(v -> launch(p));
+                      iv.setOnLongClickListener(v -> {
+                          pickApps();
+                          return true;
+                      });
+                      LinearLayout.LayoutParams ip = lp(96, 96, 0);
+                      ip.setMargins(px(8), 0, px(8), 0);
+                      appsRow.addView(iv, ip);
+                  }
+                  // іконки вибраних для навігації/радіо плиток
+                  String np = pkgFor("nav");
+                  try {
+                      if (np != null) navIcon.setImageDrawable(pm.getApplicationIcon(np));
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              void pickApps() {
+                  final List<ResolveInfo> l = launchables();
+                  final String[] names = new String[l.size()];
+                  final boolean[] on = new boolean[l.size()];
+                  List<String> cur = chosenApps();
+                  for (int i = 0; i < names.length; i++) {
+                      names[i] = String.valueOf(l.get(i).loadLabel(pm));
+                      on[i] = cur.contains(l.get(i).activityInfo.packageName);
+                  }
+                  new AlertDialog.Builder(this).setTitle("Програми внизу")
+                          .setMultiChoiceItems(names, on, (d, i, c) -> on[i] = c)
+                          .setPositiveButton("Зберегти", (d, w) -> {
+                              StringBuilder sb = new StringBuilder();
+                              for (int i = 0; i < on.length; i++) {
+                                  if (on[i]) {
+                                      if (sb.length() > 0) sb.append(',');
+                                      sb.append(l.get(i).activityInfo.packageName);
+                                  }
+                              }
+                              sp.edit().putString("apps", sb.toString()).apply();
+                              refreshApps();
+                          })
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              // ================= вікно навігації (експеримент) =================
+              void startNav() {
+                  if (navSurface == null || navFailed) return;
+                  String pkg = pkgFor("nav");
+                  if (pkg == null) {
+                      navNote.setText("Утримуй, щоб обрати навігацію");
+                      return;
+                  }
+                  try {
+                      releaseNav();
+                      DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
+                      int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
+                      navVd = dm.createVirtualDisplay("launcher-nav", navW, navH, getResources().getDisplayMetrics().densityDpi, navSurface, flags);
+                      int id = navVd.getDisplay().getDisplayId();
+                      Intent in = pm.getLaunchIntentForPackage(pkg);
+                      in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+                      ActivityOptions o = ActivityOptions.makeBasic();
+                      Method m = ActivityOptions.class.getMethod("setLaunchDisplayId", int.class);
+                      m.invoke(o, id);
+                      startActivity(in, o.toBundle());
+                      navHintView.setVisibility(View.GONE);
+                  } catch (Throwable t) {
+                      navFailed = true;
+                      releaseNav();
+                      navHintView.setVisibility(View.VISIBLE);
+                      navNote.setText("Навігація\n(вікно недоступне — натисни, щоб відкрити)");
+                  }
+              }
+
+              void releaseNav() {
+                  try {
+                      if (navVd != null) navVd.release();
+                  } catch (Throwable ignored) {
+                  }
+                  navVd = null;
+              }
+
+              // ================= радіо =================
+              void toggleRadio() {
+                  if (radioOn) {
+                      tuner.stopRadio();
+                      radioOn = false;
+                  } else {
+                      tuner.startRadio();
+                      radioOn = true;
+                  }
+                  rPlay.setText(radioOn ? "■" : "▶");
+              }
+
               @Override
               public void onState() {
                   if (!ready || tuner == null) return;
                   int f = tuner.freq;
                   if (f <= 0) return;
+                  radioOn = true;
+                  rPlay.setText("■");
                   String name = tuner.ps;
                   if (name == null || name.isEmpty()) {
                       int k = Lviv.match(f);
@@ -684,6 +1021,111 @@ jobs:
                   tvStation.setText(name);
                   tvFreq.setText(fr);
                   sp.edit().putString("lname", name).putString("lfreq", fr).apply();
+              }
+
+              // ================= AIMP / медіа =================
+              final MediaController.Callback ctlCb = new MediaController.Callback() {
+                  @Override
+                  public void onMetadataChanged(MediaMetadata m) {
+                      showMeta(m);
+                  }
+
+                  @Override
+                  public void onPlaybackStateChanged(PlaybackState s) {
+                  }
+              };
+
+              void showMeta(MediaMetadata m) {
+                  if (m == null) {
+                      tvTrack.setText("AIMP");
+                      tvArtist.setText("");
+                      cover.setImageDrawable(null);
+                      return;
+                  }
+                  CharSequence t = m.getText(MediaMetadata.METADATA_KEY_TITLE);
+                  CharSequence a = m.getText(MediaMetadata.METADATA_KEY_ARTIST);
+                  tvTrack.setText(t == null ? "AIMP" : t);
+                  tvArtist.setText(a == null ? "" : a);
+                  Bitmap bm = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+                  if (bm == null) bm = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+                  if (bm == null) bm = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+                  cover.setImageBitmap(bm);
+              }
+
+              void refreshMedia() {
+                  try {
+                      MediaSessionManager msm = (MediaSessionManager) getSystemService(Context.MEDIA_SESSION_SERVICE);
+                      List<MediaController> l = msm.getActiveSessions(new ComponentName(this, MediaListener.class));
+                      needAccess = false;
+                      String want = pkgFor("aimp");
+                      MediaController f = null;
+                      for (MediaController c : l) {
+                          if (want != null && c.getPackageName().equals(want)) {
+                              f = c;
+                              break;
+                          }
+                      }
+                      if (f == null) {
+                          for (MediaController c : l) {
+                              if (c.getPackageName().toLowerCase(Locale.US).contains("aimp")) f = c;
+                          }
+                      }
+                      if (f == null) {
+                          if (ctl != null) {
+                              try {
+                                  ctl.unregisterCallback(ctlCb);
+                              } catch (Throwable ignored) {
+                              }
+                          }
+                          ctl = null;
+                          tvTrack.setText("AIMP");
+                          tvArtist.setText("");
+                          cover.setImageDrawable(null);
+                          return;
+                      }
+                      if (ctl == null || !ctl.getSessionToken().equals(f.getSessionToken())) {
+                          if (ctl != null) {
+                              try {
+                                  ctl.unregisterCallback(ctlCb);
+                              } catch (Throwable ignored) {
+                              }
+                          }
+                          ctl = f;
+                          ctl.registerCallback(ctlCb);
+                      }
+                      showMeta(ctl.getMetadata());
+                  } catch (SecurityException e) {
+                      needAccess = true;
+                      tvTrack.setText("Дай доступ до сповіщень");
+                      tvArtist.setText("(натисни тут)");
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              void mediaKey(int code) {
+                  try {
+                      AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                      am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+                      am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              void mediaCmd(int what) {
+                  try {
+                      if (ctl != null) {
+                          if (what == 0) ctl.getTransportControls().skipToPrevious();
+                          else if (what == 2) ctl.getTransportControls().skipToNext();
+                          else {
+                              PlaybackState ps = ctl.getPlaybackState();
+                              if (ps != null && ps.getState() == PlaybackState.STATE_PLAYING) ctl.getTransportControls().pause();
+                              else ctl.getTransportControls().play();
+                          }
+                          return;
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  mediaKey(what == 0 ? KeyEvent.KEYCODE_MEDIA_PREVIOUS : what == 2 ? KeyEvent.KEYCODE_MEDIA_NEXT : KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
               }
           }
           EOF
@@ -864,6 +1306,19 @@ jobs:
                   }
               }
 
+              /** Те, що штатне радіо робить при виході: звільняє джерело звуку. */
+              void stopRadio() {
+                  write2(0x9e00, 129);
+                  write(0x9e11, 192, 129);
+                  haveState = false;
+                  inited = false;
+              }
+
+              void startRadio() {
+                  inited = false;
+                  initRadio();
+              }
+
               void next() { ensure(new Runnable() { public void run() { write(0x401, 1, 0); } }); }
               void prev() { ensure(new Runnable() { public void run() { write(0x401, 1, 1); } }); }
               void stepUp() { ensure(new Runnable() { public void run() { write(0x401, 2, 0); } }); }
@@ -950,6 +1405,16 @@ jobs:
                       }
                   }, 700);
               }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/MediaListener.java <<'EOF'
+          package com.example.launcher;
+
+          import android.service.notification.NotificationListenerService;
+
+          /** Потрібна лише для того, щоб система дозволила читати, що грає в плеєрі (AIMP). */
+          public class MediaListener extends NotificationListenerService {
           }
           EOF
 
