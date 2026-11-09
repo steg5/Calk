@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 4
-                  versionName "1.3"
+                  versionCode 5
+                  versionName "1.4"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -133,6 +133,7 @@ jobs:
           import android.graphics.BitmapFactory;
           import android.graphics.Canvas;
           import android.graphics.Paint;
+          import android.graphics.Path;
           import android.graphics.RectF;
           import android.graphics.SurfaceTexture;
           import android.graphics.Typeface;
@@ -158,6 +159,7 @@ jobs:
           import android.util.TypedValue;
           import android.view.Gravity;
           import android.view.KeyEvent;
+          import android.view.MotionEvent;
           import android.view.Surface;
           import android.view.TextureView;
           import android.view.View;
@@ -226,7 +228,9 @@ jobs:
 
               ImageView bg;
               TextView tvClock, tvDate, tvSpeed, tvAvg, tvMax, tvSats, tvStation, tvFreq, tvTrack, tvArtist, navNote;
-              Button dayNight, rPlay, aPlay;
+              Button rPlay, aPlay;
+              FrameLayout dayNight;
+              BrightIcon bIcon;
               ImageView cover, navIcon;
               LinearLayout appsRow;
               boolean radioOn = true, needAccess = false;
@@ -256,6 +260,231 @@ jobs:
                               d.dismiss();
                               recreate();
                           }).show();
+              }
+
+              // ================= розкладка блоків =================
+              static final String[] BN = {"Годинник", "Радіо", "AIMP", "Навігація", "Програми"};
+              FrameLayout canvas;
+              View[] blocks = new View[5];
+              float[][] rc = new float[5][];
+              EditView editView;
+              LinearLayout editBar;
+
+              void addBlock(int i, View v) {
+                  blocks[i] = v;
+                  canvas.addView(v, new FrameLayout.LayoutParams(px(100), px(100), Gravity.TOP | Gravity.LEFT));
+              }
+
+              int cwPx() {
+                  return Math.max(1, canvas.getWidth() - 2 * px(20));
+              }
+
+              int chPx() {
+                  return Math.max(1, canvas.getHeight() - 2 * px(20));
+              }
+
+              float[] defRect(int i, int cw, int ch) {
+                  float g = px(16), v = px(14);
+                  float lw = (cw - g) * 0.4f, rw = cw - g - lw;
+                  float h = ch - v, c = h * 0.46f, m = h - c, nv = h * 0.8317f, bar = h - nv;
+                  float hw = (lw - v) / 2;
+                  switch (i) {
+                      case 0:
+                          return new float[]{0, 0, lw / cw, c / ch};
+                      case 1:
+                          return new float[]{0, (c + v) / ch, hw / cw, m / ch};
+                      case 2:
+                          return new float[]{(hw + v) / cw, (c + v) / ch, hw / cw, m / ch};
+                      case 3:
+                          return new float[]{(lw + g) / cw, 0, rw / cw, nv / ch};
+                      default:
+                          return new float[]{(lw + g) / cw, (nv + v) / ch, rw / cw, bar / ch};
+                  }
+              }
+
+              float[] rect(int i) {
+                  if (rc[i] == null) {
+                      String s = sp.getString("r" + i, null);
+                      if (s != null) {
+                          try {
+                              String[] a = s.split(",");
+                              float[] f = new float[4];
+                              for (int k = 0; k < 4; k++) f[k] = Float.parseFloat(a[k]);
+                              rc[i] = f;
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                      if (rc[i] == null) rc[i] = defRect(i, cwPx(), chPx());
+                  }
+                  return rc[i];
+              }
+
+              void saveRects() {
+                  SharedPreferences.Editor ed = sp.edit();
+                  for (int i = 0; i < 5; i++) {
+                      float[] f = rect(i);
+                      ed.putString("r" + i, f[0] + "," + f[1] + "," + f[2] + "," + f[3]);
+                  }
+                  ed.apply();
+              }
+
+              void layoutBlocks() {
+                  if (canvas == null || canvas.getWidth() == 0) return;
+                  int pad = px(20), cw = cwPx(), ch = chPx();
+                  for (int i = 0; i < 5; i++) {
+                      if (blocks[i] == null) continue;
+                      float[] f = rect(i);
+                      FrameLayout.LayoutParams p = (FrameLayout.LayoutParams) blocks[i].getLayoutParams();
+                      p.gravity = Gravity.TOP | Gravity.LEFT;
+                      p.leftMargin = pad + Math.round(f[0] * cw);
+                      p.topMargin = pad + Math.round(f[1] * ch);
+                      p.width = Math.max(1, Math.round(f[2] * cw));
+                      p.height = Math.max(1, Math.round(f[3] * ch));
+                      blocks[i].setLayoutParams(p);
+                  }
+              }
+
+              void enterEdit() {
+                  editView.setVisibility(View.VISIBLE);
+                  editBar.setVisibility(View.VISIBLE);
+                  editView.invalidate();
+              }
+
+              void exitEdit() {
+                  saveRects();
+                  editView.setVisibility(View.GONE);
+                  editBar.setVisibility(View.GONE);
+              }
+
+              class EditView extends View {
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  int sel = -1;
+                  boolean rs = false;
+                  float lx, ly;
+
+                  EditView(Context c) {
+                      super(c);
+                      setClickable(true);
+                  }
+
+                  RectF r(int i) {
+                      int pad = px(20), cw = cwPx(), ch = chPx();
+                      float[] f = rect(i);
+                      return new RectF(pad + f[0] * cw, pad + f[1] * ch, pad + (f[0] + f[2]) * cw, pad + (f[1] + f[3]) * ch);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      cv.drawColor(0x88000000);
+                      for (int i = 0; i < 5; i++) {
+                          RectF a = r(i);
+                          p.setStyle(Paint.Style.FILL);
+                          p.setColor(i == sel ? 0x664FC3F7 : 0x33FFFFFF);
+                          cv.drawRoundRect(a, px(20), px(20), p);
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setStrokeWidth(px(3));
+                          p.setColor(0xFF4FC3F7);
+                          cv.drawRoundRect(a, px(20), px(20), p);
+                          p.setStyle(Paint.Style.FILL);
+                          p.setColor(0xFFFFFFFF);
+                          p.setTextSize(px(28));
+                          p.setTextAlign(Paint.Align.CENTER);
+                          cv.drawText(BN[i], a.centerX(), a.centerY() + px(10), p);
+                          p.setColor(0xFF4FC3F7);
+                          float hs = px(44);
+                          cv.drawRoundRect(new RectF(a.right - hs, a.bottom - hs, a.right, a.bottom), px(12), px(12), p);
+                      }
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(MotionEvent e) {
+                      float x = e.getX(), y = e.getY();
+                      int cw = cwPx(), ch = chPx();
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              sel = -1;
+                              rs = false;
+                              for (int i = 4; i >= 0; i--) {
+                                  RectF a = r(i);
+                                  if (a.contains(x, y)) {
+                                      sel = i;
+                                      rs = x > a.right - px(60) && y > a.bottom - px(60);
+                                      break;
+                                  }
+                              }
+                              lx = x;
+                              ly = y;
+                              invalidate();
+                              return true;
+                          case MotionEvent.ACTION_MOVE:
+                              if (sel < 0) return true;
+                              float dx = (x - lx) / cw, dy = (y - ly) / ch;
+                              lx = x;
+                              ly = y;
+                              float[] f = rect(sel);
+                              if (rs) {
+                                  f[2] = Math.max(px(110) / (float) cw, Math.min(1 - f[0], f[2] + dx));
+                                  f[3] = Math.max(px(90) / (float) ch, Math.min(1 - f[1], f[3] + dy));
+                              } else {
+                                  f[0] = Math.max(0, Math.min(1 - f[2], f[0] + dx));
+                                  f[1] = Math.max(0, Math.min(1 - f[3], f[1] + dy));
+                              }
+                              layoutBlocks();
+                              invalidate();
+                              return true;
+                          case MotionEvent.ACTION_UP:
+                          case MotionEvent.ACTION_CANCEL:
+                              if (sel >= 0) {
+                                  float[] g = rect(sel);
+                                  float st = px(10);
+                                  g[0] = Math.round(g[0] * cw / st) * st / cw;
+                                  g[1] = Math.round(g[1] * ch / st) * st / ch;
+                                  g[2] = Math.max(px(110) / (float) cw, Math.min(1 - g[0], Math.round(g[2] * cw / st) * st / cw));
+                                  g[3] = Math.max(px(90) / (float) ch, Math.min(1 - g[1], Math.round(g[3] * ch / st) * st / ch));
+                                  saveRects();
+                                  layoutBlocks();
+                              }
+                              sel = -1;
+                              invalidate();
+                              return true;
+                      }
+                      return true;
+                  }
+              }
+
+              /** Сонце / місяць: однакові білі контури. */
+              class BrightIcon extends View {
+                  boolean moon = false;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  BrightIcon(Context c) {
+                      super(c);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), s = Math.min(w, h) * 0.86f;
+                      float cx = w / 2, cy = h / 2;
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(s * 0.07f);
+                      p.setStrokeCap(Paint.Cap.ROUND);
+                      p.setColor(TXT);
+                      if (moon) {
+                          Path a = new Path();
+                          a.addCircle(cx + s * 0.07f, cy, s * 0.40f, Path.Direction.CW);
+                          Path b = new Path();
+                          b.addCircle(cx + s * 0.27f, cy - s * 0.15f, s * 0.33f, Path.Direction.CW);
+                          a.op(b, Path.Op.DIFFERENCE);
+                          cv.drawPath(a, p);
+                      } else {
+                          cv.drawCircle(cx, cy, s * 0.20f, p);
+                          for (int k = 0; k < 8; k++) {
+                              double ang = k * Math.PI / 4;
+                              float c = (float) Math.cos(ang), sn = (float) Math.sin(ang);
+                              cv.drawLine(cx + c * s * 0.30f, cy + sn * s * 0.30f, cx + c * s * 0.42f, cy + sn * s * 0.42f, p);
+                          }
+                      }
+                  }
               }
 
               int px(float v) {
@@ -359,22 +588,16 @@ jobs:
                   dim.setBackgroundColor(OV);
                   root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
 
-                  LinearLayout main = new LinearLayout(this);
-                  main.setOrientation(LinearLayout.HORIZONTAL);
-                  main.setPadding(px(20), px(20), px(20), px(20));
-                  root.addView(main, new FrameLayout.LayoutParams(-1, -1));
-
-                  // ================= ліва колонка (40 %) =================
-                  LinearLayout left = new LinearLayout(this);
-                  left.setOrientation(LinearLayout.VERTICAL);
-                  LinearLayout.LayoutParams llp = lp(0, -1, 4);
-                  llp.setMargins(0, 0, px(16), 0);
-                  main.addView(left, llp);
+                  canvas = new FrameLayout(this);
+                  root.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
+                  canvas.addOnLayoutChangeListener((vw, l1, t1, r1, b1x, l0, t0, r0, b0) -> {
+                      if (r1 - l1 != r0 - l0 || b1x - t1 != b0 - t0) canvas.post(this::layoutBlocks);
+                  });
 
                   // --- плитка з годинником і швидкістю ---
                   FrameLayout clockCard = new FrameLayout(this);
                   clockCard.setBackground(rounded(CARD, 24));
-                  left.addView(clockCard, lp(-1, 0, 4.6f));
+                  addBlock(0, clockCard);
                   LinearLayout cc = new LinearLayout(this);
                   cc.setOrientation(LinearLayout.VERTICAL);
                   cc.setPadding(px(22), px(12), px(22), px(12));
@@ -420,7 +643,11 @@ jobs:
                   clockCard.addView(stats, stp);
 
                   // --- яскравість: квадратна кнопка зверху зліва ---
-                  dayNight = btn("", 41);
+                  dayNight = new FrameLayout(this);
+                  dayNight.setBackground(rounded(BTN, 16));
+                  dayNight.setClickable(true);
+                  bIcon = new BrightIcon(this);
+                  dayNight.addView(bIcon, new FrameLayout.LayoutParams(-1, -1));
                   dayNight.setOnClickListener(v -> toggleBright());
                   dayNight.setOnLongClickListener(v -> {
                       minDialog();
@@ -431,12 +658,6 @@ jobs:
                   clockCard.addView(dayNight, dnp);
 
                   // --- радіо і AIMP: дві вертикальні плитки ---
-                  LinearLayout media = new LinearLayout(this);
-                  media.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout.LayoutParams mlp = lp(-1, 0, 5.4f);
-                  mlp.setMargins(0, px(14), 0, 0);
-                  left.addView(media, mlp);
-
                   LinearLayout radio = card(LinearLayout.VERTICAL);
                   radio.setGravity(Gravity.CENTER_HORIZONTAL);
                   radio.setPadding(px(10), px(14), px(10), px(12));
@@ -471,7 +692,7 @@ jobs:
                   radio.addView(rb, rbp);
                   LinearLayout.LayoutParams rlp = lp(0, -1, 1);
                   rlp.setMargins(0, 0, px(7), 0);
-                  media.addView(radio, rlp);
+                  addBlock(1, radio);
 
                   LinearLayout aimp = card(LinearLayout.VERTICAL);
                   aimp.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -515,13 +736,9 @@ jobs:
                   aimp.addView(ab, lp(-1, -2, 0));
                   LinearLayout.LayoutParams alp = lp(0, -1, 1);
                   alp.setMargins(px(7), 0, 0, 0);
-                  media.addView(aimp, alp);
+                  addBlock(2, aimp);
 
                   // ================= права колонка (60 %) =================
-                  LinearLayout right = new LinearLayout(this);
-                  right.setOrientation(LinearLayout.VERTICAL);
-                  main.addView(right, lp(0, -1, 6));
-
                   // --- вікно навігації ---
                   FrameLayout nav = new FrameLayout(this);
                   nav.setBackground(rounded(0xFF000000, 24));
@@ -539,11 +756,22 @@ jobs:
                           navH = h;
                           st.setDefaultBufferSize(w, h);
                           navSurface = new Surface(st);
-                          startNav();
+                          if (w >= 300) startNav();
                       }
 
                       @Override
                       public void onSurfaceTextureSizeChanged(SurfaceTexture st, int w, int h) {
+                          navW = w;
+                          navH = h;
+                          st.setDefaultBufferSize(w, h);
+                          if (navVd == null) {
+                              if (!navFailed && w >= 300 && navSurface != null) startNav();
+                          } else {
+                              try {
+                                  navVd.resize(w, h, getResources().getDisplayMetrics().densityDpi);
+                              } catch (Throwable ignored) {
+                              }
+                          }
                       }
 
                       @Override
@@ -568,7 +796,7 @@ jobs:
                   navHint.addView(navNote, lp(-2, -2, 0));
                   nav.addView(navHint, new FrameLayout.LayoutParams(-1, -1));
                   navHintView = navHint;
-                  right.addView(nav, lp(-1, 0, 8.4f));
+                  addBlock(3, nav);
 
                   // --- ряд програм + кнопка налаштувань ---
                   appsRow = new LinearLayout(this);
@@ -578,7 +806,45 @@ jobs:
                   appsRow.setPadding(px(10), px(8), px(10), px(8));
                   LinearLayout.LayoutParams hlp = lp(-1, 0, 1.7f);
                   hlp.setMargins(0, px(14), 0, 0);
-                  right.addView(appsRow, hlp);
+                  addBlock(4, appsRow);
+
+                  editView = new EditView(this);
+                  editView.setVisibility(View.GONE);
+                  root.addView(editView, new FrameLayout.LayoutParams(-1, -1));
+                  editBar = new LinearLayout(this);
+                  editBar.setOrientation(LinearLayout.VERTICAL);
+                  editBar.setGravity(Gravity.CENTER_HORIZONTAL);
+                  editBar.setBackground(rounded(0xE6101A28, 20));
+                  editBar.setPadding(px(18), px(12), px(18), px(14));
+                  editBar.setVisibility(View.GONE);
+                  TextView eh = text("Тягни блок пальцем, кутик знизу справа — розмір", 22, 0xFFF1F5F9, false);
+                  eh.setGravity(Gravity.CENTER);
+                  editBar.addView(eh, lp(-2, -2, 0));
+                  LinearLayout eb = new LinearLayout(this);
+                  eb.setOrientation(LinearLayout.HORIZONTAL);
+                  Button done = btn("Готово", 26);
+                  done.setOnClickListener(v -> exitEdit());
+                  Button rst = btn("Скинути розкладку", 26);
+                  rst.setOnClickListener(v -> {
+                      SharedPreferences.Editor ed = sp.edit();
+                      for (int k = 0; k < 5; k++) {
+                          ed.remove("r" + k);
+                          rc[k] = null;
+                      }
+                      ed.apply();
+                      layoutBlocks();
+                      editView.invalidate();
+                  });
+                  LinearLayout.LayoutParams b1 = lp(200, 64, 0);
+                  b1.setMargins(0, px(10), px(12), 0);
+                  eb.addView(done, b1);
+                  LinearLayout.LayoutParams b2 = lp(300, 64, 0);
+                  b2.setMargins(0, px(10), 0, 0);
+                  eb.addView(rst, b2);
+                  editBar.addView(eb, lp(-2, -2, 0));
+                  FrameLayout.LayoutParams ebp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                  ebp.setMargins(0, 0, 0, px(24));
+                  root.addView(editBar, ebp);
 
                   setContentView(root);
                   ready = true;
@@ -751,7 +1017,8 @@ jobs:
               }
 
               void updateBright() {
-                  dayNight.setText(curB() < 100 ? "☾" : "☼");
+                  bIcon.moon = curB() < 100;
+                  bIcon.invalidate();
               }
 
               void toggleBright() {
@@ -815,7 +1082,7 @@ jobs:
                   new AlertDialog.Builder(this).setTitle("Налаштування")
                           .setItems(new String[]{"Тема кольорів", "Шрифт", "Скільки програм показувати (" + sp.getInt("napps", 5) + ")",
                                   "Програми внизу: обрати", "Фон: вибрати з галереї", "Фон: прибрати картинку", "Нічна яскравість",
-                                  "Скинути поїздку (середня, макс.)", "Навігація: обрати програму", "Доступ до сповіщень (для AIMP)"}, (d, i) -> {
+                                  "Скинути поїздку (середня, макс.)", "Навігація: обрати програму", "Доступ до сповіщень (для AIMP)", "Розташування і розміри блоків"}, (d, i) -> {
                               if (i == 0) {
                                   themeMenu();
                               } else if (i == 1) {
@@ -838,6 +1105,8 @@ jobs:
                                   resetTrip();
                               } else if (i == 8) {
                                   chooseApp("nav", "Навігація");
+                              } else if (i == 10) {
+                                  enterEdit();
                               } else {
                                   try {
                                       startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
@@ -1048,7 +1317,7 @@ jobs:
 
               // ================= вікно навігації (експеримент) =================
               void startNav() {
-                  if (navSurface == null || navFailed) return;
+                  if (navSurface == null || navFailed || navW < 300) return;
                   String pkg = pkgFor("nav");
                   if (pkg == null) {
                       navNote.setText("Утримуй, щоб обрати навігацію");
