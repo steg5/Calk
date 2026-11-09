@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 7
-                  versionName "1.6"
+                  versionCode 8
+                  versionName "1.7"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -82,6 +82,7 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
               <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
               <application
                   android:label="Лаунчер"
                   android:icon="@drawable/ic_launcher"
@@ -121,6 +122,16 @@ jobs:
 
           import android.Manifest;
           import android.app.Activity;
+          import java.io.ByteArrayOutputStream;
+          import java.io.FileInputStream;
+          import java.util.Map;
+          import java.util.Calendar;
+          import android.text.InputType;
+          import android.widget.ScrollView;
+          import android.widget.EditText;
+          import android.widget.CheckBox;
+          import android.app.DatePickerDialog;
+          import android.app.Dialog;
           import android.app.ActivityOptions;
           import android.app.AlertDialog;
           import android.content.ComponentName;
@@ -637,6 +648,336 @@ jobs:
                   }
               }
 
+              // ================= сервіс =================
+              float odo, oilKm, pendDay = 0;
+              SharedPreferences days;
+              TextView oilBadge;
+              Dialog svcDlg;
+              LinearLayout svcCol;
+              static final String[] WORKS = {"Заміна масла", "Масляний фільтр", "Повітряний фільтр", "Салонний фільтр (пилник)",
+                      "Паливний фільтр", "Свічки розжарення", "Гальмівні колодки", "Гальмівні диски", "Гальмівна рідина", "Антифриз",
+                      "Ремінь / ланцюг ГРМ", "Акумулятор", "Шини / сезонна заміна", "Діагностика"};
+
+              interface Num {
+                  void on(float v);
+              }
+
+              String ymd(Date d) {
+                  return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(d);
+              }
+
+              void addKm(float d) {
+                  odo += d;
+                  oilKm += d;
+                  pendDay += d;
+              }
+
+              void updateOilBadge() {
+                  if (oilBadge != null) oilBadge.setVisibility(oilKm >= sp.getInt("oilint", 10000) ? View.VISIBLE : View.GONE);
+              }
+
+              void askNumber(String title, float cur, final Num cb) {
+                  final EditText et = new EditText(this);
+                  et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                  et.setText(String.valueOf(Math.round(cur)));
+                  new AlertDialog.Builder(this).setTitle(title).setView(et)
+                          .setPositiveButton("Зберегти", (d, w) -> {
+                              try {
+                                  cb.on(Float.parseFloat(et.getText().toString().replace(',', '.')));
+                              } catch (Throwable t) {
+                                  Toast.makeText(this, "Невірне число", Toast.LENGTH_SHORT).show();
+                              }
+                              saveTrip();
+                              updateOilBadge();
+                              rebuildService();
+                          })
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              void showService() {
+                  saveTrip();
+                  try {
+                      if (svcDlg != null) svcDlg.dismiss();
+                  } catch (Throwable ignored) {
+                  }
+                  svcDlg = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                  ScrollView sc = new ScrollView(this);
+                  sc.setBackgroundColor(BG2 | 0xFF000000);
+                  svcCol = new LinearLayout(this);
+                  svcCol.setOrientation(LinearLayout.VERTICAL);
+                  svcCol.setPadding(px(28), px(20), px(28), px(28));
+                  sc.addView(svcCol, new FrameLayout.LayoutParams(-1, -2));
+                  buildService();
+                  svcDlg.setContentView(sc);
+                  svcDlg.show();
+              }
+
+              void rebuildService() {
+                  if (svcCol == null || svcDlg == null || !svcDlg.isShowing()) return;
+                  svcCol.removeAllViews();
+                  buildService();
+              }
+
+              LinearLayout svcCard(String title) {
+                  LinearLayout c = card(LinearLayout.VERTICAL);
+                  c.setPadding(px(22), px(16), px(22), px(18));
+                  c.addView(text(title, 28, ACC, true), lp(-1, -2, 0));
+                  LinearLayout.LayoutParams l = lp(-1, -2, 0);
+                  l.setMargins(0, px(14), 0, 0);
+                  svcCol.addView(c, l);
+                  return c;
+              }
+
+              LinearLayout btnRow(LinearLayout parent) {
+                  LinearLayout r = new LinearLayout(this);
+                  r.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams l = lp(-1, -2, 0);
+                  l.setMargins(0, px(10), 0, 0);
+                  parent.addView(r, l);
+                  return r;
+              }
+
+              Button small(LinearLayout row, String t, View.OnClickListener c) {
+                  Button b = btn(t, 22);
+                  b.setOnClickListener(c);
+                  b.setPadding(px(18), 0, px(18), 0);
+                  LinearLayout.LayoutParams l = lp(-2, 56, 0);
+                  l.setMargins(0, 0, px(10), 0);
+                  row.addView(b, l);
+                  return b;
+              }
+
+              class BarView extends View {
+                  float[] v;
+                  String[] lab;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  BarView(Context c, float[] v, String[] lab) {
+                      super(c);
+                      this.v = v;
+                      this.lab = lab;
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), mx = 1;
+                      for (float x : v) mx = Math.max(mx, x);
+                      float bw = w / v.length, top = px(24), bot = px(26);
+                      p.setTextAlign(Paint.Align.CENTER);
+                      p.setTextSize(px(18));
+                      for (int i = 0; i < v.length; i++) {
+                          float bh = (h - top - bot) * v[i] / mx;
+                          p.setColor(ACC);
+                          cv.drawRoundRect(new RectF(i * bw + px(5), h - bot - bh, (i + 1) * bw - px(5), h - bot), px(5), px(5), p);
+                          p.setColor(DIM);
+                          cv.drawText(lab[i], i * bw + bw / 2, h - px(6), p);
+                          if (v[i] > 0) cv.drawText(String.valueOf(Math.round(v[i])), i * bw + bw / 2, h - bot - bh - px(4), p);
+                      }
+                  }
+              }
+
+              List<String> recs() {
+                  List<String> l = new ArrayList<String>();
+                  for (String x : sp.getString("svc", "").split("\n")) if (!x.trim().isEmpty()) l.add(x);
+                  return l;
+              }
+
+              void saveRecs(List<String> l) {
+                  StringBuilder sb = new StringBuilder();
+                  for (String x : l) {
+                      if (sb.length() > 0) sb.append('\n');
+                      sb.append(x);
+                  }
+                  sp.edit().putString("svc", sb.toString()).apply();
+              }
+
+              String readInfo() {
+                  File ext = getExternalFilesDir(null);
+                  File[] c = {new File("/sdcard/car_info.txt"), ext == null ? null : new File(ext, "car_info.txt")};
+                  for (File f : c) {
+                      if (f == null || !f.exists() || !f.canRead()) continue;
+                      try {
+                          FileInputStream in = new FileInputStream(f);
+                          ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                          byte[] b = new byte[4096];
+                          int n;
+                          while ((n = in.read(b)) > 0) bo.write(b, 0, n);
+                          in.close();
+                          return bo.toString("UTF-8");
+                      } catch (Throwable ignored) {
+                      }
+                  }
+                  return null;
+              }
+
+              void buildService() {
+                  LinearLayout head = new LinearLayout(this);
+                  head.setOrientation(LinearLayout.HORIZONTAL);
+                  head.setGravity(Gravity.CENTER_VERTICAL);
+                  head.addView(text("Сервіс", 36, TXT, true), lp(0, -2, 1));
+                  Button close = btn("Закрити", 24);
+                  close.setOnClickListener(v -> svcDlg.dismiss());
+                  head.addView(close, lp(160, 56, 0));
+                  svcCol.addView(head, lp(-1, -2, 0));
+
+                  // --- пробіг ---
+                  int oi = sp.getInt("oilint", 10000);
+                  LinearLayout c1 = svcCard("Пробіг");
+                  c1.addView(text("Загальний: " + Math.round(odo) + " км", 30, TXT, false), lp(-1, -2, 0));
+                  LinearLayout r1 = btnRow(c1);
+                  small(r1, "Змінити", v -> askNumber("Загальний пробіг, км", odo, x -> odo = x));
+                  TextView oil = text("Після заміни масла: " + Math.round(oilKm) + " км (інтервал " + oi + ")", 30,
+                          oilKm >= oi ? 0xFFFF5252 : TXT, false);
+                  LinearLayout.LayoutParams ol = lp(-1, -2, 0);
+                  ol.setMargins(0, px(14), 0, 0);
+                  c1.addView(oil, ol);
+                  LinearLayout r2 = btnRow(c1);
+                  small(r2, "Змінити", v -> askNumber("Пробіг після заміни масла, км", oilKm, x -> oilKm = x));
+                  small(r2, "Інтервал", v -> askNumber("Інтервал заміни масла, км", sp.getInt("oilint", 10000),
+                          x -> sp.edit().putInt("oilint", Math.max(1000, Math.round(x))).apply()));
+                  small(r2, "Масло замінено", v -> {
+                      oilKm = 0;
+                      saveTrip();
+                      updateOilBadge();
+                      rebuildService();
+                  });
+
+                  // --- статистика ---
+                  saveTrip();
+                  LinearLayout c2 = svcCard("Скільки проїхав");
+                  Calendar cal = Calendar.getInstance();
+                  String ym = String.format(Locale.US, "%04d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1);
+                  String yr = ym.substring(0, 4);
+                  String[] keys = new String[12], lab = new String[12];
+                  float[] bars = new float[12];
+                  for (int i = 0; i < 12; i++) {
+                      Calendar c = (Calendar) cal.clone();
+                      c.add(Calendar.MONTH, -(11 - i));
+                      keys[i] = String.format(Locale.US, "%04d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1);
+                      lab[i] = String.format(Locale.US, "%02d", c.get(Calendar.MONTH) + 1);
+                  }
+                  float mSum = 0, ySum = 0;
+                  for (Map.Entry<String, ?> e : days.getAll().entrySet()) {
+                      if (!(e.getValue() instanceof Float)) continue;
+                      float val = (Float) e.getValue();
+                      String k = e.getKey();
+                      if (k.startsWith(ym)) mSum += val;
+                      if (k.startsWith(yr)) ySum += val;
+                      for (int i = 0; i < 12; i++) if (k.startsWith(keys[i])) bars[i] += val;
+                  }
+                  c2.addView(text("Цей місяць: " + Math.round(mSum) + " км     Цей рік: " + Math.round(ySum) + " км", 28, TXT, false), lp(-1, -2, 0));
+                  LinearLayout.LayoutParams bl = lp(-1, 230, 0);
+                  bl.setMargins(0, px(10), 0, 0);
+                  c2.addView(new BarView(this, bars, lab), bl);
+
+                  // --- обслуговування ---
+                  LinearLayout c3 = svcCard("Обслуговування");
+                  LinearLayout r3 = btnRow(c3);
+                  small(r3, "+  Додати роботу", v -> addWorkDialog());
+                  final List<String> rs = recs();
+                  Collections.sort(rs, Collections.reverseOrder());
+                  if (rs.isEmpty()) c3.addView(text("Записів ще немає", 24, DIM, false), lp(-1, -2, 0));
+                  for (final String r : rs) {
+                      String[] a = r.split("\\|");
+                      String date = a.length > 0 ? a[0] : "";
+                      try {
+                          date = new SimpleDateFormat("dd.MM.yyyy", Locale.US).format(new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(a[0]));
+                      } catch (Throwable ignored) {
+                      }
+                      String works = a.length > 1 ? a[1].replace(";", ", ") : "";
+                      String km = a.length > 2 && !a[2].equals("0") ? "  · " + a[2] + " км" : "";
+                      TextView t = text(date + " — " + works + km, 24, TXT, false);
+                      t.setOnLongClickListener(v -> {
+                          new AlertDialog.Builder(this).setTitle("Видалити запис?").setMessage(r)
+                                  .setPositiveButton("Видалити", (d, w) -> {
+                                      List<String> all = recs();
+                                      all.remove(r);
+                                      saveRecs(all);
+                                      rebuildService();
+                                  }).setNegativeButton("Ні", null).show();
+                          return true;
+                      });
+                      LinearLayout.LayoutParams tl = lp(-1, -2, 0);
+                      tl.setMargins(0, px(10), 0, 0);
+                      c3.addView(t, tl);
+                  }
+                  if (!rs.isEmpty()) c3.addView(text("Довге натискання на запис — видалити", 18, DIM, false), lp(-1, -2, 0));
+
+                  // --- інформація ---
+                  LinearLayout c4 = svcCard("Інформація");
+                  String info = readInfo();
+                  if (info == null) {
+                      c4.addView(text("Файл не знайдено. Створи текстовий файл /sdcard/car_info.txt (UTF-8) з даними про авто.", 24, DIM, false), lp(-1, -2, 0));
+                      if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                          LinearLayout r4 = btnRow(c4);
+                          small(r4, "Дозволити читання файлів", v -> requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 3));
+                      }
+                  } else {
+                      c4.addView(text(info, 24, TXT, false), lp(-1, -2, 0));
+                  }
+              }
+
+              void addWorkDialog() {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(24), px(10), px(24), px(10));
+                  final Calendar cal = Calendar.getInstance();
+                  final SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy", Locale.US);
+                  final Button dateBtn = new Button(this);
+                  dateBtn.setText("Дата: " + df.format(cal.getTime()));
+                  dateBtn.setOnClickListener(v -> new DatePickerDialog(this, (dp, y, m, d) -> {
+                      cal.set(y, m, d);
+                      dateBtn.setText("Дата: " + df.format(cal.getTime()));
+                  }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show());
+                  col.addView(dateBtn);
+                  final CheckBox[] cb = new CheckBox[WORKS.length];
+                  for (int i = 0; i < WORKS.length; i++) {
+                      cb[i] = new CheckBox(this);
+                      cb[i].setText(WORKS[i]);
+                      cb[i].setTextSize(TypedValue.COMPLEX_UNIT_PX, 24 * u);
+                      col.addView(cb[i]);
+                  }
+                  final EditText other = new EditText(this);
+                  other.setHint("Інше (свій текст)");
+                  col.addView(other);
+                  ScrollView sv = new ScrollView(this);
+                  sv.addView(col);
+                  new AlertDialog.Builder(this).setTitle("Нова робота").setView(sv)
+                          .setPositiveButton("Зберегти", (d, w) -> {
+                              StringBuilder sb = new StringBuilder();
+                              boolean oilDone = false;
+                              for (int i = 0; i < cb.length; i++) {
+                                  if (!cb[i].isChecked()) continue;
+                                  if (sb.length() > 0) sb.append(';');
+                                  sb.append(WORKS[i]);
+                                  if (i == 0) oilDone = true;
+                              }
+                              String o = other.getText().toString().replace("|", " ").replace(";", " ").replace("\n", " ").trim();
+                              if (!o.isEmpty()) {
+                                  if (sb.length() > 0) sb.append(';');
+                                  sb.append(o);
+                              }
+                              if (sb.length() == 0) {
+                                  Toast.makeText(this, "Нічого не вибрано", Toast.LENGTH_SHORT).show();
+                                  return;
+                              }
+                              List<String> all = recs();
+                              all.add(ymd(cal.getTime()) + "|" + sb + "|" + Math.round(odo));
+                              saveRecs(all);
+                              if (oilDone) {
+                                  oilKm = 0;
+                                  saveTrip();
+                                  updateOilBadge();
+                              }
+                              rebuildService();
+                          })
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              void updPlay(PlaybackState s) {
+                  if (aPlay != null) aPlay.setText(s != null && s.getState() == PlaybackState.STATE_PLAYING ? "❚❚" : "▶");
+              }
+
               int px(float v) {
                   return Math.round(v * u);
               }
@@ -729,6 +1070,9 @@ jobs:
                   maxKmh = sp.getFloat("max", 0);
                   distKm = sp.getFloat("dist", 0);
                   movH = sp.getFloat("mov", 0);
+                  odo = sp.getFloat("odo", 0);
+                  oilKm = sp.getFloat("oil", 0);
+                  days = getSharedPreferences("days", MODE_PRIVATE);
 
                   FrameLayout root = new FrameLayout(this);
                   root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1, BG2}));
@@ -807,6 +1151,17 @@ jobs:
                   FrameLayout.LayoutParams dnp = new FrameLayout.LayoutParams(px(72), px(72), Gravity.TOP | Gravity.LEFT);
                   dnp.setMargins(px(12), px(12), 0, 0);
                   clockCard.addView(dayNight, dnp);
+                  oilBadge = text("!", 40, 0xFFFFFFFF, true);
+                  oilBadge.setGravity(Gravity.CENTER);
+                  GradientDrawable og = new GradientDrawable();
+                  og.setShape(GradientDrawable.OVAL);
+                  og.setColor(0xFFE53935);
+                  oilBadge.setBackground(og);
+                  oilBadge.setOnClickListener(v -> showService());
+                  oilBadge.setVisibility(View.GONE);
+                  FrameLayout.LayoutParams obp = new FrameLayout.LayoutParams(px(56), px(56), Gravity.BOTTOM | Gravity.RIGHT);
+                  obp.setMargins(0, 0, px(16), px(16));
+                  clockCard.addView(oilBadge, obp);
 
                   // --- радіо і AIMP: дві вертикальні плитки ---
                   LinearLayout radio = card(LinearLayout.VERTICAL);
@@ -875,7 +1230,7 @@ jobs:
                   ab.setOrientation(LinearLayout.HORIZONTAL);
                   Button aPrev = btn("⏮", 30);
                   aPrev.setOnClickListener(v -> mediaCmd(0));
-                  aPlay = btn("⏯", 30);
+                  aPlay = btn("▶", 30);
                   aPlay.setOnClickListener(v -> mediaCmd(1));
                   Button aNext = btn("⏭", 30);
                   aNext.setOnClickListener(v -> mediaCmd(2));
@@ -1118,6 +1473,7 @@ jobs:
                       if (lastLoc > 0 && v > 0) {
                           float dt = Math.min(3f, (now - lastLoc) / 1000f);
                           distKm += v * dt / 3600f;
+                          addKm(v * dt / 3600f);
                           movH += dt / 3600f;
                       }
                       lastLoc = now;
@@ -1145,11 +1501,18 @@ jobs:
                   float avg = movH > 0.0005f ? distKm / movH : 0f;
                   tvAvg.setText("Сер.  " + Math.round(avg));
                   tvMax.setText("Макс. " + Math.round(maxKmh));
+                  updateOilBadge();
               }
 
               void saveTrip() {
                   lastSave = System.currentTimeMillis();
-                  sp.edit().putFloat("max", maxKmh).putFloat("dist", distKm).putFloat("mov", movH).apply();
+                  sp.edit().putFloat("max", maxKmh).putFloat("dist", distKm).putFloat("mov", movH)
+                          .putFloat("odo", odo).putFloat("oil", oilKm).apply();
+                  if (pendDay > 0) {
+                      String k = ymd(new Date());
+                      days.edit().putFloat(k, days.getFloat(k, 0) + pendDay).apply();
+                      pendDay = 0;
+                  }
               }
 
               void resetTrip() {
@@ -1200,6 +1563,7 @@ jobs:
               public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
                   super.onRequestPermissionsResult(req, perms, res);
                   if (req == 2) startGps();
+                  if (req == 3 && svcCol != null) rebuildService();
               }
 
               // ================= яскравість =================
@@ -1478,6 +1842,12 @@ jobs:
                   LinearLayout.LayoutParams gp = lp(0, -1, 1);
                   gp.setMargins(px(4), 0, px(4), 0);
                   appsRow.addView(g, gp);
+                  TextView sv = text("Сервіс", 24, ACC, true);
+                  sv.setGravity(Gravity.CENTER);
+                  sv.setOnClickListener(v -> showService());
+                  LinearLayout.LayoutParams sp2 = lp(0, -1, 1);
+                  sp2.setMargins(px(4), 0, px(4), 0);
+                  appsRow.addView(sv, sp2);
                   String np = pkgFor("nav");
                   try {
                       if (np != null) navIcon.setImageDrawable(pm.getApplicationIcon(np));
@@ -1586,6 +1956,7 @@ jobs:
 
                   @Override
                   public void onPlaybackStateChanged(PlaybackState s) {
+                      updPlay(s);
                   }
               };
 
@@ -1632,6 +2003,7 @@ jobs:
                               }
                           }
                           ctl = null;
+                          aPlay.setText("▶");
                           tvTrack.setText("AIMP");
                           tvArtist.setText("");
                           cover.setImageDrawable(null);
@@ -1648,6 +2020,7 @@ jobs:
                           ctl.registerCallback(ctlCb);
                       }
                       showMeta(ctl.getMetadata());
+                      updPlay(ctl.getPlaybackState());
                   } catch (SecurityException e) {
                       needAccess = true;
                       tvTrack.setText("Дай доступ до сповіщень");
@@ -1672,8 +2045,10 @@ jobs:
                           else if (what == 2) ctl.getTransportControls().skipToNext();
                           else {
                               PlaybackState ps = ctl.getPlaybackState();
-                              if (ps != null && ps.getState() == PlaybackState.STATE_PLAYING) ctl.getTransportControls().pause();
+                              boolean playing = ps != null && ps.getState() == PlaybackState.STATE_PLAYING;
+                              if (playing) ctl.getTransportControls().pause();
                               else ctl.getTransportControls().play();
+                              aPlay.setText(playing ? "▶" : "❚❚");
                           }
                           return;
                       }
