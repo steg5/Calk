@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 6
-                  versionName "1.5"
+                  versionCode 7
+                  versionName "1.6"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -140,6 +140,7 @@ jobs:
           import android.graphics.drawable.GradientDrawable;
           import android.hardware.display.DisplayManager;
           import android.hardware.display.VirtualDisplay;
+          import android.location.GnssStatus;
           import android.location.GpsSatellite;
           import android.location.GpsStatus;
           import android.location.Location;
@@ -436,6 +437,44 @@ jobs:
                       p.height = Math.max(1, Math.round(f[3] * ch));
                       blocks[i].setLayoutParams(p);
                   }
+              }
+
+              boolean barDrag = false;
+              float bdx, bdy, btx, bty;
+              Runnable barLp;
+
+              /** Довге натискання на кнопку панелі — тягнеш панель пальцем. */
+              void dragify(View v) {
+                  v.setOnTouchListener((vw, e) -> {
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              barDrag = false;
+                              bdx = e.getRawX();
+                              bdy = e.getRawY();
+                              btx = editBar.getTranslationX();
+                              bty = editBar.getTranslationY();
+                              barLp = () -> barDrag = true;
+                              ui.postDelayed(barLp, 500);
+                              return false;
+                          case MotionEvent.ACTION_MOVE:
+                              if (!barDrag) {
+                                  if (Math.abs(e.getRawX() - bdx) > px(12) || Math.abs(e.getRawY() - bdy) > px(12)) ui.removeCallbacks(barLp);
+                                  return false;
+                              }
+                              editBar.setTranslationX(btx + e.getRawX() - bdx);
+                              editBar.setTranslationY(bty + e.getRawY() - bdy);
+                              return true;
+                          case MotionEvent.ACTION_UP:
+                          case MotionEvent.ACTION_CANCEL:
+                              ui.removeCallbacks(barLp);
+                              if (barDrag) {
+                                  barDrag = false;
+                                  return true;
+                              }
+                              return false;
+                      }
+                      return false;
+                  });
               }
 
               void enterEdit() {
@@ -911,19 +950,37 @@ jobs:
                   editView.setVisibility(View.GONE);
                   root.addView(editView, new FrameLayout.LayoutParams(-1, -1));
                   editBar = new LinearLayout(this);
-                  editBar.setOrientation(LinearLayout.VERTICAL);
-                  editBar.setGravity(Gravity.CENTER_HORIZONTAL);
-                  editBar.setBackground(rounded(0xE6101A28, 20));
-                  editBar.setPadding(px(18), px(12), px(18), px(14));
+                  editBar.setOrientation(LinearLayout.HORIZONTAL);
+                  editBar.setGravity(Gravity.CENTER_VERTICAL);
+                  editBar.setBackground(rounded(0xCC101A28, 18));
+                  editBar.setAlpha(0.7f);
+                  editBar.setPadding(px(8), px(8), px(8), px(8));
                   editBar.setVisibility(View.GONE);
-                  TextView eh = text("Тягни блок пальцем, кутик знизу справа — розмір", 22, 0xFFF1F5F9, false);
-                  eh.setGravity(Gravity.CENTER);
-                  editBar.addView(eh, lp(-2, -2, 0));
-                  LinearLayout eb = new LinearLayout(this);
-                  eb.setOrientation(LinearLayout.HORIZONTAL);
-                  Button done = btn("Готово", 26);
+                  Button done = btn("Готово", 22);
                   done.setOnClickListener(v -> exitEdit());
-                  Button rst = btn("Скинути", 26);
+                  editBar.addView(done, lp(110, 50, 0));
+                  final Button tri = btn("▸", 24);
+                  final Button mg = btn(magnet ? "Магніт: вкл" : "Магніт: викл", 20);
+                  final Button rst = btn("Скинути", 20);
+                  tri.setOnClickListener(v -> {
+                      boolean show = mg.getVisibility() != View.VISIBLE;
+                      mg.setVisibility(show ? View.VISIBLE : View.GONE);
+                      rst.setVisibility(show ? View.VISIBLE : View.GONE);
+                      tri.setText(show ? "◂" : "▸");
+                  });
+                  LinearLayout.LayoutParams tp2 = lp(44, 50, 0);
+                  tp2.setMargins(px(6), 0, 0, 0);
+                  editBar.addView(tri, tp2);
+                  mg.setVisibility(View.GONE);
+                  mg.setOnClickListener(v -> {
+                      magnet = !magnet;
+                      sp.edit().putBoolean("magnet", magnet).apply();
+                      mg.setText(magnet ? "Магніт: вкл" : "Магніт: викл");
+                  });
+                  LinearLayout.LayoutParams bm = lp(150, 50, 0);
+                  bm.setMargins(px(6), 0, 0, 0);
+                  editBar.addView(mg, bm);
+                  rst.setVisibility(View.GONE);
                   rst.setOnClickListener(v -> {
                       SharedPreferences.Editor ed = sp.edit();
                       for (int k = 0; k < 5; k++) {
@@ -934,22 +991,13 @@ jobs:
                       layoutBlocks();
                       editView.invalidate();
                   });
-                  LinearLayout.LayoutParams b1 = lp(170, 64, 0);
-                  b1.setMargins(0, px(10), px(12), 0);
-                  eb.addView(done, b1);
-                  final Button mg = btn(magnet ? "Магніт: вкл" : "Магніт: викл", 24);
-                  mg.setOnClickListener(v -> {
-                      magnet = !magnet;
-                      sp.edit().putBoolean("magnet", magnet).apply();
-                      mg.setText(magnet ? "Магніт: вкл" : "Магніт: викл");
-                  });
-                  LinearLayout.LayoutParams bm = lp(240, 64, 0);
-                  bm.setMargins(0, px(10), px(12), 0);
-                  eb.addView(mg, bm);
-                  LinearLayout.LayoutParams b2 = lp(170, 64, 0);
-                  b2.setMargins(0, px(10), 0, 0);
-                  eb.addView(rst, b2);
-                  editBar.addView(eb, lp(-2, -2, 0));
+                  LinearLayout.LayoutParams rb2 = lp(110, 50, 0);
+                  rb2.setMargins(px(6), 0, 0, 0);
+                  editBar.addView(rst, rb2);
+                  dragify(done);
+                  dragify(tri);
+                  dragify(mg);
+                  dragify(rst);
                   FrameLayout.LayoutParams ebp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
                   ebp.setMargins(0, 0, 0, px(24));
                   root.addView(editBar, ebp);
@@ -973,6 +1021,7 @@ jobs:
                   refreshApps();
                   updateBright();
                   refreshMedia();
+                  if (!gpsOn) startGps();
                   if (navVd == null && navSurface != null && !navFailed) startNav();
               }
 
@@ -994,6 +1043,7 @@ jobs:
                       try {
                           if (lm != null) {
                               lm.removeUpdates(locL);
+                              if (Build.VERSION.SDK_INT >= 24 && gnssCb != null) lm.unregisterGnssStatusCallback((GnssStatus.Callback) gnssCb);
                               lm.removeGpsStatusListener(stL);
                           }
                       } catch (Throwable ignored) {
@@ -1092,6 +1142,27 @@ jobs:
                   }
               };
 
+              boolean gpsOn = false;
+              Object gnssCb;
+
+              @SuppressWarnings("deprecation")
+              void registerSats() {
+                  if (Build.VERSION.SDK_INT >= 24) {
+                      GnssStatus.Callback cb = new GnssStatus.Callback() {
+                          @Override
+                          public void onSatelliteStatusChanged(GnssStatus st) {
+                              int used = 0, total = st.getSatelliteCount();
+                              for (int i = 0; i < total; i++) if (st.usedInFix(i)) used++;
+                              tvSats.setText(" " + used + "/" + total);
+                          }
+                      };
+                      gnssCb = cb;
+                      lm.registerGnssStatusCallback(cb, new Handler(Looper.getMainLooper()));
+                  } else {
+                      lm.addGpsStatusListener(stL);
+                  }
+              }
+
               @SuppressWarnings("deprecation")
               void startGps() {
                   showTrip();
@@ -1101,9 +1172,11 @@ jobs:
                       return;
                   }
                   try {
+                      if (gpsOn) return;
                       lm = (LocationManager) getSystemService(LOCATION_SERVICE);
                       lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locL);
-                      lm.addGpsStatusListener(stL);
+                      registerSats();
+                      gpsOn = true;
                   } catch (Throwable t) {
                       tvSats.setText(" ✕");
                   }
