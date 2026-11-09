@@ -63,8 +63,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 4
-                  versionName "1.3"
+                  versionCode 5
+                  versionName "1.4"
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -933,6 +933,7 @@ jobs:
               /** Те, що штатне радіо робить у onResume: вмикає режим радіо й просить поточний стан. */
               void initRadio() {
                   write2(0x9e00, 1);
+                  write(0x9e11, 192, 1);
                   write2(0x406, 0);
                   write2(0x401, 255);
                   write2(0x404, 255);
@@ -944,7 +945,7 @@ jobs:
               private boolean waking;
               volatile boolean stepping;
               private volatile int tgt;
-              private int lastFreq, lastSentFrom, nearSends;
+              private int lastFreq, lastSentFrom, nearSends, stuck;
               private long lastMoveAt, lastSendAt;
 
               void setHost(Context c, Class<?> f) {
@@ -958,21 +959,30 @@ jobs:
                       then.run();
                       return;
                   }
-                  if (!inited) initRadio();
+                  initRadio();
                   h.postDelayed(new Runnable() {
                       @Override
                       public void run() {
-                          if (haveState) {
-                              then.run();
-                              return;
-                          }
-                          if (!waking && host != null) {
-                              waking = true;
-                              launchStock(host, 0, front);
-                          }
-                          h.postDelayed(then, 2500);
+                          if (!haveState) initRadio();
+                          h.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  if (!haveState && !waking && host != null) {
+                                      waking = true;
+                                      toast("Тюнер не відповідає. Відкрий штатне радіо один раз і повернись.");
+                                  }
+                                  then.run();
+                              }
+                          }, 1200);
                       }
-                  }, 1200);
+                  }, 1000);
+              }
+
+              private void toast(String t) {
+                  try {
+                      android.widget.Toast.makeText(host, t, android.widget.Toast.LENGTH_LONG).show();
+                  } catch (Throwable ignored) {
+                  }
               }
 
               void next() { ensure(new Runnable() { public void run() { write(0x401, 1, 0); } }); }
@@ -1013,12 +1023,18 @@ jobs:
                       if (freq != lastFreq) {
                           lastFreq = freq;
                           lastMoveAt = now;
+                          stuck = 0;
                       }
                       if (now - lastMoveAt > 2500) {
-                          // тюнер не реагує на кроки — крайній варіант: штатне радіо
-                          stepping = false;
-                          launchStock(host, tgt, front);
-                          return;
+                          if (stuck++ < 1) {
+                              initRadio();
+                              lastMoveAt = now;
+                          } else {
+                              stepping = false;
+                              stuck = 0;
+                              toast("Тюнер не реагує на кроки.");
+                              return;
+                          }
                       }
                       boolean far = ad > 15;
                       if (far || freq != lastSentFrom || now - lastSendAt > 400) {
