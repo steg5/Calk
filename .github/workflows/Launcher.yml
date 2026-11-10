@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 9
-                  versionName "2.0"
+                  versionCode 10
+                  versionName "2.1"
               }
               signingConfigs {
                   debug {
@@ -2877,7 +2877,7 @@ jobs:
               }
 
               /** Плавне наближення до цілі: положення, поворот, масштаб. */
-              void animate() {
+              void stepAnim() {
                   long now = System.nanoTime();
                   float dt = lastNs == 0 ? 0.016f : (now - lastNs) / 1e9f;
                   if (dt > 0.25f) dt = 0.016f;
@@ -3085,7 +3085,7 @@ jobs:
 
               @Override
               protected void onDraw(Canvas cv) {
-                  animate();
+                  stepAnim();
                   float W = getWidth(), H = getHeight(), pvx = pvx(), pvy = pvy();
                   cv.drawColor(night ? 0xFF111111 : 0xFFE8E4DC);
                   if (db == null) {
