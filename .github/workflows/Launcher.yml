@@ -22,6 +22,7 @@ jobs:
       - name: Write project
         run: |
           mkdir -p app/src/main/java/com/example/launcher app/src/main/res/drawable
+          echo 'MIIKZgIBAzCCChAGCSqGSIb3DQEHAaCCCgEEggn9MIIJ+TCCBcAGCSqGSIb3DQEHAaCCBbEEggWtMIIFqTCCBaUGCyqGSIb3DQEMCgECoIIFQDCCBTwwZgYJKoZIhvcNAQUNMFkwOAYJKoZIhvcNAQUMMCsEFHortPWBfVWaex1L5g1E6ofhS1iSAgInEAIBIDAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQf/k/Ra2JimGlMC7qgu/OsQSCBNC0OtdN+q/is+dm3LkgFtF8qNkaWb3cJZo+zLcemF6tUEj3bUSLPkzG5/THE16Q0DT3NihYqdAocKng/MTWqOBQm9ExCP2jChHxJ2BQY6fvFAm34T/pH3e/IEIDfdUUIGxAdfbODMvT+rg8nSSBfXHbUyRh/1/mJwb6a1iQK9Rjrt/BbqXyFK08ae1+achwl4iyl4RkG8+mCxiwzpeLtt+O52IFYOnOUa90aFUd3iuNL+i86uxKfryx3SPwUhPA4ey6VHvDjFquwjSxkKwWKM+1sc9oHc8A8DzC25FQdzexsuH/L9yvMyYh9zSYD/rDeKYFHSQ/qukm5rHFWNDpO5TQ1jXT0hQI7S32+OPDmIgbJO1wimI7r3OqJE2t1rrc2gLJPwSQ3t6MZVJYQpycarDcI90qTTNIt2CEghqr63uOYu+0TbZAw6dZHGla/fkCy9qzzEckEqgicahsbSrlNNC5joDigq86DFhUiEAZdIeN8zvXWatXc1P07KHp2Ol9Tt887qQpNsFpajrS8j+bbkAMIXb3vJgufKWmlBApgRQmemYtVbegsh418zEjBcp261BruxiheYwxy3O7ogiLxoy0ju1YYFfPoi4wU6tbO5eqc5ftGLNiOt8oDaxzTtHqvOlaJ+M2UwcwSj/PNOnkI+6QE3BNOIMqVxu9/CgquG/P34iWXVnpHkRuyPZ7VEYqokRW+QoDNhflQ3p1j2qBqYYnm7ROO6wkTuauEhY+vKNlWuuZn/JU8E5oiAXYomboP9CpLbBr9IpjcmfH36KewUOiq4dOMAJLt6FV5p3e5u8bUae78n/cog8S53Bx3cR/cNd2VOOkQEeZ4FaLLk/mLBG8tsl8VGNYPRr55WMWtf3E5+g43yJrRzA6MB5kqgW3p0HCU/PUsTl/WIwX2j9+3tNbA+hViONd0TjCbDeT7HU+I9GpRt6+ZAQ6ovfygEZ/pb2GK/zUFIcJmBGJ2Uk8i38ALKOhXgU+3bODtJIbJbgf27n3yU9pADvYzP5y4rbbZ0HeWOnIet5Rau7UKOu/fX3aBJ0eAHwLFk+P1sQN5Bg9bOA+ODClH7zmi/pHVby8ymCjEd/N8Y3mvSUgn5SSBZ1eDHNFHWgeuZ4ogO9VPX2nGFHhGMZMh8vKhpLCZo/zq2cnoXanIsdarU89wP1vdqxmM4wUtOayI45XpH7+WSS7oe0GPvVaUD7z059/9rv/jSB3ET/9oJpwOGUqpu/nlL7UXhMrSuwsmx0e0sQ9Emjkb/5iPlpDwAodBpqmPhF/3mu2c2rEir36WoGooGiQDXCCDWKYpTkQFgth6JCtzVRsFAt1EN2PCBKqmVxC5RKPz8V1LS68MkNmCCqQc5+u5J0BJMEUw5uFXbXGE8gdQsxv+Z0iF/MjwvsvDhVckwEtBTJ6UTVgzIPVJVNyOn42HAW782h7XUsar2NILmoVGpeupDWQNvLw/irTtNQLsWx8yqiELJmDG78ydgXGlVHMUdAsdsX40SW8e1exARUhJQ9mhxukYg0JXPJLKD3u0Lj+FCnJmkpNU4Kvo5Lw3D2ca6spin3YJSajkCrVIqK7c/Qbw6MAWsWyA+cHQ3AiFMD9GNsK26AVjD8Z5anuxJZNTV+/8n+s8OE8WA8dlPSQrZZyKjFSMC0GCSqGSIb3DQEJFDEgHh4AYQBuAGQAcgBvAGkAZABkAGUAYgB1AGcAawBlAHkwIQYJKoZIhvcNAQkVMRQEElRpbWUgMTc5NDI1NjI2ODIzOTCCBDEGCSqGSIb3DQEHBqCCBCIwggQeAgEAMIIEFwYJKoZIhvcNAQcBMGYGCSqGSIb3DQEFDTBZMDgGCSqGSIb3DQEFDDArBBSkMh+RQSD1gXlRH7hqwMhuuixgGwICJxACASAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEOe2m8Vp1YzrhsyXKUVruWSAggOgPOG9e7jJXbVV3wWIiYb9pPt+e4MbkROTUOoWMJaBLNFOrDJKWwFAUeUwV6ceia7RFhJfI1varooc9e+MZQ1DaIW3zMz6L6xndkOs3dm5RkocnTemHLB5PlGgMyL6GYfq/8i+08uyyi33ALFZnib0VUDQxrsf6eXw5fNRljW3JiPF3X6gCrSuYQIHapuWISjP6t8Tqg67l5aS+KPUwaESXO/KHK3RoFNu7A8wXX1BYkbLwQ0NfFr/5OEe9YvxdCYzL/VH5/yN+Qu+RHFR5WTfjCvlffwi+qpUclpbqyY4yRK0cmA8jq1h2rsbg2S1uwXLOG1mJ5LwlIWR5waYlgR2NQq8aZKd6iBMZDyCF6c4xq0G05QuV1t/eeg81Xu5WEHvEcoC2rg+V2BYzlFgtouYiY/emS/UmzgEv5V1+cbAagVxyF2W//aZ1UIAYRxNs2+0OKCnKS8rdbXKTEPAF35QoCSkIQdIECyIbrkFrQ9N4xZdLT9LUXS656wt4cXtle9n8/BOwJkuglZXDEjV3g3nVlJu1cp0RGRV+WsFGdnp8mheFfAt5I5zJ8dRqJpM8OLklOqoRDw5IiaCiqbsruWIslRKVWl29CEN/g/APWfRCALQ77aXDkZSOzwyTmC/rDNSrzhQzemPUudorx9b3UhWZ5ryZn9Ss6wvSpef1hku7lhrw0XT681AjQnFvsigvvW/pfCz1Odqnp8V8dD8i/J8q3rRSK+4tWmgz5Gx0ePcCWH22YPJq5lkRSvn5HKIY0vKpg8Jy9sgS+dz+9TEG0rso7I5KNHNaHMpWL34iwFGWxWmMYK3m0wcylJZT49t+SEBgksIhKSODrPZrkLaLmez/RgxzP9ceVEhWLTHTdxI6V+sMXcuHbv03x7q3UO3LZGttER4T0gM5FhTA56vvUf91ZoXCAV53SfmZ7hawyetDLpK1cs7B03KIvSDaUTZPPYGn024FRUboERUoVypgJN15xIlFr1nlb4KxH9DxbnnYPq5taOsmx3z7/gioAXyud5D8ds6xp45cgO4jLQMk/gsy2+ezAv8Bm3x3DP57xzdeMOhz/gFS4dRiOrsvhp02t+6n4Ywih6qP3Upl3i/fPaw7x8ydU0TGT0Z/SndDJDUcBD83INWZokw/wvgCaMJflCCcXRJd9CV+S2KT8/2yZi6wboKr1lK/cKWop4g/NgLF7GEq8vFEBZ7gDy6T7sunXRVrkcidZBRDdN9WENv6B4LzTBNMDEwDQYJYIZIAWUDBAIBBQAEINA2mnzU5otmXclCcRjG0Xozpky3oRBQxkim1558kze0BBSJ2U2vCPuYngAculEwazCC69h/pAICJxA=' | base64 -d > debug.keystore
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -63,8 +64,16 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 8
-                  versionName "1.7"
+                  versionCode 9
+                  versionName "2.0"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -83,6 +92,7 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
               <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
               <application
                   android:label="Лаунчер"
                   android:icon="@drawable/ic_launcher"
@@ -104,6 +114,14 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+                  <receiver
+                      android:name=".BootReceiver"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                          <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                      </intent-filter>
+                  </receiver>
                   <service
                       android:name=".MediaListener"
                       android:label="Лаунчер"
@@ -221,6 +239,7 @@ jobs:
                   TXT = t[5];
                   DIM = t[6];
                   OV = t[7];
+                  if (sp.contains("cardalpha")) CARD = (sp.getInt("cardalpha", 179) << 24) | (CARD & 0xFFFFFF);
               }
 
               final Handler ui = new Handler(Looper.getMainLooper());
@@ -1245,63 +1264,81 @@ jobs:
                   addBlock(2, aimp);
 
                   // ================= права колонка (60 %) =================
-                  // --- вікно навігації ---
+                  // --- карта ---
                   FrameLayout nav = new FrameLayout(this);
                   nav.setBackground(rounded(0xFF000000, 24));
-                  nav.setClickable(true);
-                  nav.setOnClickListener(v -> launchKey("nav"));
-                  nav.setOnLongClickListener(v -> {
-                      chooseApp("nav", "Навігація");
-                      return true;
-                  });
-                  navView = new TextureView(this);
-                  navView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+                  nav.setOutlineProvider(new android.view.ViewOutlineProvider() {
                       @Override
-                      public void onSurfaceTextureAvailable(SurfaceTexture st, int w, int h) {
-                          navW = w;
-                          navH = h;
-                          st.setDefaultBufferSize(w, h);
-                          navSurface = new Surface(st);
-                          if (w >= 300) startNav();
-                      }
-
-                      @Override
-                      public void onSurfaceTextureSizeChanged(SurfaceTexture st, int w, int h) {
-                          navW = w;
-                          navH = h;
-                          st.setDefaultBufferSize(w, h);
-                          if (navVd == null) {
-                              if (!navFailed && w >= 300 && navSurface != null) startNav();
-                          } else {
-                              try {
-                                  navVd.resize(w, h, getResources().getDisplayMetrics().densityDpi);
-                              } catch (Throwable ignored) {
-                              }
-                          }
-                      }
-
-                      @Override
-                      public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
-                          releaseNav();
-                          return true;
-                      }
-
-                      @Override
-                      public void onSurfaceTextureUpdated(SurfaceTexture st) {
+                      public void getOutline(View vw, android.graphics.Outline o) {
+                          o.setRoundRect(0, 0, vw.getWidth(), vw.getHeight(), px(24));
                       }
                   });
-                  nav.addView(navView, new FrameLayout.LayoutParams(-1, -1));
-                  LinearLayout navHint = new LinearLayout(this);
-                  navHint.setOrientation(LinearLayout.VERTICAL);
-                  navHint.setGravity(Gravity.CENTER);
-                  navHint.setClickable(false);
-                  navIcon = new ImageView(this);
-                  navHint.addView(navIcon, lp(150, 150, 0));
-                  navNote = text("Навігація", 30, TXT, true);
-                  navNote.setGravity(Gravity.CENTER);
-                  navHint.addView(navNote, lp(-2, -2, 0));
-                  nav.addView(navHint, new FrameLayout.LayoutParams(-1, -1));
-                  navHintView = navHint;
+                  nav.setClipToOutline(true);
+                  map = new MapView(this);
+                  map.listener = this::saveMark;
+                  nav.addView(map, new FrameLayout.LayoutParams(-1, -1));
+                  final int bs = px(56), gap = px(10);
+                  View[] mb = new View[6];
+                  mb[0] = mapBtn("+", v -> map.zoomBy(1));
+                  mb[1] = mapBtn("−", v -> map.zoomBy(-1));
+                  mb[2] = mapBtn("◎", v -> map.goToMe());
+                  final Button hd = mapBtn("↑", null);
+                  hd.setOnClickListener(v -> {
+                      map.headingUp = !map.headingUp;
+                      hd.setText(map.headingUp ? "↑" : "N");
+                      map.invalidate();
+                  });
+                  mb[3] = hd;
+                  FrameLayout nb = new FrameLayout(this);
+                  nb.setBackground(rounded(BTN, 16));
+                  nb.setAlpha(0.88f);
+                  nb.setClickable(true);
+                  nIcon = new BrightIcon(this);
+                  nb.addView(nIcon, new FrameLayout.LayoutParams(-1, -1));
+                  nb.setOnClickListener(v -> {
+                      map.night = !map.night;
+                      nIcon.moon = map.night;
+                      nIcon.invalidate();
+                      map.invalidate();
+                  });
+                  mb[4] = nb;
+                  mb[5] = mapBtn("✕", v -> {
+                      map.markLat = null;
+                      map.markLon = null;
+                      saveMark();
+                      map.invalidate();
+                  });
+                  for (int i = 0; i < mb.length; i++) {
+                      FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(bs, bs, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                      bp.setMargins(0, 0, px(12), 0);
+                      mb[i].setTranslationY((i - 2.5f) * (bs + gap));
+                      nav.addView(mb[i], bp);
+                  }
+                  LinearLayout chips = new LinearLayout(this);
+                  chips.setOrientation(LinearLayout.HORIZONTAL);
+                  chips.setGravity(Gravity.CENTER_VERTICAL);
+                  chips.setBackground(rounded(0xAA000000, 14));
+                  chips.setPadding(px(12), px(6), px(12), px(6));
+                  navZoom = text("", 22, 0xFFFFFFFF, true);
+                  chips.addView(navZoom, lp(-2, -2, 0));
+                  LinearLayout.LayoutParams svp = lp(28, 28, 0);
+                  svp.setMargins(px(14), 0, 0, 0);
+                  chips.addView(new SatView(this), svp);
+                  tvNavSats = text(" —", 22, 0xFFFFFFFF, true);
+                  chips.addView(tvNavSats, lp(-2, -2, 0));
+                  FrameLayout.LayoutParams chp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+                  chp.setMargins(px(12), px(12), 0, 0);
+                  nav.addView(chips, chp);
+                  if (sp.contains("clat")) {
+                      map.lat = sp.getFloat("clat", 49.84f);
+                      map.lon = sp.getFloat("clon", 24.03f);
+                      map.zoom = sp.getFloat("czoom", 14f);
+                  }
+                  if (sp.contains("mlat")) {
+                      map.markLat = (double) sp.getFloat("mlat", 0);
+                      map.markLon = (double) sp.getFloat("mlon", 0);
+                  }
+                  openMap();
                   addBlock(3, nav);
 
                   // --- ряд програм + кнопка налаштувань ---
@@ -1375,9 +1412,22 @@ jobs:
                   tuner = new Tuner(this);
                   tuner.setHost(this, MainActivity.class);
                   tuner.start();
+                  if (sp.getBoolean("autoradio", false)) {
+                      ui.postDelayed(() -> {
+                          tuner.startRadio();
+                          radioOn = true;
+                          rPlay.setText("■");
+                      }, 2500);
+                  }
               }
 
               View navHintView;
+              MapView map;
+              BrightIcon nIcon;
+              TextView navZoom, tvNavSats;
+              boolean askedPerm = false;
+              Dialog setDlg;
+              LinearLayout setCol;
 
               @Override
               protected void onResume() {
@@ -1386,20 +1436,22 @@ jobs:
                   refreshApps();
                   updateBright();
                   refreshMedia();
-                  if (navVd == null && navSurface != null && !navFailed) startNav();
               }
 
               @Override
               protected void onPause() {
                   super.onPause();
-                  if (ready) saveTrip();
+                  if (ready) {
+                      saveTrip();
+                      if (map != null) sp.edit().putFloat("clat", (float) map.lat).putFloat("clon", (float) map.lon).putFloat("czoom", (float) map.zoom).apply();
+                  }
               }
 
               @Override
               protected void onDestroy() {
                   if (ready) {
                       saveTrip();
-                      releaseNav();
+                      if (map != null) map.close();
                       try {
                           tuner.stop();
                       } catch (Throwable ignored) {
@@ -1436,6 +1488,7 @@ jobs:
                   tvDate.setText(ds);
                   if (System.currentTimeMillis() - lastFix > 6000) tvSpeed.setText("—");
                   if (++tickN % 3 == 0) refreshMedia();
+                  if (map != null && navZoom != null) navZoom.setText(String.format(Locale.US, "%.1f", map.zoom));
                   ui.postDelayed(this::tick, 1000);
               }
 
@@ -1450,7 +1503,7 @@ jobs:
                       public void onSatelliteStatusChanged(android.location.GnssStatus st) {
                           int total = st.getSatelliteCount(), used = 0;
                           for (int i = 0; i < total; i++) if (st.usedInFix(i)) used++;
-                          tvSats.setText(" " + used + "/" + total);
+                          setSats(used, total);
                       }
                   };
                   gnssCb = cb;
@@ -1461,6 +1514,7 @@ jobs:
                   @Override
                   public void onLocationChanged(Location l) {
                       long now = System.currentTimeMillis();
+                      if (map != null) map.setMyLocation(l.getLatitude(), l.getLongitude(), l.hasBearing() ? l.getBearing() : -1f, l.hasSpeed() ? l.getSpeed() : 0f);
                       float v = 0f;
                       if (l.hasSpeed()) {
                           v = l.getSpeed() * 3.6f;
@@ -1535,7 +1589,7 @@ jobs:
                               total++;
                               if (s.usedInFix()) used++;
                           }
-                          tvSats.setText(" " + used + "/" + total);
+                          setSats(used, total);
                       } catch (Throwable ignored) {
                       }
                   }
@@ -1544,11 +1598,14 @@ jobs:
               @SuppressWarnings("deprecation")
               void startGps() {
                   showTrip();
-                  if (Build.VERSION.SDK_INT >= 23
-                          && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                      requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
+                  if (Build.VERSION.SDK_INT >= 23 && !askedPerm
+                          && (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                          || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)) {
+                      askedPerm = true;
+                      requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_EXTERNAL_STORAGE}, 2);
                       return;
                   }
+                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
                   try {
                       lm = (LocationManager) getSystemService(LOCATION_SERVICE);
                       lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locL);
@@ -1562,7 +1619,10 @@ jobs:
               @Override
               public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
                   super.onRequestPermissionsResult(req, perms, res);
-                  if (req == 2) startGps();
+                  if (req == 2) {
+                      startGps();
+                      openMap();
+                  }
                   if (req == 3 && svcCol != null) rebuildService();
               }
 
@@ -1578,6 +1638,14 @@ jobs:
               void updateBright() {
                   bIcon.moon = curB() < 100;
                   bIcon.invalidate();
+                  if (map != null && sp.getBoolean("autonav", true)) {
+                      map.night = curB() < 100;
+                      if (nIcon != null) {
+                          nIcon.moon = map.night;
+                          nIcon.invalidate();
+                      }
+                      map.invalidate();
+                  }
               }
 
               void toggleBright() {
@@ -1637,43 +1705,257 @@ jobs:
               }
 
               // ================= меню налаштувань (довге натискання на годинник) =================
+              // ================= налаштування (плитки по групах) =================
+              Object[] t(String title, String sub, boolean close, Runnable r) {
+                  return new Object[]{title, sub, r, close};
+              }
+
+              String onOff(boolean b) {
+                  return b ? "Увімкнено" : "Вимкнено";
+              }
+
+              void closeSettings() {
+                  try {
+                      if (setDlg != null) setDlg.dismiss();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
               void settingsMenu() {
-                  new AlertDialog.Builder(this).setTitle("Налаштування")
-                          .setItems(new String[]{"Тема кольорів", "Шрифт", "Скільки програм показувати (" + sp.getInt("napps", 5) + ")",
-                                  "Програми внизу: обрати", "Фон: вибрати з галереї", "Фон: прибрати картинку", "Нічна яскравість",
-                                  "Скинути поїздку (середня, макс.)", "Навігація: обрати програму", "Доступ до сповіщень (для AIMP)", "Розташування і розміри блоків"}, (d, i) -> {
-                              if (i == 0) {
-                                  themeMenu();
-                              } else if (i == 1) {
-                                  fontMenu();
-                              } else if (i == 2) {
-                                  countMenu();
-                              } else if (i == 3) {
-                                  pickApps();
-                              } else if (i == 4) {
-                                  Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                                  in.addCategory(Intent.CATEGORY_OPENABLE);
-                                  in.setType("image/*");
-                                  startActivityForResult(in, 5);
-                              } else if (i == 5) {
-                                  new File(getFilesDir(), "bg.jpg").delete();
-                                  loadBg();
-                              } else if (i == 6) {
-                                  minDialog();
-                              } else if (i == 7) {
-                                  resetTrip();
-                              } else if (i == 8) {
-                                  chooseApp("nav", "Навігація");
-                              } else if (i == 10) {
-                                  enterEdit();
-                              } else {
-                                  try {
-                                      startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
-                                  } catch (Throwable t) {
-                                      Toast.makeText(this, "" + t, Toast.LENGTH_LONG).show();
-                                  }
+                  closeSettings();
+                  setDlg = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                  ScrollView sc = new ScrollView(this);
+                  sc.setBackgroundColor(BG2 | 0xFF000000);
+                  setCol = new LinearLayout(this);
+                  setCol.setOrientation(LinearLayout.VERTICAL);
+                  setCol.setPadding(px(28), px(20), px(28), px(28));
+                  sc.addView(setCol, new FrameLayout.LayoutParams(-1, -2));
+                  buildSettings();
+                  setDlg.setContentView(sc);
+                  setDlg.show();
+              }
+
+              void rebuildSettings() {
+                  if (setCol == null || setDlg == null || !setDlg.isShowing()) return;
+                  setCol.removeAllViews();
+                  buildSettings();
+              }
+
+              void group(String title, Object[]... items) {
+                  TextView h = text(title, 26, ACC, true);
+                  LinearLayout.LayoutParams hp = lp(-1, -2, 0);
+                  hp.setMargins(0, px(20), 0, 0);
+                  setCol.addView(h, hp);
+                  LinearLayout row = null;
+                  for (int i = 0; i < items.length; i++) {
+                      if (i % 3 == 0) {
+                          row = new LinearLayout(this);
+                          row.setOrientation(LinearLayout.HORIZONTAL);
+                          LinearLayout.LayoutParams rp = lp(-1, -2, 0);
+                          rp.setMargins(0, px(10), 0, 0);
+                          setCol.addView(row, rp);
+                      }
+                      final Object[] it = items[i];
+                      LinearLayout tile = new LinearLayout(this);
+                      tile.setOrientation(LinearLayout.VERTICAL);
+                      tile.setGravity(Gravity.CENTER_VERTICAL);
+                      tile.setPadding(px(18), px(12), px(18), px(12));
+                      tile.setBackground(rounded(BTN, 18));
+                      TextView tt = text((String) it[0], 24, TXT, true);
+                      tt.setSingleLine(true);
+                      tt.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                      tile.addView(tt, lp(-1, -2, 0));
+                      TextView sb = text((String) it[1], 19, DIM, false);
+                      sb.setSingleLine(true);
+                      sb.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                      tile.addView(sb, lp(-1, -2, 0));
+                      final Runnable act = (Runnable) it[2];
+                      final boolean close = (Boolean) it[3];
+                      tile.setOnClickListener(v -> {
+                          if (close) closeSettings();
+                          act.run();
+                      });
+                      LinearLayout.LayoutParams tl = lp(0, 104, 1);
+                      tl.setMargins(i % 3 == 0 ? 0 : px(10), 0, 0, 0);
+                      row.addView(tile, tl);
+                  }
+                  int rem = items.length % 3;
+                  if (rem != 0) {
+                      for (int k = rem; k < 3; k++) {
+                          LinearLayout.LayoutParams tl = lp(0, 104, 1);
+                          tl.setMargins(px(10), 0, 0, 0);
+                          row.addView(new View(this), tl);
+                      }
+                  }
+              }
+
+              void buildSettings() {
+                  LinearLayout head = new LinearLayout(this);
+                  head.setOrientation(LinearLayout.HORIZONTAL);
+                  head.setGravity(Gravity.CENTER_VERTICAL);
+                  head.addView(text("Налаштування", 36, TXT, true), lp(0, -2, 1));
+                  Button close = btn("Закрити", 24);
+                  close.setOnClickListener(v -> closeSettings());
+                  head.addView(close, lp(160, 56, 0));
+                  setCol.addView(head, lp(-1, -2, 0));
+
+                  String fp = sp.getString("fontfile", "");
+                  String fname = fp.isEmpty() ? "Стандартний" : new File(fp).getName().replaceAll("\\.[^.]*$", "");
+                  group("Вигляд",
+                          t("Тема кольорів", THN[Math.min(THN.length - 1, sp.getInt("theme", 0))], true, this::themeMenu),
+                          t("Шрифт", fname, true, this::fontMenu),
+                          t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", true, this::alphaDialog),
+                          t("Фон з галереї", "вибрати картинку", true, () -> {
+                              Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                              in.addCategory(Intent.CATEGORY_OPENABLE);
+                              in.setType("image/*");
+                              startActivityForResult(in, 5);
+                          }),
+                          t("Прибрати фон", "повернути градієнт", false, () -> {
+                              new File(getFilesDir(), "bg.jpg").delete();
+                              loadBg();
+                          }));
+                  group("Блоки",
+                          t("Розташування і розміри", "тягнути, змінювати", true, this::enterEdit),
+                          t("Скільки програм", String.valueOf(sp.getInt("napps", 5)), true, this::countMenu),
+                          t("Програми внизу", "вибрати значки", true, this::pickApps));
+                  group("Навігація",
+                          t("Карта", mapName(), true, this::mapMenu),
+                          t("Авто день / ніч", onOff(sp.getBoolean("autonav", true)), false, () -> {
+                              sp.edit().putBoolean("autonav", !sp.getBoolean("autonav", true)).apply();
+                              updateBright();
+                              rebuildSettings();
+                          }));
+                  group("Система",
+                          t("Автозапуск лаунчера", onOff(sp.getBoolean("autostart", false)), false, () -> {
+                              sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
+                              rebuildSettings();
+                          }),
+                          t("Автозапуск радіо", onOff(sp.getBoolean("autoradio", false)), false, () -> {
+                              sp.edit().putBoolean("autoradio", !sp.getBoolean("autoradio", false)).apply();
+                              rebuildSettings();
+                          }),
+                          t("Нічна яскравість", String.valueOf(minB()), true, this::minDialog),
+                          t("Скинути поїздку", "середня, макс.", false, this::resetTrip),
+                          t("Доступ до сповіщень", "для даних AIMP", true, () -> {
+                              try {
+                                  startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+                              } catch (Throwable e) {
+                                  Toast.makeText(this, "" + e, Toast.LENGTH_LONG).show();
                               }
-                          }).show();
+                          }));
+              }
+
+              void alphaDialog() {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(30), px(20), px(30), px(10));
+                  final TextView tv = new TextView(this);
+                  tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, 28 * u);
+                  final int cur = CARD >>> 24;
+                  tv.setText("Прозорість плиток: " + Math.round(cur / 2.55f) + " %");
+                  col.addView(tv);
+                  final SeekBar sb = new SeekBar(this);
+                  sb.setMax(255);
+                  sb.setProgress(cur);
+                  sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(SeekBar s2, int p, boolean f) {
+                          tv.setText("Непрозорість плиток: " + Math.round(p / 2.55f) + " %");
+                      }
+
+                      @Override
+                      public void onStartTrackingTouch(SeekBar s2) {
+                      }
+
+                      @Override
+                      public void onStopTrackingTouch(SeekBar s2) {
+                      }
+                  });
+                  col.addView(sb);
+                  new AlertDialog.Builder(this).setTitle("Плитки: 0 % — прозорі, 100 % — щільні").setView(col)
+                          .setPositiveButton("Зберегти", (dd, w) -> {
+                              sp.edit().putInt("cardalpha", sb.getProgress()).apply();
+                              recreate();
+                          })
+                          .setNeutralButton("Як у темі", (dd, w) -> {
+                              sp.edit().remove("cardalpha").apply();
+                              recreate();
+                          })
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
+              // ================= карти =================
+              File[] mapFiles() {
+                  File dir = new File(android.os.Environment.getExternalStorageDirectory(), "Nav");
+                  File[] fs = dir.listFiles();
+                  List<File> l = new ArrayList<File>();
+                  if (fs != null) for (File f : fs) if (f.isFile() && f.getName().toLowerCase(Locale.US).endsWith(".mbtiles")) l.add(f);
+                  Collections.sort(l, new Comparator<File>() {
+                      @Override
+                      public int compare(File a, File b) {
+                          return a.getName().compareToIgnoreCase(b.getName());
+                      }
+                  });
+                  return l.toArray(new File[0]);
+              }
+
+              File chosenMap() {
+                  File[] fs = mapFiles();
+                  String sel = sp.getString("mapfile", "");
+                  for (File f : fs) if (f.getName().equals(sel)) return f;
+                  return fs.length > 0 ? fs[0] : null;
+              }
+
+              String mapName() {
+                  File f = chosenMap();
+                  return f == null ? "немає файлів у Nav" : f.getName().replaceAll("\\.mbtiles$", "");
+              }
+
+              void openMap() {
+                  if (map == null) return;
+                  File f = chosenMap();
+                  if (f != null && f.canRead()) map.open(f.getAbsolutePath());
+                  map.invalidate();
+              }
+
+              void mapMenu() {
+                  final File[] fs = mapFiles();
+                  if (fs.length == 0) {
+                      Toast.makeText(this, "У папці Nav (корінь пам'яті) немає файлів .mbtiles", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  File cur = chosenMap();
+                  int sel = 0;
+                  String[] names = new String[fs.length];
+                  for (int i = 0; i < fs.length; i++) {
+                      names[i] = fs[i].getName() + "  (" + (fs[i].length() / 1048576) + " МБ)";
+                      if (cur != null && fs[i].equals(cur)) sel = i;
+                  }
+                  new AlertDialog.Builder(this).setTitle("Карта").setSingleChoiceItems(names, sel, (dd, i) -> {
+                      sp.edit().putString("mapfile", fs[i].getName()).apply();
+                      dd.dismiss();
+                      openMap();
+                  }).setNegativeButton("Скасувати", null).show();
+              }
+
+              void saveMark() {
+                  SharedPreferences.Editor e = sp.edit();
+                  if (map.markLat != null) e.putFloat("mlat", map.markLat.floatValue()).putFloat("mlon", map.markLon.floatValue());
+                  else e.remove("mlat").remove("mlon");
+                  e.apply();
+              }
+
+              void setSats(int used, int total) {
+                  tvSats.setText(" " + used + "/" + total);
+                  if (tvNavSats != null) tvNavSats.setText(" " + used);
+              }
+
+              Button mapBtn(String t, View.OnClickListener c) {
+                  Button b = btn(t, 28);
+                  b.setAlpha(0.88f);
+                  if (c != null) b.setOnClickListener(c);
+                  return b;
               }
 
               void themeMenu() {
@@ -1795,11 +2077,6 @@ jobs:
                   new AlertDialog.Builder(this).setTitle("Програма: " + title).setItems(names, (d, i) -> {
                       sp.edit().putString("pkg_" + key, l.get(i).activityInfo.packageName).apply();
                       refreshApps();
-                      if (key.equals("nav")) {
-                          releaseNav();
-                          navFailed = false;
-                          startNav();
-                      }
                   }).setNegativeButton("Скасувати", null).show();
               }
 
@@ -1848,11 +2125,6 @@ jobs:
                   LinearLayout.LayoutParams sp2 = lp(0, -1, 1);
                   sp2.setMargins(px(4), 0, px(4), 0);
                   appsRow.addView(sv, sp2);
-                  String np = pkgFor("nav");
-                  try {
-                      if (np != null) navIcon.setImageDrawable(pm.getApplicationIcon(np));
-                  } catch (Throwable ignored) {
-                  }
               }
 
               void pickApps() {
@@ -1878,43 +2150,6 @@ jobs:
                               refreshApps();
                           })
                           .setNegativeButton("Скасувати", null).show();
-              }
-
-              // ================= вікно навігації (експеримент) =================
-              void startNav() {
-                  if (navSurface == null || navFailed || navW < 300) return;
-                  String pkg = pkgFor("nav");
-                  if (pkg == null) {
-                      navNote.setText("Утримуй, щоб обрати навігацію");
-                      return;
-                  }
-                  try {
-                      releaseNav();
-                      DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
-                      int flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
-                      navVd = dm.createVirtualDisplay("launcher-nav", navW, navH, getResources().getDisplayMetrics().densityDpi, navSurface, flags);
-                      int id = navVd.getDisplay().getDisplayId();
-                      Intent in = pm.getLaunchIntentForPackage(pkg);
-                      in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-                      ActivityOptions o = ActivityOptions.makeBasic();
-                      Method m = ActivityOptions.class.getMethod("setLaunchDisplayId", int.class);
-                      m.invoke(o, id);
-                      startActivity(in, o.toBundle());
-                      navHintView.setVisibility(View.GONE);
-                  } catch (Throwable t) {
-                      navFailed = true;
-                      releaseNav();
-                      navHintView.setVisibility(View.VISIBLE);
-                      navNote.setText("Навігація\n(вікно недоступне — натисни, щоб відкрити)");
-                  }
-              }
-
-              void releaseNav() {
-                  try {
-                      if (navVd != null) navVd.release();
-                  } catch (Throwable ignored) {
-                  }
-                  navVd = null;
               }
 
               // ================= радіо =================
@@ -2344,6 +2579,1115 @@ jobs:
 
           /** Потрібна лише для того, щоб система дозволила читати, що грає в плеєрі (AIMP). */
           public class MediaListener extends NotificationListenerService {
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/MapView.java <<'EOF'
+          package com.example.launcher;
+
+          import android.content.Context;
+          import android.database.Cursor;
+          import android.database.sqlite.SQLiteDatabase;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.ColorMatrix;
+          import android.graphics.ColorMatrixColorFilter;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.PathMeasure;
+          import android.graphics.RectF;
+          import android.graphics.Typeface;
+          import android.util.LruCache;
+          import android.view.GestureDetector;
+          import android.view.MotionEvent;
+          import android.view.ScaleGestureDetector;
+          import android.view.View;
+
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Set;
+          import java.util.concurrent.ConcurrentHashMap;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+
+          /** Проста офлайн-карта з файлу MBTiles (растр або вектор OpenMapTiles). */
+          public class MapView extends View {
+              public interface Listener {
+                  void onMarkChanged();
+              }
+
+              SQLiteDatabase db;
+              int minZ = 0, maxZ = 18;
+              // відображуваний стан (плавно рухається до цілі)
+              public double lat = 49.8397, lon = 24.0297, zoom = 12;
+              public float rot = 0;
+              float pivY = -1;
+              public boolean follow = true, night = false, hasFix = false, headingUp = true;
+              long manualUntil = 0;
+              // останній GPS-фікс
+              double fixLat, fixLon;
+              float fixBearing = 0, fixSpeed = 0;
+              long fixTime = 0, lastNs = 0;
+              public double myLat, myLon;
+              public Double markLat, markLon;
+              public Listener listener;
+              public String error = null;
+              boolean vector = false;
+              float density;
+
+              static class Tile {
+                  Bitmap bm;
+                  VectorRenderer.TileLabels labels;
+
+                  Tile(Bitmap b, VectorRenderer.TileLabels l) {
+                      bm = b;
+                      labels = l;
+                  }
+              }
+
+              final LruCache<String, Tile> cache = new LruCache<String, Tile>(72 * 1024 * 1024) {
+                  @Override
+                  protected int sizeOf(String k, Tile t) {
+                      return t.bm.getByteCount() + 2048;
+                  }
+              };
+              final Set<String> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+              final ExecutorService ex = Executors.newSingleThreadExecutor();
+              final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+              final Paint tp = new Paint(Paint.FILTER_BITMAP_FLAG);
+              final Paint nightP = new Paint(Paint.FILTER_BITMAP_FLAG);
+              final ScaleGestureDetector sg;
+              final GestureDetector gd;
+
+              public MapView(Context c) {
+                  super(c);
+                  density = c.getResources().getDisplayMetrics().density;
+                  ColorMatrix cm = new ColorMatrix(new float[]{
+                          -1, 0, 0, 0, 255,
+                          0, -1, 0, 0, 255,
+                          0, 0, -1, 0, 255,
+                          0, 0, 0, 1, 0});
+                  nightP.setColorFilter(new ColorMatrixColorFilter(cm));
+                  sg = new ScaleGestureDetector(c, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                      @Override
+                      public boolean onScale(ScaleGestureDetector d) {
+                          setManualZoom(zoom + Math.log(d.getScaleFactor()) / Math.log(2));
+                          return true;
+                      }
+                  });
+                  gd = new GestureDetector(c, new GestureDetector.SimpleOnGestureListener() {
+                      @Override
+                      public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
+                          if (sg.isInProgress()) return true;
+                          follow = false;
+                          double s = worldPx(), a = Math.toRadians(rot);
+                          double wx = dx * Math.cos(a) - dy * Math.sin(a), wy = dx * Math.sin(a) + dy * Math.cos(a);
+                          lon += wx / s * 360.0;
+                          lat = yToLat(Math.max(0.001, Math.min(0.999, latToY(lat) + wy / s)));
+                          invalidate();
+                          return true;
+                      }
+
+                      @Override
+                      public boolean onDoubleTap(MotionEvent e) {
+                          setManualZoom(zoom + 1);
+                          return true;
+                      }
+
+                      @Override
+                      public void onLongPress(MotionEvent e) {
+                          double[] w = unscr(e.getX(), e.getY());
+                          markLat = w[0];
+                          markLon = w[1];
+                          if (listener != null) listener.onMarkChanged();
+                          invalidate();
+                      }
+                  });
+              }
+
+              void setManualZoom(double z) {
+                  zoom = Math.max(minZ, Math.min(maxZ + 3, z));
+                  manualUntil = System.nanoTime() + 15_000_000_000L;
+                  invalidate();
+              }
+
+              // ---- Web Mercator ----
+              static double lonToX(double lon) {
+                  return (lon + 180.0) / 360.0;
+              }
+
+              static double latToY(double lat) {
+                  double r = Math.toRadians(lat);
+                  return (1.0 - Math.log(Math.tan(r) + 1.0 / Math.cos(r)) / Math.PI) / 2.0;
+              }
+
+              static double yToLat(double y) {
+                  return Math.toDegrees(Math.atan(Math.sinh(Math.PI * (1 - 2 * y))));
+              }
+
+              double worldPx() {
+                  return 256.0 * density * Math.pow(2, zoom);
+              }
+
+              float pvx() {
+                  return getWidth() / 2f;
+              }
+
+              float pvy() {
+                  return pivY < 0 ? getHeight() / 2f : pivY;
+              }
+
+              /** Координати -> екран (з урахуванням повороту карти). */
+              float[] scr(double la, double lo) {
+                  double s = worldPx();
+                  double dx = (lonToX(lo) - lonToX(lon)) * s, dy = (latToY(la) - latToY(lat)) * s;
+                  double a = Math.toRadians(-rot);
+                  return new float[]{(float) (pvx() + dx * Math.cos(a) - dy * Math.sin(a)), (float) (pvy() + dx * Math.sin(a) + dy * Math.cos(a))};
+              }
+
+              double[] unscr(float x, float y) {
+                  double ddx = x - pvx(), ddy = y - pvy(), a = Math.toRadians(rot), s = worldPx();
+                  double dx = ddx * Math.cos(a) - ddy * Math.sin(a), dy = ddx * Math.sin(a) + ddy * Math.cos(a);
+                  double nx = lonToX(lon) + dx / s, ny = latToY(lat) + dy / s;
+                  return new double[]{yToLat(Math.max(0.001, Math.min(0.999, ny))), nx * 360.0 - 180.0};
+              }
+
+              public boolean open(String path) {
+                  try {
+                      if (db != null) {
+                          try {
+                              db.close();
+                          } catch (Throwable ignored) {
+                          }
+                          db = null;
+                          cache.evictAll();
+                          pending.clear();
+                          vector = false;
+                      }
+                      db = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY);
+                      Cursor c = db.rawQuery("select min(zoom_level), max(zoom_level) from tiles", null);
+                      if (c.moveToFirst()) {
+                          minZ = c.getInt(0);
+                          maxZ = c.getInt(1);
+                      }
+                      c.close();
+                      try {
+                          Cursor mc = db.rawQuery("select value from metadata where name='format'", null);
+                          if (mc.moveToFirst()) {
+                              String f = mc.getString(0);
+                              vector = f != null && (f.equalsIgnoreCase("pbf") || f.equalsIgnoreCase("mvt"));
+                          }
+                          mc.close();
+                      } catch (Throwable ignored) {
+                      }
+                      zoom = Math.max(minZ, Math.min(maxZ, zoom));
+                      return true;
+                  } catch (Throwable t) {
+                      error = String.valueOf(t);
+                      return false;
+                  }
+              }
+
+              public void close() {
+                  ex.shutdownNow();
+                  try {
+                      if (db != null) db.close();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              Tile tile(final int z, final int x, final int y) {
+                  final String key = z + "/" + x + "/" + y;
+                  Tile b = cache.get(key);
+                  if (b != null) return b;
+                  if (db != null && pending.add(key)) {
+                      try {
+                          ex.execute(() -> {
+                              try {
+                                  int row = (1 << z) - 1 - y;
+                                  Cursor c = db.rawQuery("select tile_data from tiles where zoom_level=? and tile_column=? and tile_row=?",
+                                          new String[]{String.valueOf(z), String.valueOf(x), String.valueOf(row)});
+                                  Bitmap bm = null;
+                                  VectorRenderer.TileLabels tl = null;
+                                  if (c.moveToFirst()) {
+                                      byte[] d = c.getBlob(0);
+                                      if (vector) {
+                                          tl = new VectorRenderer.TileLabels();
+                                          bm = VectorRenderer.render(d, z, 384, tl);
+                                      } else {
+                                          bm = BitmapFactory.decodeByteArray(d, 0, d.length);
+                                      }
+                                  }
+                                  c.close();
+                                  if (bm != null) cache.put(key, new Tile(bm, tl));
+                              } catch (Throwable ignored) {
+                              }
+                              pending.remove(key);
+                              postInvalidate();
+                          });
+                      } catch (Throwable ignored) {
+                          pending.remove(key);
+                      }
+                  }
+                  return null;
+              }
+
+              /** Нове положення з GPS. speed у м/с, bearing у градусах (або -1). */
+              public void setMyLocation(double la, double lo, float bearing, float speed) {
+                  boolean first = !hasFix;
+                  myLat = la;
+                  myLon = lo;
+                  fixLat = la;
+                  fixLon = lo;
+                  fixSpeed = speed;
+                  if (bearing >= 0 && speed > 1.5f) fixBearing = bearing;
+                  fixTime = System.currentTimeMillis();
+                  hasFix = true;
+                  if (first && follow) {
+                      lat = la;
+                      lon = lo;
+                      rot = headingUp ? fixBearing : 0;
+                  }
+                  postInvalidate();
+              }
+
+              public void zoomBy(double d) {
+                  setManualZoom(zoom + d);
+              }
+
+              public void goToMe() {
+                  follow = true;
+                  manualUntil = 0;
+                  invalidate();
+              }
+
+              static double speedZoom(double kmh) {
+                  double[][] t = {{0, 17.2}, {15, 17.0}, {30, 16.4}, {50, 15.9}, {70, 15.3}, {90, 14.7}, {120, 14.2}};
+                  if (kmh <= t[0][0]) return t[0][1];
+                  for (int i = 1; i < t.length; i++) {
+                      if (kmh <= t[i][0]) return t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (kmh - t[i - 1][0]) / (t[i][0] - t[i - 1][0]);
+                  }
+                  return t[t.length - 1][1];
+              }
+
+              static double angDiff(double to, double from) {
+                  double d = ((to - from) % 360 + 540) % 360 - 180;
+                  return d;
+              }
+
+              /** Плавне наближення до цілі: положення, поворот, масштаб. */
+              void animate() {
+                  long now = System.nanoTime();
+                  float dt = lastNs == 0 ? 0.016f : (now - lastNs) / 1e9f;
+                  if (dt > 0.25f) dt = 0.016f;
+                  lastNs = now;
+                  float H = getHeight();
+                  boolean fl = follow && hasFix;
+                  float targetPiv = fl && headingUp ? H * 0.62f : H / 2f;
+                  if (pivY < 0) pivY = targetPiv;
+                  pivY += (targetPiv - pivY) * (1 - Math.exp(-dt / 0.5));
+                  if (fl) {
+                      double age = Math.min(2.0, (System.currentTimeMillis() - fixTime) / 1000.0);
+                      double d = fixSpeed * age, br = Math.toRadians(fixBearing);
+                      double tLat = fixLat + d * Math.cos(br) / 111320.0;
+                      double tLon = fixLon + d * Math.sin(br) / (111320.0 * Math.cos(Math.toRadians(fixLat)));
+                      double a = 1 - Math.exp(-dt / 0.35);
+                      lat += (tLat - lat) * a;
+                      lon += (tLon - lon) * a;
+                      double tRot = headingUp ? fixBearing : 0;
+                      rot += angDiff(tRot, rot) * (1 - Math.exp(-dt / 0.7));
+                      rot = (rot % 360 + 360) % 360;
+                      if (now > manualUntil) {
+                          double tz = Math.max(minZ, Math.min(maxZ + 3, speedZoom(fixSpeed * 3.6)));
+                          zoom += (tz - zoom) * (1 - Math.exp(-dt / 1.2));
+                      }
+                  }
+              }
+
+              public static double distKm(double a1, double o1, double a2, double o2) {
+                  double R = 6371.0;
+                  double dLa = Math.toRadians(a2 - a1), dLo = Math.toRadians(o2 - o1);
+                  double h = Math.sin(dLa / 2) * Math.sin(dLa / 2)
+                          + Math.cos(Math.toRadians(a1)) * Math.cos(Math.toRadians(a2)) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+                  return 2 * R * Math.asin(Math.sqrt(h));
+              }
+
+              public static double bearing(double a1, double o1, double a2, double o2) {
+                  double y = Math.sin(Math.toRadians(o2 - o1)) * Math.cos(Math.toRadians(a2));
+                  double x = Math.cos(Math.toRadians(a1)) * Math.sin(Math.toRadians(a2))
+                          - Math.sin(Math.toRadians(a1)) * Math.cos(Math.toRadians(a2)) * Math.cos(Math.toRadians(o2 - o1));
+                  return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360;
+              }
+
+              int poiColor(String cls) {
+                  String c = cls.toLowerCase();
+                  if (c.contains("fuel")) return 0xFF1E88E5;
+                  if (c.contains("hospital") || c.contains("pharmacy") || c.contains("doctor") || c.contains("clinic")) return 0xFFD32F2F;
+                  if (c.contains("restaurant") || c.contains("cafe") || c.contains("bar") || c.contains("food")) return 0xFFEF6C00;
+                  if (c.contains("shop") || c.contains("supermarket") || c.contains("mall") || c.contains("convenience")) return 0xFF8E24AA;
+                  if (c.contains("parking")) return 0xFF546E7A;
+                  if (c.contains("bank") || c.contains("atm")) return 0xFF2E7D32;
+                  return 0xFF607D8B;
+              }
+
+              void halo(Canvas cv, Paint tpn, String s, float x, float y) {
+                  tpn.setStyle(Paint.Style.STROKE);
+                  tpn.setStrokeWidth(3.5f * density);
+                  tpn.setColor(night ? 0xFF111111 : 0xFFFFFFFF);
+                  cv.drawText(s, x, y, tpn);
+                  tpn.setStyle(Paint.Style.FILL);
+                  tpn.setColor(night ? 0xFFEEEEEE : 0xFF333333);
+                  cv.drawText(s, x, y, tpn);
+              }
+
+              static boolean hits(List<RectF> placed, RectF rc) {
+                  for (RectF q : placed) if (RectF.intersects(q, rc)) return true;
+                  return false;
+              }
+
+              float placeSize(String c) {
+                  if (c.equals("country")) return zoom < 7 ? 20 : 0;
+                  if (c.equals("state") || c.equals("region")) return zoom >= 4 && zoom < 9 ? 17 : 0;
+                  if (c.equals("city")) return 20;
+                  if (c.equals("town")) return zoom >= 8 ? 17 : 0;
+                  if (c.equals("village")) return zoom >= 10 ? 15 : 0;
+                  if (c.equals("suburb") || c.equals("hamlet")) return zoom >= 12.5 ? 13 : 0;
+                  if (c.equals("neighbourhood")) return zoom >= 14 ? 12 : 0;
+                  return 0;
+              }
+
+              /** Підписи малюються по екрану з постійним розміром; з урахуванням повороту карти. */
+              void drawLabels(Canvas cv, List<Object[]> vis) {
+                  if (vis.isEmpty()) return;
+                  float W = getWidth(), H = getHeight(), pvx = pvx(), pvy = pvy();
+                  double a = Math.toRadians(-rot), ca = Math.cos(a), sa = Math.sin(a);
+                  List<RectF> placed = new ArrayList<RectF>();
+                  Paint tpn = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  tpn.setStrokeJoin(Paint.Join.ROUND);
+                  PathMeasure pm = new PathMeasure();
+                  float[] sp = new float[2];
+                  // 1) населені пункти
+                  tpn.setTextAlign(Paint.Align.CENTER);
+                  for (Object[] v : vis) {
+                      VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
+                      float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
+                      for (VectorRenderer.PointLabel pt : tl.pts) {
+                          if (pt.kind != 3 || pt.name == null) continue;
+                          float sz = placeSize(pt.cls == null ? "" : pt.cls);
+                          if (sz == 0) continue;
+                          double ux = l + pt.x * ts - pvx, uy = t + pt.y * ts - pvy;
+                          float x = (float) (pvx + ux * ca - uy * sa), y = (float) (pvy + ux * sa + uy * ca);
+                          if (x < -100 || x > W + 100 || y < -50 || y > H + 50) continue;
+                          tpn.setTextSize(sz * density);
+                          tpn.setTypeface(sz >= 20 ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                          float w = tpn.measureText(pt.name);
+                          RectF rc = new RectF(x - w / 2 - 4 * density, y - sz * density, x + w / 2 + 4 * density, y + 6 * density);
+                          if (hits(placed, rc)) continue;
+                          placed.add(rc);
+                          halo(cv, tpn, pt.name, x, y);
+                      }
+                  }
+                  tpn.setTypeface(Typeface.DEFAULT);
+                  // 2) вулиці
+                  tpn.setTextSize(13 * density);
+                  for (Object[] v : vis) {
+                      VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
+                      float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
+                      for (VectorRenderer.Road r : tl.roads) {
+                          if (zoom < 15 && !(zoom >= 13.5 && r.rank >= 2) && !(zoom >= 11 && r.rank >= 4)) continue;
+                          int n = r.xy.length / 2;
+                          float[] pts = new float[r.xy.length];
+                          float x0 = 1e9f, x1 = -1e9f, y0 = 1e9f, y1 = -1e9f;
+                          for (int i = 0; i < n; i++) {
+                              double ux = l + r.xy[i * 2] * ts - pvx, uy = t + r.xy[i * 2 + 1] * ts - pvy;
+                              float x = (float) (pvx + ux * ca - uy * sa), y = (float) (pvy + ux * sa + uy * ca);
+                              pts[i * 2] = x;
+                              pts[i * 2 + 1] = y;
+                              x0 = Math.min(x0, x);
+                              x1 = Math.max(x1, x);
+                              y0 = Math.min(y0, y);
+                              y1 = Math.max(y1, y);
+                          }
+                          if (x1 < 0 || x0 > W || y1 < 0 || y0 > H) continue;
+                          boolean rev = pts[(n - 1) * 2] < pts[0];
+                          Path pa = new Path();
+                          for (int k = 0; k < n; k++) {
+                              int i = rev ? n - 1 - k : k;
+                              if (k == 0) pa.moveTo(pts[i * 2], pts[i * 2 + 1]);
+                              else pa.lineTo(pts[i * 2], pts[i * 2 + 1]);
+                          }
+                          pm.setPath(pa, false);
+                          float len = pm.getLength(), tw = tpn.measureText(r.name);
+                          if (len < tw + 12 * density) continue;
+                          float off = (len - tw) / 2f;
+                          float[] p1 = new float[2], p2 = new float[2];
+                          pm.getPosTan(off, p1, null);
+                          pm.getPosTan(off + tw, p2, null);
+                          float chord = (float) Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+                          if (chord < 0.93f * tw) continue; // надто крива лінія — текст «ламається»
+                          Path seg = new Path();
+                          pm.getSegment(off, off + tw, seg, true);
+                          RectF rc = new RectF();
+                          seg.computeBounds(rc, true);
+                          rc.inset(-7 * density, -9 * density);
+                          if (hits(placed, rc)) continue;
+                          placed.add(rc);
+                          tpn.setTextAlign(Paint.Align.LEFT);
+                          tpn.setStyle(Paint.Style.STROKE);
+                          tpn.setStrokeWidth(3.5f * density);
+                          tpn.setColor(night ? 0xFF111111 : 0xFFFFFFFF);
+                          cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
+                          tpn.setStyle(Paint.Style.FILL);
+                          tpn.setColor(night ? 0xFFEEEEEE : 0xFF444444);
+                          cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
+                      }
+                  }
+                  // 3) заклади й номери будинків
+                  for (Object[] v : vis) {
+                      VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
+                      float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
+                      for (VectorRenderer.PointLabel pt : tl.pts) {
+                          if (pt.kind == 3) continue;
+                          if (pt.kind == 2 && zoom < 15.5) continue;
+                          if (pt.kind == 1 && (zoom < 16.5 || pt.name == null)) continue;
+                          double ux = l + pt.x * ts - pvx, uy = t + pt.y * ts - pvy;
+                          float x = (float) (pvx + ux * ca - uy * sa), y = (float) (pvy + ux * sa + uy * ca);
+                          if (x < -50 || x > W + 50 || y < -50 || y > H + 50) continue;
+                          if (pt.kind == 2) {
+                              if (pt.name == null && zoom < 17) continue;
+                              tpn.setTextSize(12 * density);
+                              float w = pt.name == null ? 0 : tpn.measureText(pt.name);
+                              RectF rc = new RectF(x - 7 * density, y - 9 * density, x + 12 * density + w, y + 9 * density);
+                              if (hits(placed, rc)) continue;
+                              placed.add(rc);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(poiColor(pt.cls == null ? "" : pt.cls));
+                              cv.drawCircle(x, y, 5.5f * density, p);
+                              p.setColor(0xFFFFFFFF);
+                              cv.drawCircle(x, y, 2f * density, p);
+                              if (pt.name != null) {
+                                  tpn.setTextAlign(Paint.Align.LEFT);
+                                  halo(cv, tpn, pt.name, x + 9 * density, y + 4 * density);
+                              }
+                          } else {
+                              tpn.setTextSize(11 * density);
+                              float w = tpn.measureText(pt.name);
+                              RectF rc = new RectF(x - w / 2, y - 7 * density, x + w / 2, y + 7 * density);
+                              if (hits(placed, rc)) continue;
+                              placed.add(rc);
+                              tpn.setTextAlign(Paint.Align.CENTER);
+                              halo(cv, tpn, pt.name, x, y + 4 * density);
+                          }
+                      }
+                  }
+              }
+
+              @Override
+              protected void onDraw(Canvas cv) {
+                  animate();
+                  float W = getWidth(), H = getHeight(), pvx = pvx(), pvy = pvy();
+                  cv.drawColor(night ? 0xFF111111 : 0xFFE8E4DC);
+                  if (db == null) {
+                      p.setColor(0xFF888888);
+                      p.setTextSize(28 * density);
+                      p.setTextAlign(Paint.Align.CENTER);
+                      cv.drawText(error == null ? "Немає файлу карти" : "Помилка карти", W / 2, H / 2, p);
+                      return;
+                  }
+                  int tz = (int) Math.max(minZ, Math.min(maxZ, Math.floor(zoom)));
+                  double scale = Math.pow(2, zoom - tz);
+                  float ts = (float) (256.0 * density * scale);
+                  double n = Math.pow(2, tz);
+                  double cx = lonToX(lon) * n, cy = latToY(lat) * n;
+                  double r = Math.toRadians(rot), cr = Math.cos(r), sr = Math.sin(r);
+                  double minX = 1e18, maxX = -1e18, minY = 1e18, maxY = -1e18;
+                  float[][] cs = {{0, 0}, {W, 0}, {0, H}, {W, H}};
+                  for (float[] c : cs) {
+                      double ddx = c[0] - pvx, ddy = c[1] - pvy;
+                      double ux = ddx * cr - ddy * sr, uy = ddx * sr + ddy * cr;
+                      minX = Math.min(minX, ux);
+                      maxX = Math.max(maxX, ux);
+                      minY = Math.min(minY, uy);
+                      maxY = Math.max(maxY, uy);
+                  }
+                  int x0 = (int) Math.floor(cx + minX / ts), x1 = (int) Math.floor(cx + maxX / ts);
+                  int y0 = (int) Math.floor(cy + minY / ts), y1 = (int) Math.floor(cy + maxY / ts);
+                  int max = (int) n;
+                  List<Object[]> vis = new ArrayList<Object[]>();
+                  cv.save();
+                  cv.rotate(-rot, pvx, pvy);
+                  if ((x1 - x0 + 1) * (y1 - y0 + 1) <= 160) {
+                      for (int ty = y0; ty <= y1; ty++) {
+                          if (ty < 0 || ty >= max) continue;
+                          for (int tx = x0; tx <= x1; tx++) {
+                              int txx = ((tx % max) + max) % max;
+                              Tile b = tile(tz, txx, ty);
+                              float l = (float) (pvx + (tx - cx) * ts), t = (float) (pvy + (ty - cy) * ts);
+                              if (b != null) {
+                                  cv.drawBitmap(b.bm, null, new RectF(l, t, l + ts + 1, t + ts + 1), night ? nightP : tp);
+                                  if (b.labels != null) vis.add(new Object[]{b.labels, l, t, ts});
+                              }
+                          }
+                      }
+                  }
+                  cv.restore();
+                  drawLabels(cv, vis);
+                  // мітка і лінія
+                  boolean fl = follow && hasFix;
+                  float[] me = fl ? new float[]{pvx, pvy} : (hasFix ? scr(myLat, myLon) : null);
+                  if (markLat != null) {
+                      float[] m = scr(markLat, markLon);
+                      if (me != null) {
+                          p.setColor(0xFFE53935);
+                          p.setStrokeWidth(4 * density);
+                          p.setStyle(Paint.Style.STROKE);
+                          cv.drawLine(me[0], me[1], m[0], m[1], p);
+                      }
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFFE53935);
+                      cv.drawCircle(m[0], m[1], 11 * density, p);
+                      p.setColor(0xFFFFFFFF);
+                      cv.drawCircle(m[0], m[1], 4 * density, p);
+                  }
+                  if (me != null) {
+                      cv.save();
+                      cv.translate(me[0], me[1]);
+                      cv.rotate(fixBearing - rot);
+                      Path a = new Path();
+                      float s = 18 * density;
+                      a.moveTo(0, -s);
+                      a.lineTo(s * 0.75f, s * 0.8f);
+                      a.lineTo(0, s * 0.4f);
+                      a.lineTo(-s * 0.75f, s * 0.8f);
+                      a.close();
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFF1E88E5);
+                      cv.drawPath(a, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(2.5f * density);
+                      p.setColor(0xFFFFFFFF);
+                      cv.drawPath(a, p);
+                      cv.restore();
+                  }
+                  p.setStyle(Paint.Style.FILL);
+                  if (fl) postInvalidateOnAnimation();
+              }
+
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  sg.onTouchEvent(e);
+                  gd.onTouchEvent(e);
+                  return true;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/VectorRenderer.java <<'EOF'
+          package com.example.launcher;
+
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.DashPathEffect;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.HashMap;
+          import java.util.List;
+          import java.util.Map;
+          import java.util.zip.GZIPInputStream;
+
+          /** Дуже проста відмальовка векторних плиток (Mapbox Vector Tile, схема OpenMapTiles) у растр. */
+          public class VectorRenderer {
+              static class Layer {
+                  String name;
+                  List<String> keys = new ArrayList<String>();
+                  List<Object> vals = new ArrayList<Object>();
+                  List<Feat> feats = new ArrayList<Feat>();
+                  int extent = 4096;
+              }
+
+              static class Feat {
+                  int type;
+                  int[] tags, geom;
+                  Layer layer;
+
+                  Object get(String k) {
+                      if (tags == null) return null;
+                      for (int i = 0; i + 1 < tags.length; i += 2) {
+                          int ki = tags[i], vi = tags[i + 1];
+                          if (ki < layer.keys.size() && layer.keys.get(ki).equals(k)) return vi < layer.vals.size() ? layer.vals.get(vi) : null;
+                      }
+                      return null;
+                  }
+
+                  String str(String k) {
+                      Object o = get(k);
+                      return o == null ? null : String.valueOf(o);
+                  }
+
+                  double num(String k, double d) {
+                      Object o = get(k);
+                      if (o instanceof Number) return ((Number) o).doubleValue();
+                      return d;
+                  }
+              }
+
+              static class Pb {
+                  byte[] b;
+                  int p, end;
+
+                  Pb(byte[] b, int p, int end) {
+                      this.b = b;
+                      this.p = p;
+                      this.end = end;
+                  }
+
+                  boolean more() {
+                      return p < end;
+                  }
+
+                  long v64() {
+                      long r = 0;
+                      int sh = 0;
+                      while (true) {
+                          int c = b[p++];
+                          r |= (long) (c & 0x7f) << sh;
+                          if ((c & 0x80) == 0) break;
+                          sh += 7;
+                      }
+                      return r;
+                  }
+
+                  int v32() {
+                      return (int) v64();
+                  }
+
+                  void skip(int w) {
+                      if (w == 0) v64();
+                      else if (w == 1) p += 8;
+                      else if (w == 2) p += v32();
+                      else if (w == 5) p += 4;
+                  }
+              }
+
+              static byte[] gunzip(byte[] d) throws Exception {
+                  GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(d));
+                  ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                  byte[] buf = new byte[8192];
+                  int n;
+                  while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                  return bo.toByteArray();
+              }
+
+              static int[] packed(byte[] d, int s, int e) {
+                  int[] tmp = new int[e - s];
+                  int n = 0;
+                  Pb pb = new Pb(d, s, e);
+                  while (pb.more()) tmp[n++] = pb.v32();
+                  return Arrays.copyOf(tmp, n);
+              }
+
+              static Object parseValue(byte[] d, int s, int e) {
+                  Pb pb = new Pb(d, s, e);
+                  Object r = null;
+                  while (pb.more()) {
+                      int tag = pb.v32(), f = tag >>> 3, w = tag & 7;
+                      if (f == 1 && w == 2) {
+                          int len = pb.v32();
+                          r = new String(d, pb.p, len, java.nio.charset.Charset.forName("UTF-8"));
+                          pb.p += len;
+                      } else if (f == 2 && w == 5) {
+                          int bits = (d[pb.p] & 0xff) | (d[pb.p + 1] & 0xff) << 8 | (d[pb.p + 2] & 0xff) << 16 | (d[pb.p + 3] & 0xff) << 24;
+                          r = (double) Float.intBitsToFloat(bits);
+                          pb.p += 4;
+                      } else if (f == 3 && w == 1) {
+                          long bits = 0;
+                          for (int i = 7; i >= 0; i--) bits = (bits << 8) | (d[pb.p + i] & 0xff);
+                          r = Double.longBitsToDouble(bits);
+                          pb.p += 8;
+                      } else if (w == 0) {
+                          long v = pb.v64();
+                          if (f == 6) v = (v >>> 1) ^ -(v & 1);
+                          r = v;
+                      } else {
+                          pb.skip(w);
+                      }
+                  }
+                  return r;
+              }
+
+              static Layer parseLayer(byte[] d, int s, int e) {
+                  Layer l = new Layer();
+                  Pb pb = new Pb(d, s, e);
+                  while (pb.more()) {
+                      int tag = pb.v32(), f = tag >>> 3, w = tag & 7;
+                      if (w == 2 && (f == 1 || f == 3)) {
+                          int len = pb.v32();
+                          String str = new String(d, pb.p, len, java.nio.charset.Charset.forName("UTF-8"));
+                          pb.p += len;
+                          if (f == 1) l.name = str;
+                          else l.keys.add(str);
+                      } else if (w == 2 && f == 2) {
+                          int len = pb.v32();
+                          Feat ft = new Feat();
+                          ft.layer = l;
+                          Pb fp = new Pb(d, pb.p, pb.p + len);
+                          while (fp.more()) {
+                              int t2 = fp.v32(), f2 = t2 >>> 3, w2 = t2 & 7;
+                              if (f2 == 2 && w2 == 2) {
+                                  int n = fp.v32();
+                                  ft.tags = packed(d, fp.p, fp.p + n);
+                                  fp.p += n;
+                              } else if (f2 == 3 && w2 == 0) {
+                                  ft.type = fp.v32();
+                              } else if (f2 == 4 && w2 == 2) {
+                                  int n = fp.v32();
+                                  ft.geom = packed(d, fp.p, fp.p + n);
+                                  fp.p += n;
+                              } else {
+                                  fp.skip(w2);
+                              }
+                          }
+                          if (ft.geom != null) l.feats.add(ft);
+                          pb.p += len;
+                      } else if (w == 2 && f == 4) {
+                          int len = pb.v32();
+                          l.vals.add(parseValue(d, pb.p, pb.p + len));
+                          pb.p += len;
+                      } else if (w == 0 && f == 5) {
+                          l.extent = pb.v32();
+                      } else {
+                          pb.skip(w);
+                      }
+                  }
+                  return l;
+              }
+
+              static Map<String, Layer> parse(byte[] d) {
+                  Map<String, Layer> m = new HashMap<String, Layer>();
+                  Pb t = new Pb(d, 0, d.length);
+                  while (t.more()) {
+                      int tag = t.v32(), f = tag >>> 3, w = tag & 7;
+                      if (f == 3 && w == 2) {
+                          int len = t.v32();
+                          Layer l = parseLayer(d, t.p, t.p + len);
+                          t.p += len;
+                          if (l.name != null) m.put(l.name, l);
+                      } else {
+                          t.skip(w);
+                      }
+                  }
+                  return m;
+              }
+
+              static int unzig(int v) {
+                  return (v >>> 1) ^ -(v & 1);
+              }
+
+              static Path toPath(Feat f, float sc) {
+                  Path p = new Path();
+                  int x = 0, y = 0, i = 0;
+                  int[] g = f.geom;
+                  while (i < g.length) {
+                      int cmd = g[i++], id = cmd & 7, cnt = cmd >>> 3;
+                      if (id == 1 || id == 2) {
+                          for (int k = 0; k < cnt && i + 1 < g.length + 1; k++) {
+                              x += unzig(g[i++]);
+                              y += unzig(g[i++]);
+                              if (id == 1) p.moveTo(x * sc, y * sc);
+                              else p.lineTo(x * sc, y * sc);
+                          }
+                      } else if (id == 7) {
+                          p.close();
+                      }
+                  }
+                  return p;
+              }
+
+              public static class Road {
+                  public String name;
+                  public int rank;
+                  public float[] xy;
+              }
+
+              public static class PointLabel {
+                  public String name, cls;
+                  public int kind; // 1 - номер будинку, 2 - заклад, 3 - населений пункт
+                  public float x, y;
+              }
+
+              public static class TileLabels {
+                  public List<Road> roads = new ArrayList<Road>();
+                  public List<PointLabel> pts = new ArrayList<PointLabel>();
+              }
+
+              /** Лінії об'єкта в нормалізованих координатах (0..1), напрямок зліва направо. */
+              static List<float[]> lines(Feat f, float sc) {
+                  List<float[]> res = new ArrayList<float[]>();
+                  List<float[]> pts = new ArrayList<float[]>();
+                  int x = 0, y = 0, i = 0;
+                  int[] g = f.geom;
+                  while (i < g.length) {
+                      int cmd = g[i++], id = cmd & 7, cnt = cmd >>> 3;
+                      if (id == 1 || id == 2) {
+                          for (int k = 0; k < cnt; k++) {
+                              x += unzig(g[i++]);
+                              y += unzig(g[i++]);
+                              if (id == 1 && !pts.isEmpty()) {
+                                  flat(pts, res);
+                                  pts = new ArrayList<float[]>();
+                              }
+                              pts.add(new float[]{x * sc, y * sc});
+                          }
+                      }
+                  }
+                  flat(pts, res);
+                  return res;
+              }
+
+              static void flat(List<float[]> pts, List<float[]> out) {
+                  if (pts.size() < 2) return;
+                  if (pts.get(pts.size() - 1)[0] < pts.get(0)[0]) java.util.Collections.reverse(pts);
+                  float[] a = new float[pts.size() * 2];
+                  for (int i = 0; i < pts.size(); i++) {
+                      a[i * 2] = pts.get(i)[0];
+                      a[i * 2 + 1] = pts.get(i)[1];
+                  }
+                  out.add(a);
+              }
+
+              static String nameOf(Feat f) {
+                  String nm = f.str("name");
+                  if (nm == null) nm = f.str("name:uk");
+                  if (nm == null) nm = f.str("name:latin");
+                  return nm;
+              }
+
+              static final String[] RANK = {"service", "minor", "tertiary", "secondary", "primary", "trunk", "motorway"};
+              static final int[] FILL = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF7FABF, 0xFFFCD6A4, 0xFFF9B29C, 0xFFE892A2};
+              static final int[] CASE = {0xFFBDBDBD, 0xFFBDBDBD, 0xFFBDBDBD, 0xFFB9B97A, 0xFFD9A55A, 0xFFD98A74, 0xFFDC2A67};
+              static final float[] WID = {1.5f, 2.2f, 3f, 3.5f, 4f, 4.5f, 5f};
+
+              static int rank(String c) {
+                  if (c == null) return -1;
+                  if (c.equals("residential") || c.equals("unclassified") || c.equals("living_street")) c = "minor";
+                  for (int i = 0; i < RANK.length; i++) if (RANK[i].equals(c)) return i;
+                  return -1;
+              }
+
+              static Integer landColor(String layer, String c) {
+                  if (c == null) return null;
+                  if (layer.equals("landcover")) {
+                      if (c.equals("wood")) return 0xFFC5E0B0;
+                      if (c.equals("grass")) return 0xFFDDEBC8;
+                      if (c.equals("farmland")) return 0xFFEEEFD5;
+                      if (c.equals("wetland")) return 0xFFD3E8E0;
+                      if (c.equals("sand")) return 0xFFF5E9C6;
+                      if (c.equals("rock")) return 0xFFE0DCD5;
+                      if (c.equals("ice")) return 0xFFFFFFFF;
+                  } else {
+                      if (c.equals("residential") || c.equals("suburb")) return 0xFFE9E5DC;
+                      if (c.equals("commercial") || c.equals("retail")) return 0xFFF2DAD9;
+                      if (c.equals("industrial") || c.equals("railway")) return 0xFFE6DDE8;
+                      if (c.equals("cemetery")) return 0xFFAACBAF;
+                      if (c.equals("garden") || c.equals("park") || c.equals("playground") || c.equals("pitch") || c.equals("zoo") || c.equals("theme_park"))
+                          return 0xFFCDEBB1;
+                      if (c.equals("military")) return 0xFFF1D9D9;
+                      if (c.equals("quarry")) return 0xFFC5C3C3;
+                  }
+                  return null;
+              }
+
+              public static Bitmap render(byte[] raw, int z, int size, TileLabels out) {
+                  Bitmap bm = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                  Canvas c = new Canvas(bm);
+                  c.drawColor(0xFFF2EFE9);
+                  try {
+                      byte[] d = raw;
+                      if (raw.length > 2 && (raw[0] & 0xff) == 0x1f && (raw[1] & 0xff) == 0x8b) d = gunzip(raw);
+                      Map<String, Layer> L = parse(d);
+                      float k = (float) Math.max(0.6, Math.min(3.0, 0.6 + 0.35 * (z - 10))) * size / 512f;
+                      Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      p.setStrokeCap(Paint.Cap.ROUND);
+                      p.setStrokeJoin(Paint.Join.ROUND);
+
+                      for (String ln : new String[]{"landcover", "landuse"}) {
+                          Layer l = L.get(ln);
+                          if (l == null) continue;
+                          float sc = size / (float) l.extent;
+                          for (Feat f : l.feats) {
+                              if (f.type != 3) continue;
+                              Integer col = landColor(ln, f.str("class"));
+                              if (col == null) continue;
+                              Path pa = toPath(f, sc);
+                              pa.setFillType(Path.FillType.EVEN_ODD);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(col);
+                              c.drawPath(pa, p);
+                          }
+                      }
+                      Layer w = L.get("water");
+                      if (w != null) {
+                          float sc = size / (float) w.extent;
+                          for (Feat f : w.feats) {
+                              if (f.type != 3) continue;
+                              Path pa = toPath(f, sc);
+                              pa.setFillType(Path.FillType.EVEN_ODD);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(0xFFAAD3DF);
+                              c.drawPath(pa, p);
+                          }
+                      }
+                      Layer ww = L.get("waterway");
+                      if (ww != null) {
+                          float sc = size / (float) ww.extent;
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setColor(0xFF8CBCDB);
+                          p.setStrokeWidth(1.6f * k);
+                          for (Feat f : ww.feats) if (f.type == 2) c.drawPath(toPath(f, sc), p);
+                      }
+                      Layer bl = L.get("building");
+                      if (bl != null && z >= 13) {
+                          float sc = size / (float) bl.extent;
+                          for (Feat f : bl.feats) {
+                              if (f.type != 3) continue;
+                              Path pa = toPath(f, sc);
+                              pa.setFillType(Path.FillType.EVEN_ODD);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(0xFFD9D0C9);
+                              c.drawPath(pa, p);
+                              p.setStyle(Paint.Style.STROKE);
+                              p.setStrokeWidth(1f);
+                              p.setColor(0xFFC4B7AE);
+                              c.drawPath(pa, p);
+                          }
+                      }
+                      Layer tr = L.get("transportation");
+                      if (tr != null) {
+                          float sc = size / (float) tr.extent;
+                          List<List<Path>> byRank = new ArrayList<List<Path>>();
+                          for (int i = 0; i < RANK.length; i++) byRank.add(new ArrayList<Path>());
+                          List<Path> rail = new ArrayList<Path>(), paths = new ArrayList<Path>();
+                          for (Feat f : tr.feats) {
+                              if (f.type != 2) continue;
+                              String cl = f.str("class");
+                              if ("rail".equals(cl)) {
+                                  rail.add(toPath(f, sc));
+                                  continue;
+                              }
+                              if ("path".equals(cl) || "track".equals(cl)) {
+                                  if (z >= 13) paths.add(toPath(f, sc));
+                                  continue;
+                              }
+                              int r = rank(cl);
+                              if (r >= 0) byRank.get(r).add(toPath(f, sc));
+                          }
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setPathEffect(new DashPathEffect(new float[]{6 * k, 4 * k}, 0));
+                          p.setColor(0xFFB5A99C);
+                          p.setStrokeWidth(1.2f * k);
+                          for (Path pa : paths) c.drawPath(pa, p);
+                          p.setPathEffect(null);
+                          for (int r = 0; r < RANK.length; r++) {
+                              List<Path> l = byRank.get(r);
+                              if (l.isEmpty()) continue;
+                              p.setColor(CASE[r]);
+                              p.setStrokeWidth(WID[r] * k + 1.6f * k);
+                              for (Path pa : l) c.drawPath(pa, p);
+                              p.setColor(FILL[r]);
+                              p.setStrokeWidth(WID[r] * k);
+                              for (Path pa : l) c.drawPath(pa, p);
+                          }
+                          p.setColor(0xFF888888);
+                          p.setStrokeWidth(1.3f * k);
+                          p.setPathEffect(new DashPathEffect(new float[]{10 * k, 6 * k}, 0));
+                          for (Path pa : rail) c.drawPath(pa, p);
+                          p.setPathEffect(null);
+                      }
+                      Layer bd = L.get("boundary");
+                      if (bd != null) {
+                          float sc = size / (float) bd.extent;
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setColor(0xFF9E7CB3);
+                          p.setPathEffect(new DashPathEffect(new float[]{12 * k, 6 * k}, 0));
+                          for (Feat f : bd.feats) {
+                              if (f.type != 2) continue;
+                              double al = f.num("admin_level", 9);
+                              if (al > 6) continue;
+                              p.setStrokeWidth((al <= 2 ? 3f : 1.8f) * k);
+                              c.drawPath(toPath(f, sc), p);
+                          }
+                          p.setPathEffect(null);
+                      }
+                      if (out != null) {
+                          Layer tn = L.get("transportation_name");
+                          if (tn != null) {
+                              float sc = 1f / tn.extent;
+                              for (Feat f : tn.feats) {
+                                  if (f.type != 2) continue;
+                                  String nm = nameOf(f);
+                                  if (nm == null) continue;
+                                  int rk = Math.max(0, rank(f.str("class")));
+                                  for (float[] ln : lines(f, sc)) {
+                                      Road r = new Road();
+                                      r.name = nm;
+                                      r.rank = rk;
+                                      r.xy = ln;
+                                      out.roads.add(r);
+                                  }
+                              }
+                          }
+                          String[] pl2 = {"housenumber", "poi", "place"};
+                          for (int q = 0; q < 3; q++) {
+                              Layer ly = L.get(pl2[q]);
+                              if (ly == null) continue;
+                              float sc = 1f / ly.extent;
+                              for (Feat f : ly.feats) {
+                                  if (f.type != 1 || f.geom.length < 3) continue;
+                                  PointLabel pt = new PointLabel();
+                                  pt.kind = q + 1;
+                                  pt.name = q == 0 ? f.str("housenumber") : nameOf(f);
+                                  pt.cls = q == 0 ? "" : q == 2 ? String.valueOf(f.str("class")) : String.valueOf(f.str("class")) + "/" + String.valueOf(f.str("subclass"));
+                                  if (pt.name == null && q != 1) continue;
+                                  pt.x = unzig(f.geom[1]) * sc;
+                                  pt.y = unzig(f.geom[2]) * sc;
+                                  out.pts.add(pt);
+                              }
+                          }
+                      }
+                  } catch (Throwable t) {
+                      // залишаємо те, що встигли намалювати
+                  }
+                  return bm;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/BootReceiver.java <<'EOF'
+          package com.example.launcher;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+
+          public class BootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                  try {
+                      SharedPreferences sp = c.getSharedPreferences("launcher", Context.MODE_PRIVATE);
+                      if (!sp.getBoolean("autostart", false)) return;
+                      Intent in = new Intent(c, MainActivity.class);
+                      in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      c.startActivity(in);
+                  } catch (Throwable ignored) {
+                  }
+              }
           }
           EOF
 
