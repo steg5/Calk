@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.maptest"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "1.4"
+                  versionCode 6
+                  versionName "1.5"
               }
               signingConfigs {
                   debug {
@@ -125,6 +125,7 @@ jobs:
           import android.graphics.Path;
           import android.graphics.PathMeasure;
           import android.graphics.RectF;
+          import android.graphics.Typeface;
           import android.util.LruCache;
           import android.view.GestureDetector;
           import android.view.MotionEvent;
@@ -138,7 +139,7 @@ jobs:
           import java.util.concurrent.ExecutorService;
           import java.util.concurrent.Executors;
 
-          /** Проста офлайн-карта з файлу MBTiles (растрові плитки). */
+          /** Проста офлайн-карта з файлу MBTiles (растр або вектор OpenMapTiles). */
           public class MapView extends View {
               public interface Listener {
                   void onMarkChanged();
@@ -146,14 +147,21 @@ jobs:
 
               SQLiteDatabase db;
               int minZ = 0, maxZ = 18;
-              public double lat = 49.8397, lon = 24.0297; // Львів
-              public double zoom = 12;
-              public boolean follow = true, night = false, hasFix = false;
+              // відображуваний стан (плавно рухається до цілі)
+              public double lat = 49.8397, lon = 24.0297, zoom = 12;
+              public float rot = 0;
+              float pivY = -1;
+              public boolean follow = true, night = false, hasFix = false, headingUp = true;
+              long manualUntil = 0;
+              // останній GPS-фікс
+              double fixLat, fixLon;
+              float fixBearing = 0, fixSpeed = 0;
+              long fixTime = 0, lastNs = 0;
               public double myLat, myLon;
-              public float myBearing = 0;
               public Double markLat, markLon;
               public Listener listener;
               public String error = null;
+              boolean vector = false;
               float density;
 
               static class Tile {
@@ -166,13 +174,12 @@ jobs:
                   }
               }
 
-              final LruCache<String, Tile> cache = new LruCache<String, Tile>(48 * 1024 * 1024) {
+              final LruCache<String, Tile> cache = new LruCache<String, Tile>(72 * 1024 * 1024) {
                   @Override
                   protected int sizeOf(String k, Tile t) {
                       return t.bm.getByteCount() + 2048;
                   }
               };
-              boolean vector = false;
               final Set<String> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
               final ExecutorService ex = Executors.newSingleThreadExecutor();
               final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -193,8 +200,7 @@ jobs:
                   sg = new ScaleGestureDetector(c, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                       @Override
                       public boolean onScale(ScaleGestureDetector d) {
-                          zoom = Math.max(minZ, Math.min(maxZ + 3, zoom + Math.log(d.getScaleFactor()) / Math.log(2)));
-                          invalidate();
+                          setManualZoom(zoom + Math.log(d.getScaleFactor()) / Math.log(2));
                           return true;
                       }
                   });
@@ -203,35 +209,38 @@ jobs:
                       public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
                           if (sg.isInProgress()) return true;
                           follow = false;
-                          double s = worldPx();
-                          lon += dx / s * 360.0;
-                          double ty = latToY(lat) + dy / s;
-                          lat = yToLat(Math.max(0.001, Math.min(0.999, ty)));
+                          double s = worldPx(), a = Math.toRadians(rot);
+                          double wx = dx * Math.cos(a) - dy * Math.sin(a), wy = dx * Math.sin(a) + dy * Math.cos(a);
+                          lon += wx / s * 360.0;
+                          lat = yToLat(Math.max(0.001, Math.min(0.999, latToY(lat) + wy / s)));
                           invalidate();
                           return true;
                       }
 
                       @Override
                       public boolean onDoubleTap(MotionEvent e) {
-                          zoom = Math.min(maxZ + 3, zoom + 1);
-                          invalidate();
+                          setManualZoom(zoom + 1);
                           return true;
                       }
 
                       @Override
                       public void onLongPress(MotionEvent e) {
-                          double s = worldPx();
-                          double x = lonToX(lon) + (e.getX() - getWidth() / 2f) / s;
-                          double y = latToY(lat) + (e.getY() - getHeight() / 2f) / s;
-                          markLon = x * 360.0 - 180.0;
-                          markLat = yToLat(Math.max(0.001, Math.min(0.999, y)));
+                          double[] w = unscr(e.getX(), e.getY());
+                          markLat = w[0];
+                          markLon = w[1];
                           if (listener != null) listener.onMarkChanged();
                           invalidate();
                       }
                   });
               }
 
-              // ---- математика Web Mercator (0..1) ----
+              void setManualZoom(double z) {
+                  zoom = Math.max(minZ, Math.min(maxZ + 3, z));
+                  manualUntil = System.nanoTime() + 15_000_000_000L;
+                  invalidate();
+              }
+
+              // ---- Web Mercator ----
               static double lonToX(double lon) {
                   return (lon + 180.0) / 360.0;
               }
@@ -242,13 +251,34 @@ jobs:
               }
 
               static double yToLat(double y) {
-                  double n = Math.PI * (1 - 2 * y);
-                  return Math.toDegrees(Math.atan(Math.sinh(n)));
+                  return Math.toDegrees(Math.atan(Math.sinh(Math.PI * (1 - 2 * y))));
               }
 
-              /** Розмір всього світу в пікселях при поточному масштабі. */
               double worldPx() {
                   return 256.0 * density * Math.pow(2, zoom);
+              }
+
+              float pvx() {
+                  return getWidth() / 2f;
+              }
+
+              float pvy() {
+                  return pivY < 0 ? getHeight() / 2f : pivY;
+              }
+
+              /** Координати -> екран (з урахуванням повороту карти). */
+              float[] scr(double la, double lo) {
+                  double s = worldPx();
+                  double dx = (lonToX(lo) - lonToX(lon)) * s, dy = (latToY(la) - latToY(lat)) * s;
+                  double a = Math.toRadians(-rot);
+                  return new float[]{(float) (pvx() + dx * Math.cos(a) - dy * Math.sin(a)), (float) (pvy() + dx * Math.sin(a) + dy * Math.cos(a))};
+              }
+
+              double[] unscr(float x, float y) {
+                  double ddx = x - pvx(), ddy = y - pvy(), a = Math.toRadians(rot), s = worldPx();
+                  double dx = ddx * Math.cos(a) - ddy * Math.sin(a), dy = ddx * Math.sin(a) + ddy * Math.cos(a);
+                  double nx = lonToX(lon) + dx / s, ny = latToY(lat) + dy / s;
+                  return new double[]{yToLat(Math.max(0.001, Math.min(0.999, ny))), nx * 360.0 - 180.0};
               }
 
               public boolean open(String path) {
@@ -302,7 +332,7 @@ jobs:
                                       byte[] d = c.getBlob(0);
                                       if (vector) {
                                           tl = new VectorRenderer.TileLabels();
-                                          bm = VectorRenderer.render(d, z, 512, tl);
+                                          bm = VectorRenderer.render(d, z, 384, tl);
                                       } else {
                                           bm = BitmapFactory.decodeByteArray(d, 0, d.length);
                                       }
@@ -321,30 +351,76 @@ jobs:
                   return null;
               }
 
-              public void setMyLocation(double la, double lo, float bearing) {
+              /** Нове положення з GPS. speed у м/с, bearing у градусах (або -1). */
+              public void setMyLocation(double la, double lo, float bearing, float speed) {
+                  boolean first = !hasFix;
                   myLat = la;
                   myLon = lo;
-                  if (bearing >= 0) myBearing = bearing;
+                  fixLat = la;
+                  fixLon = lo;
+                  fixSpeed = speed;
+                  if (bearing >= 0 && speed > 1.5f) fixBearing = bearing;
+                  fixTime = System.currentTimeMillis();
                   hasFix = true;
-                  if (follow) {
+                  if (first && follow) {
                       lat = la;
                       lon = lo;
+                      rot = headingUp ? fixBearing : 0;
                   }
                   postInvalidate();
               }
 
               public void zoomBy(double d) {
-                  zoom = Math.max(minZ, Math.min(maxZ + 3, zoom + d));
-                  invalidate();
+                  setManualZoom(zoom + d);
               }
 
               public void goToMe() {
                   follow = true;
-                  if (hasFix) {
-                      lat = myLat;
-                      lon = myLon;
-                  }
+                  manualUntil = 0;
                   invalidate();
+              }
+
+              static double speedZoom(double kmh) {
+                  double[][] t = {{0, 17.2}, {15, 17.0}, {30, 16.4}, {50, 15.9}, {70, 15.3}, {90, 14.7}, {120, 14.2}};
+                  if (kmh <= t[0][0]) return t[0][1];
+                  for (int i = 1; i < t.length; i++) {
+                      if (kmh <= t[i][0]) return t[i - 1][1] + (t[i][1] - t[i - 1][1]) * (kmh - t[i - 1][0]) / (t[i][0] - t[i - 1][0]);
+                  }
+                  return t[t.length - 1][1];
+              }
+
+              static double angDiff(double to, double from) {
+                  double d = ((to - from) % 360 + 540) % 360 - 180;
+                  return d;
+              }
+
+              /** Плавне наближення до цілі: положення, поворот, масштаб. */
+              void animate() {
+                  long now = System.nanoTime();
+                  float dt = lastNs == 0 ? 0.016f : (now - lastNs) / 1e9f;
+                  if (dt > 0.25f) dt = 0.016f;
+                  lastNs = now;
+                  float H = getHeight();
+                  boolean fl = follow && hasFix;
+                  float targetPiv = fl && headingUp ? H * 0.62f : H / 2f;
+                  if (pivY < 0) pivY = targetPiv;
+                  pivY += (targetPiv - pivY) * (1 - Math.exp(-dt / 0.5));
+                  if (fl) {
+                      double age = Math.min(2.0, (System.currentTimeMillis() - fixTime) / 1000.0);
+                      double d = fixSpeed * age, br = Math.toRadians(fixBearing);
+                      double tLat = fixLat + d * Math.cos(br) / 111320.0;
+                      double tLon = fixLon + d * Math.sin(br) / (111320.0 * Math.cos(Math.toRadians(fixLat)));
+                      double a = 1 - Math.exp(-dt / 0.35);
+                      lat += (tLat - lat) * a;
+                      lon += (tLon - lon) * a;
+                      double tRot = headingUp ? fixBearing : 0;
+                      rot += angDiff(tRot, rot) * (1 - Math.exp(-dt / 0.7));
+                      rot = (rot % 360 + 360) % 360;
+                      if (now > manualUntil) {
+                          double tz = Math.max(minZ, Math.min(maxZ + 3, speedZoom(fixSpeed * 3.6)));
+                          zoom += (tz - zoom) * (1 - Math.exp(-dt / 1.2));
+                      }
+                  }
               }
 
               public static double distKm(double a1, double o1, double a2, double o2) {
@@ -362,19 +438,11 @@ jobs:
                   return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360;
               }
 
-              float sx(double lo) {
-                  return (float) (getWidth() / 2.0 + (lonToX(lo) - lonToX(lon)) * worldPx());
-              }
-
-              float sy(double la) {
-                  return (float) (getHeight() / 2.0 + (latToY(la) - latToY(lat)) * worldPx());
-              }
-
               int poiColor(String cls) {
                   String c = cls.toLowerCase();
                   if (c.contains("fuel")) return 0xFF1E88E5;
                   if (c.contains("hospital") || c.contains("pharmacy") || c.contains("doctor") || c.contains("clinic")) return 0xFFD32F2F;
-                  if (c.contains("restaurant") || c.contains("cafe") || c.contains("bar") || c.contains("food") || c.contains("fast_food")) return 0xFFEF6C00;
+                  if (c.contains("restaurant") || c.contains("cafe") || c.contains("bar") || c.contains("food")) return 0xFFEF6C00;
                   if (c.contains("shop") || c.contains("supermarket") || c.contains("mall") || c.contains("convenience")) return 0xFF8E24AA;
                   if (c.contains("parking")) return 0xFF546E7A;
                   if (c.contains("bank") || c.contains("atm")) return 0xFF2E7D32;
@@ -391,51 +459,99 @@ jobs:
                   cv.drawText(s, x, y, tpn);
               }
 
-              /** Підписи малюються по екрану, розмір тексту не залежить від масштабу карти. */
+              static boolean hits(List<RectF> placed, RectF rc) {
+                  for (RectF q : placed) if (RectF.intersects(q, rc)) return true;
+                  return false;
+              }
+
+              float placeSize(String c) {
+                  if (c.equals("country")) return zoom < 7 ? 20 : 0;
+                  if (c.equals("state") || c.equals("region")) return zoom >= 4 && zoom < 9 ? 17 : 0;
+                  if (c.equals("city")) return 20;
+                  if (c.equals("town")) return zoom >= 8 ? 17 : 0;
+                  if (c.equals("village")) return zoom >= 10 ? 15 : 0;
+                  if (c.equals("suburb") || c.equals("hamlet")) return zoom >= 12.5 ? 13 : 0;
+                  if (c.equals("neighbourhood")) return zoom >= 14 ? 12 : 0;
+                  return 0;
+              }
+
+              /** Підписи малюються по екрану з постійним розміром; з урахуванням повороту карти. */
               void drawLabels(Canvas cv, List<Object[]> vis) {
                   if (vis.isEmpty()) return;
-                  float W = getWidth(), H = getHeight();
+                  float W = getWidth(), H = getHeight(), pvx = pvx(), pvy = pvy();
+                  double a = Math.toRadians(-rot), ca = Math.cos(a), sa = Math.sin(a);
                   List<RectF> placed = new ArrayList<RectF>();
                   Paint tpn = new Paint(Paint.ANTI_ALIAS_FLAG);
                   tpn.setStrokeJoin(Paint.Join.ROUND);
                   PathMeasure pm = new PathMeasure();
-                  // вулиці
+                  float[] sp = new float[2];
+                  // 1) населені пункти
+                  tpn.setTextAlign(Paint.Align.CENTER);
+                  for (Object[] v : vis) {
+                      VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
+                      float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
+                      for (VectorRenderer.PointLabel pt : tl.pts) {
+                          if (pt.kind != 3 || pt.name == null) continue;
+                          float sz = placeSize(pt.cls == null ? "" : pt.cls);
+                          if (sz == 0) continue;
+                          double ux = l + pt.x * ts - pvx, uy = t + pt.y * ts - pvy;
+                          float x = (float) (pvx + ux * ca - uy * sa), y = (float) (pvy + ux * sa + uy * ca);
+                          if (x < -100 || x > W + 100 || y < -50 || y > H + 50) continue;
+                          tpn.setTextSize(sz * density);
+                          tpn.setTypeface(sz >= 20 ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                          float w = tpn.measureText(pt.name);
+                          RectF rc = new RectF(x - w / 2 - 4 * density, y - sz * density, x + w / 2 + 4 * density, y + 6 * density);
+                          if (hits(placed, rc)) continue;
+                          placed.add(rc);
+                          halo(cv, tpn, pt.name, x, y);
+                      }
+                  }
+                  tpn.setTypeface(Typeface.DEFAULT);
+                  // 2) вулиці
                   tpn.setTextSize(13 * density);
                   for (Object[] v : vis) {
                       VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
                       float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
                       for (VectorRenderer.Road r : tl.roads) {
                           if (zoom < 15 && !(zoom >= 13.5 && r.rank >= 2) && !(zoom >= 11 && r.rank >= 4)) continue;
-                          float[] a = r.xy;
+                          int n = r.xy.length / 2;
+                          float[] pts = new float[r.xy.length];
                           float x0 = 1e9f, x1 = -1e9f, y0 = 1e9f, y1 = -1e9f;
-                          for (int i = 0; i < a.length; i += 2) {
-                              float px = l + a[i] * ts, py = t + a[i + 1] * ts;
-                              x0 = Math.min(x0, px);
-                              x1 = Math.max(x1, px);
-                              y0 = Math.min(y0, py);
-                              y1 = Math.max(y1, py);
+                          for (int i = 0; i < n; i++) {
+                              double ux = l + r.xy[i * 2] * ts - pvx, uy = t + r.xy[i * 2 + 1] * ts - pvy;
+                              float x = (float) (pvx + ux * ca - uy * sa), y = (float) (pvy + ux * sa + uy * ca);
+                              pts[i * 2] = x;
+                              pts[i * 2 + 1] = y;
+                              x0 = Math.min(x0, x);
+                              x1 = Math.max(x1, x);
+                              y0 = Math.min(y0, y);
+                              y1 = Math.max(y1, y);
                           }
                           if (x1 < 0 || x0 > W || y1 < 0 || y0 > H) continue;
+                          boolean rev = pts[(n - 1) * 2] < pts[0];
                           Path pa = new Path();
-                          for (int i = 0; i < a.length; i += 2) {
-                              float px = l + a[i] * ts, py = t + a[i + 1] * ts;
-                              if (i == 0) pa.moveTo(px, py);
-                              else pa.lineTo(px, py);
+                          for (int k = 0; k < n; k++) {
+                              int i = rev ? n - 1 - k : k;
+                              if (k == 0) pa.moveTo(pts[i * 2], pts[i * 2 + 1]);
+                              else pa.lineTo(pts[i * 2], pts[i * 2 + 1]);
                           }
                           pm.setPath(pa, false);
                           float len = pm.getLength(), tw = tpn.measureText(r.name);
                           if (len < tw + 12 * density) continue;
-                          float[] pos = new float[2];
-                          pm.getPosTan(len / 2, pos, null);
-                          RectF rc = new RectF(pos[0] - tw / 2, pos[1] - 12 * density, pos[0] + tw / 2, pos[1] + 12 * density);
-                          boolean hit = false;
-                          for (RectF q : placed) if (RectF.intersects(q, rc)) {
-                              hit = true;
-                              break;
-                          }
-                          if (hit) continue;
-                          placed.add(rc);
                           float off = (len - tw) / 2f;
+                          float[] p1 = new float[2], p2 = new float[2];
+                          pm.getPosTan(off, p1, null);
+                          pm.getPosTan(off + tw, p2, null);
+                          float chord = (float) Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+                          if (chord < 0.93f * tw) continue; // надто крива лінія — текст «ламається»
+                          Path seg = new Path();
+                          pm.getSegment(off, off + tw, seg, true);
+                          RectF rc = new RectF();
+                          seg.computeBounds(rc, true);
+                          rc.inset(-7 * density, -9 * density);
+                          if (hits(placed, rc)) continue;
+                          placed.add(rc);
+                          tpn.setTextAlign(Paint.Align.LEFT);
                           tpn.setStyle(Paint.Style.STROKE);
                           tpn.setStrokeWidth(3.5f * density);
                           tpn.setColor(night ? 0xFF111111 : 0xFFFFFFFF);
@@ -445,51 +561,41 @@ jobs:
                           cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
                       }
                   }
-                  // заклади і номери будинків
-                  tpn.setTextAlign(Paint.Align.LEFT);
+                  // 3) заклади й номери будинків
                   for (Object[] v : vis) {
                       VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
                       float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
                       for (VectorRenderer.PointLabel pt : tl.pts) {
-                          float x = l + pt.x * ts, y = t + pt.y * ts;
+                          if (pt.kind == 3) continue;
+                          if (pt.kind == 2 && zoom < 15.5) continue;
+                          if (pt.kind == 1 && (zoom < 16.5 || pt.name == null)) continue;
+                          double ux = l + pt.x * ts - pvx, uy = t + pt.y * ts - pvy;
+                          float x = (float) (pvx + ux * ca - uy * sa), y = (float) (pvy + ux * sa + uy * ca);
                           if (x < -50 || x > W + 50 || y < -50 || y > H + 50) continue;
                           if (pt.kind == 2) {
-                              if (zoom < 15.5) continue;
-                              String cl = pt.cls == null ? "" : pt.cls;
                               if (pt.name == null && zoom < 17) continue;
+                              tpn.setTextSize(12 * density);
                               float w = pt.name == null ? 0 : tpn.measureText(pt.name);
                               RectF rc = new RectF(x - 7 * density, y - 9 * density, x + 12 * density + w, y + 9 * density);
-                              boolean hit = false;
-                              for (RectF q : placed) if (RectF.intersects(q, rc)) {
-                                  hit = true;
-                                  break;
-                              }
-                              if (hit) continue;
+                              if (hits(placed, rc)) continue;
                               placed.add(rc);
                               p.setStyle(Paint.Style.FILL);
-                              p.setColor(poiColor(cl));
+                              p.setColor(poiColor(pt.cls == null ? "" : pt.cls));
                               cv.drawCircle(x, y, 5.5f * density, p);
                               p.setColor(0xFFFFFFFF);
                               cv.drawCircle(x, y, 2f * density, p);
                               if (pt.name != null) {
-                                  tpn.setTextSize(12 * density);
+                                  tpn.setTextAlign(Paint.Align.LEFT);
                                   halo(cv, tpn, pt.name, x + 9 * density, y + 4 * density);
                               }
                           } else {
-                              if (zoom < 16.5 || pt.name == null) continue;
                               tpn.setTextSize(11 * density);
                               float w = tpn.measureText(pt.name);
                               RectF rc = new RectF(x - w / 2, y - 7 * density, x + w / 2, y + 7 * density);
-                              boolean hit = false;
-                              for (RectF q : placed) if (RectF.intersects(q, rc)) {
-                                  hit = true;
-                                  break;
-                              }
-                              if (hit) continue;
+                              if (hits(placed, rc)) continue;
                               placed.add(rc);
                               tpn.setTextAlign(Paint.Align.CENTER);
                               halo(cv, tpn, pt.name, x, y + 4 * density);
-                              tpn.setTextAlign(Paint.Align.LEFT);
                           }
                       }
                   }
@@ -497,57 +603,75 @@ jobs:
 
               @Override
               protected void onDraw(Canvas cv) {
+                  animate();
+                  float W = getWidth(), H = getHeight(), pvx = pvx(), pvy = pvy();
                   cv.drawColor(night ? 0xFF111111 : 0xFFE8E4DC);
                   if (db == null) {
                       p.setColor(0xFF888888);
                       p.setTextSize(28 * density);
                       p.setTextAlign(Paint.Align.CENTER);
-                      cv.drawText(error == null ? "Немає файлу карти" : "Помилка карти", getWidth() / 2f, getHeight() / 2f, p);
+                      cv.drawText(error == null ? "Немає файлу карти" : "Помилка карти", W / 2, H / 2, p);
                       return;
                   }
                   int tz = (int) Math.max(minZ, Math.min(maxZ, Math.floor(zoom)));
-                  double scale = Math.pow(2, zoom - tz); // 1..2 і більше при перезумі
+                  double scale = Math.pow(2, zoom - tz);
                   float ts = (float) (256.0 * density * scale);
                   double n = Math.pow(2, tz);
                   double cx = lonToX(lon) * n, cy = latToY(lat) * n;
-                  int x0 = (int) Math.floor(cx - getWidth() / 2.0 / ts), x1 = (int) Math.floor(cx + getWidth() / 2.0 / ts);
-                  int y0 = (int) Math.floor(cy - getHeight() / 2.0 / ts), y1 = (int) Math.floor(cy + getHeight() / 2.0 / ts);
+                  double r = Math.toRadians(rot), cr = Math.cos(r), sr = Math.sin(r);
+                  double minX = 1e18, maxX = -1e18, minY = 1e18, maxY = -1e18;
+                  float[][] cs = {{0, 0}, {W, 0}, {0, H}, {W, H}};
+                  for (float[] c : cs) {
+                      double ddx = c[0] - pvx, ddy = c[1] - pvy;
+                      double ux = ddx * cr - ddy * sr, uy = ddx * sr + ddy * cr;
+                      minX = Math.min(minX, ux);
+                      maxX = Math.max(maxX, ux);
+                      minY = Math.min(minY, uy);
+                      maxY = Math.max(maxY, uy);
+                  }
+                  int x0 = (int) Math.floor(cx + minX / ts), x1 = (int) Math.floor(cx + maxX / ts);
+                  int y0 = (int) Math.floor(cy + minY / ts), y1 = (int) Math.floor(cy + maxY / ts);
                   int max = (int) n;
                   List<Object[]> vis = new ArrayList<Object[]>();
-                  for (int ty = y0; ty <= y1; ty++) {
-                      if (ty < 0 || ty >= max) continue;
-                      for (int tx = x0; tx <= x1; tx++) {
-                          int txx = ((tx % max) + max) % max;
-                          Tile b = tile(tz, txx, ty);
-                          float l = (float) (getWidth() / 2.0 + (tx - cx) * ts), t = (float) (getHeight() / 2.0 + (ty - cy) * ts);
-                          if (b != null) {
-                              cv.drawBitmap(b.bm, null, new RectF(l, t, l + ts + 1, t + ts + 1), night ? nightP : tp);
-                              if (b.labels != null) vis.add(new Object[]{b.labels, l, t, ts});
+                  cv.save();
+                  cv.rotate(-rot, pvx, pvy);
+                  if ((x1 - x0 + 1) * (y1 - y0 + 1) <= 160) {
+                      for (int ty = y0; ty <= y1; ty++) {
+                          if (ty < 0 || ty >= max) continue;
+                          for (int tx = x0; tx <= x1; tx++) {
+                              int txx = ((tx % max) + max) % max;
+                              Tile b = tile(tz, txx, ty);
+                              float l = (float) (pvx + (tx - cx) * ts), t = (float) (pvy + (ty - cy) * ts);
+                              if (b != null) {
+                                  cv.drawBitmap(b.bm, null, new RectF(l, t, l + ts + 1, t + ts + 1), night ? nightP : tp);
+                                  if (b.labels != null) vis.add(new Object[]{b.labels, l, t, ts});
+                              }
                           }
                       }
                   }
+                  cv.restore();
                   drawLabels(cv, vis);
                   // мітка і лінія
+                  boolean fl = follow && hasFix;
+                  float[] me = fl ? new float[]{pvx, pvy} : (hasFix ? scr(myLat, myLon) : null);
                   if (markLat != null) {
-                      float mx = sx(markLon), my = sy(markLat);
-                      if (hasFix) {
+                      float[] m = scr(markLat, markLon);
+                      if (me != null) {
                           p.setColor(0xFFE53935);
                           p.setStrokeWidth(4 * density);
                           p.setStyle(Paint.Style.STROKE);
-                          cv.drawLine(sx(myLon), sy(myLat), mx, my, p);
+                          cv.drawLine(me[0], me[1], m[0], m[1], p);
                       }
                       p.setStyle(Paint.Style.FILL);
                       p.setColor(0xFFE53935);
-                      cv.drawCircle(mx, my, 11 * density, p);
+                      cv.drawCircle(m[0], m[1], 11 * density, p);
                       p.setColor(0xFFFFFFFF);
-                      cv.drawCircle(mx, my, 4 * density, p);
+                      cv.drawCircle(m[0], m[1], 4 * density, p);
                   }
-                  // моя позиція
-                  if (hasFix) {
-                      float mx = sx(myLon), my = sy(myLat);
+                  if (me != null) {
                       cv.save();
-                      cv.translate(mx, my);
-                      cv.rotate(myBearing);
+                      cv.translate(me[0], me[1]);
+                      cv.rotate(fixBearing - rot);
                       Path a = new Path();
                       float s = 18 * density;
                       a.moveTo(0, -s);
@@ -565,6 +689,7 @@ jobs:
                       cv.restore();
                   }
                   p.setStyle(Paint.Style.FILL);
+                  if (fl) postInvalidateOnAnimation();
               }
 
               @Override
@@ -810,7 +935,7 @@ jobs:
 
               public static class PointLabel {
                   public String name, cls;
-                  public int kind; // 1 - номер будинку, 2 - заклад
+                  public int kind; // 1 - номер будинку, 2 - заклад, 3 - населений пункт
                   public float x, y;
               }
 
@@ -1035,8 +1160,8 @@ jobs:
                                   }
                               }
                           }
-                          String[] pl2 = {"housenumber", "poi"};
-                          for (int q = 0; q < 2; q++) {
+                          String[] pl2 = {"housenumber", "poi", "place"};
+                          for (int q = 0; q < 3; q++) {
                               Layer ly = L.get(pl2[q]);
                               if (ly == null) continue;
                               float sc = 1f / ly.extent;
@@ -1045,48 +1170,12 @@ jobs:
                                   PointLabel pt = new PointLabel();
                                   pt.kind = q + 1;
                                   pt.name = q == 0 ? f.str("housenumber") : nameOf(f);
-                                  pt.cls = q == 0 ? "" : String.valueOf(f.str("class")) + "/" + String.valueOf(f.str("subclass"));
-                                  if (pt.name == null && q == 0) continue;
+                                  pt.cls = q == 0 ? "" : q == 2 ? String.valueOf(f.str("class")) : String.valueOf(f.str("class")) + "/" + String.valueOf(f.str("subclass"));
+                                  if (pt.name == null && q != 1) continue;
                                   pt.x = unzig(f.geom[1]) * sc;
                                   pt.y = unzig(f.geom[2]) * sc;
                                   out.pts.add(pt);
                               }
-                          }
-                      }
-                      Layer pl = L.get("place");
-                      if (pl != null) {
-                          float sc = size / (float) pl.extent;
-                          Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
-                          tp.setTextAlign(Paint.Align.CENTER);
-                          for (Feat f : pl.feats) {
-                              if (f.type != 1) continue;
-                              String cl = f.str("class");
-                              if (cl == null) continue;
-                              float ts;
-                              if (cl.equals("country")) ts = z <= 6 ? 30 : 0;
-                              else if (cl.equals("state") || cl.equals("region")) ts = z >= 4 && z <= 8 ? 24 : 0;
-                              else if (cl.equals("city")) ts = 30;
-                              else if (cl.equals("town")) ts = z >= 7 ? 26 : 0;
-                              else if (cl.equals("village")) ts = z >= 9 ? 22 : 0;
-                              else if (cl.equals("suburb") || cl.equals("hamlet")) ts = z >= 11 ? 19 : 0;
-                              else if (cl.equals("neighbourhood")) ts = z >= 13 ? 17 : 0;
-                              else ts = 0;
-                              if (ts == 0) continue;
-                              String nm = f.str("name");
-                              if (nm == null) nm = f.str("name:uk");
-                              if (nm == null) nm = f.str("name:latin");
-                              if (nm == null) continue;
-                              int[] g = f.geom;
-                              if (g.length < 3) continue;
-                              float x = unzig(g[1]) * sc, y = unzig(g[2]) * sc;
-                              tp.setTextSize(ts * size / 512f);
-                              tp.setStyle(Paint.Style.STROKE);
-                              tp.setStrokeWidth(4f * size / 512f);
-                              tp.setColor(0xFFFFFFFF);
-                              c.drawText(nm, x, y, tp);
-                              tp.setStyle(Paint.Style.FILL);
-                              tp.setColor(0xFF333333);
-                              c.drawText(nm, x, y, tp);
                           }
                       }
                   } catch (Throwable t) {
@@ -1165,7 +1254,7 @@ jobs:
                   root.addView(info, ip);
 
                   int sz = (int) (64 * getResources().getDisplayMetrics().density);
-                  Button plus = btn("+", 30), minus = btn("−", 30), me = btn("◎", 26), nt = btn("Ніч", 16), clr = btn("✕", 22);
+                  Button plus = btn("+", 30), minus = btn("−", 30), me = btn("◎", 26), nt = btn("Ніч", 16), clr = btn("✕", 22), hd = btn("↑", 24);
                   plus.setOnClickListener(v -> map.zoomBy(1));
                   minus.setOnClickListener(v -> map.zoomBy(-1));
                   me.setOnClickListener(v -> map.goToMe());
@@ -1181,11 +1270,16 @@ jobs:
                       onMarkChanged();
                       map.invalidate();
                   });
-                  Button[] bs = {plus, minus, me, nt, clr};
+                  hd.setOnClickListener(v -> {
+                      map.headingUp = !map.headingUp;
+                      hd.setText(map.headingUp ? "↑" : "N");
+                      map.invalidate();
+                  });
+                  Button[] bs = {plus, minus, me, hd, nt, clr};
                   for (int i = 0; i < bs.length; i++) {
                       FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(sz, sz, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
                       bp.setMargins(0, 0, 16, 0);
-                      bs[i].setTranslationY((i - 2) * (sz + 12));
+                      bs[i].setTranslationY((i - 2.5f) * (sz + 12));
                       root.addView(bs[i], bp);
                   }
                   setContentView(root);
@@ -1237,7 +1331,7 @@ jobs:
                   @Override
                   public void onLocationChanged(Location l) {
                       float b = l.hasBearing() && l.getSpeed() > 1.5f ? l.getBearing() : -1;
-                      map.setMyLocation(l.getLatitude(), l.getLongitude(), b);
+                      map.setMyLocation(l.getLatitude(), l.getLongitude(), b, l.hasSpeed() ? l.getSpeed() : 0f);
                       onMarkChanged();
                   }
 
