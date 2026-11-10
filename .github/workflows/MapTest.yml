@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.maptest"
                   minSdk 23
                   targetSdk 26
-                  versionCode 4
-                  versionName "1.3"
+                  versionCode 5
+                  versionName "1.4"
               }
               signingConfigs {
                   debug {
@@ -123,6 +123,7 @@ jobs:
           import android.graphics.ColorMatrixColorFilter;
           import android.graphics.Paint;
           import android.graphics.Path;
+          import android.graphics.PathMeasure;
           import android.graphics.RectF;
           import android.util.LruCache;
           import android.view.GestureDetector;
@@ -130,6 +131,8 @@ jobs:
           import android.view.ScaleGestureDetector;
           import android.view.View;
 
+          import java.util.ArrayList;
+          import java.util.List;
           import java.util.Set;
           import java.util.concurrent.ConcurrentHashMap;
           import java.util.concurrent.ExecutorService;
@@ -153,10 +156,20 @@ jobs:
               public String error = null;
               float density;
 
-              final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(48 * 1024 * 1024) {
+              static class Tile {
+                  Bitmap bm;
+                  VectorRenderer.TileLabels labels;
+
+                  Tile(Bitmap b, VectorRenderer.TileLabels l) {
+                      bm = b;
+                      labels = l;
+                  }
+              }
+
+              final LruCache<String, Tile> cache = new LruCache<String, Tile>(48 * 1024 * 1024) {
                   @Override
-                  protected int sizeOf(String k, Bitmap b) {
-                      return b.getByteCount();
+                  protected int sizeOf(String k, Tile t) {
+                      return t.bm.getByteCount() + 2048;
                   }
               };
               boolean vector = false;
@@ -272,9 +285,9 @@ jobs:
                   }
               }
 
-              Bitmap tile(final int z, final int x, final int y) {
+              Tile tile(final int z, final int x, final int y) {
                   final String key = z + "/" + x + "/" + y;
-                  Bitmap b = cache.get(key);
+                  Tile b = cache.get(key);
                   if (b != null) return b;
                   if (db != null && pending.add(key)) {
                       try {
@@ -284,12 +297,18 @@ jobs:
                                   Cursor c = db.rawQuery("select tile_data from tiles where zoom_level=? and tile_column=? and tile_row=?",
                                           new String[]{String.valueOf(z), String.valueOf(x), String.valueOf(row)});
                                   Bitmap bm = null;
+                                  VectorRenderer.TileLabels tl = null;
                                   if (c.moveToFirst()) {
                                       byte[] d = c.getBlob(0);
-                                      bm = vector ? VectorRenderer.render(d, z, 512) : BitmapFactory.decodeByteArray(d, 0, d.length);
+                                      if (vector) {
+                                          tl = new VectorRenderer.TileLabels();
+                                          bm = VectorRenderer.render(d, z, 512, tl);
+                                      } else {
+                                          bm = BitmapFactory.decodeByteArray(d, 0, d.length);
+                                      }
                                   }
                                   c.close();
-                                  if (bm != null) cache.put(key, bm);
+                                  if (bm != null) cache.put(key, new Tile(bm, tl));
                               } catch (Throwable ignored) {
                               }
                               pending.remove(key);
@@ -351,6 +370,131 @@ jobs:
                   return (float) (getHeight() / 2.0 + (latToY(la) - latToY(lat)) * worldPx());
               }
 
+              int poiColor(String cls) {
+                  String c = cls.toLowerCase();
+                  if (c.contains("fuel")) return 0xFF1E88E5;
+                  if (c.contains("hospital") || c.contains("pharmacy") || c.contains("doctor") || c.contains("clinic")) return 0xFFD32F2F;
+                  if (c.contains("restaurant") || c.contains("cafe") || c.contains("bar") || c.contains("food") || c.contains("fast_food")) return 0xFFEF6C00;
+                  if (c.contains("shop") || c.contains("supermarket") || c.contains("mall") || c.contains("convenience")) return 0xFF8E24AA;
+                  if (c.contains("parking")) return 0xFF546E7A;
+                  if (c.contains("bank") || c.contains("atm")) return 0xFF2E7D32;
+                  return 0xFF607D8B;
+              }
+
+              void halo(Canvas cv, Paint tpn, String s, float x, float y) {
+                  tpn.setStyle(Paint.Style.STROKE);
+                  tpn.setStrokeWidth(3.5f * density);
+                  tpn.setColor(night ? 0xFF111111 : 0xFFFFFFFF);
+                  cv.drawText(s, x, y, tpn);
+                  tpn.setStyle(Paint.Style.FILL);
+                  tpn.setColor(night ? 0xFFEEEEEE : 0xFF333333);
+                  cv.drawText(s, x, y, tpn);
+              }
+
+              /** Підписи малюються по екрану, розмір тексту не залежить від масштабу карти. */
+              void drawLabels(Canvas cv, List<Object[]> vis) {
+                  if (vis.isEmpty()) return;
+                  float W = getWidth(), H = getHeight();
+                  List<RectF> placed = new ArrayList<RectF>();
+                  Paint tpn = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  tpn.setStrokeJoin(Paint.Join.ROUND);
+                  PathMeasure pm = new PathMeasure();
+                  // вулиці
+                  tpn.setTextSize(13 * density);
+                  for (Object[] v : vis) {
+                      VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
+                      float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
+                      for (VectorRenderer.Road r : tl.roads) {
+                          if (zoom < 15 && !(zoom >= 13.5 && r.rank >= 2) && !(zoom >= 11 && r.rank >= 4)) continue;
+                          float[] a = r.xy;
+                          float x0 = 1e9f, x1 = -1e9f, y0 = 1e9f, y1 = -1e9f;
+                          for (int i = 0; i < a.length; i += 2) {
+                              float px = l + a[i] * ts, py = t + a[i + 1] * ts;
+                              x0 = Math.min(x0, px);
+                              x1 = Math.max(x1, px);
+                              y0 = Math.min(y0, py);
+                              y1 = Math.max(y1, py);
+                          }
+                          if (x1 < 0 || x0 > W || y1 < 0 || y0 > H) continue;
+                          Path pa = new Path();
+                          for (int i = 0; i < a.length; i += 2) {
+                              float px = l + a[i] * ts, py = t + a[i + 1] * ts;
+                              if (i == 0) pa.moveTo(px, py);
+                              else pa.lineTo(px, py);
+                          }
+                          pm.setPath(pa, false);
+                          float len = pm.getLength(), tw = tpn.measureText(r.name);
+                          if (len < tw + 12 * density) continue;
+                          float[] pos = new float[2];
+                          pm.getPosTan(len / 2, pos, null);
+                          RectF rc = new RectF(pos[0] - tw / 2, pos[1] - 12 * density, pos[0] + tw / 2, pos[1] + 12 * density);
+                          boolean hit = false;
+                          for (RectF q : placed) if (RectF.intersects(q, rc)) {
+                              hit = true;
+                              break;
+                          }
+                          if (hit) continue;
+                          placed.add(rc);
+                          float off = (len - tw) / 2f;
+                          tpn.setStyle(Paint.Style.STROKE);
+                          tpn.setStrokeWidth(3.5f * density);
+                          tpn.setColor(night ? 0xFF111111 : 0xFFFFFFFF);
+                          cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
+                          tpn.setStyle(Paint.Style.FILL);
+                          tpn.setColor(night ? 0xFFEEEEEE : 0xFF444444);
+                          cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
+                      }
+                  }
+                  // заклади і номери будинків
+                  tpn.setTextAlign(Paint.Align.LEFT);
+                  for (Object[] v : vis) {
+                      VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
+                      float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
+                      for (VectorRenderer.PointLabel pt : tl.pts) {
+                          float x = l + pt.x * ts, y = t + pt.y * ts;
+                          if (x < -50 || x > W + 50 || y < -50 || y > H + 50) continue;
+                          if (pt.kind == 2) {
+                              if (zoom < 15.5) continue;
+                              String cl = pt.cls == null ? "" : pt.cls;
+                              if (pt.name == null && zoom < 17) continue;
+                              float w = pt.name == null ? 0 : tpn.measureText(pt.name);
+                              RectF rc = new RectF(x - 7 * density, y - 9 * density, x + 12 * density + w, y + 9 * density);
+                              boolean hit = false;
+                              for (RectF q : placed) if (RectF.intersects(q, rc)) {
+                                  hit = true;
+                                  break;
+                              }
+                              if (hit) continue;
+                              placed.add(rc);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(poiColor(cl));
+                              cv.drawCircle(x, y, 5.5f * density, p);
+                              p.setColor(0xFFFFFFFF);
+                              cv.drawCircle(x, y, 2f * density, p);
+                              if (pt.name != null) {
+                                  tpn.setTextSize(12 * density);
+                                  halo(cv, tpn, pt.name, x + 9 * density, y + 4 * density);
+                              }
+                          } else {
+                              if (zoom < 16.5 || pt.name == null) continue;
+                              tpn.setTextSize(11 * density);
+                              float w = tpn.measureText(pt.name);
+                              RectF rc = new RectF(x - w / 2, y - 7 * density, x + w / 2, y + 7 * density);
+                              boolean hit = false;
+                              for (RectF q : placed) if (RectF.intersects(q, rc)) {
+                                  hit = true;
+                                  break;
+                              }
+                              if (hit) continue;
+                              placed.add(rc);
+                              tpn.setTextAlign(Paint.Align.CENTER);
+                              halo(cv, tpn, pt.name, x, y + 4 * density);
+                              tpn.setTextAlign(Paint.Align.LEFT);
+                          }
+                      }
+                  }
+              }
+
               @Override
               protected void onDraw(Canvas cv) {
                   cv.drawColor(night ? 0xFF111111 : 0xFFE8E4DC);
@@ -369,15 +513,20 @@ jobs:
                   int x0 = (int) Math.floor(cx - getWidth() / 2.0 / ts), x1 = (int) Math.floor(cx + getWidth() / 2.0 / ts);
                   int y0 = (int) Math.floor(cy - getHeight() / 2.0 / ts), y1 = (int) Math.floor(cy + getHeight() / 2.0 / ts);
                   int max = (int) n;
+                  List<Object[]> vis = new ArrayList<Object[]>();
                   for (int ty = y0; ty <= y1; ty++) {
                       if (ty < 0 || ty >= max) continue;
                       for (int tx = x0; tx <= x1; tx++) {
                           int txx = ((tx % max) + max) % max;
-                          Bitmap b = tile(tz, txx, ty);
+                          Tile b = tile(tz, txx, ty);
                           float l = (float) (getWidth() / 2.0 + (tx - cx) * ts), t = (float) (getHeight() / 2.0 + (ty - cy) * ts);
-                          if (b != null) cv.drawBitmap(b, null, new RectF(l, t, l + ts + 1, t + ts + 1), night ? nightP : tp);
+                          if (b != null) {
+                              cv.drawBitmap(b.bm, null, new RectF(l, t, l + ts + 1, t + ts + 1), night ? nightP : tp);
+                              if (b.labels != null) vis.add(new Object[]{b.labels, l, t, ts});
+                          }
                       }
                   }
+                  drawLabels(cv, vis);
                   // мітка і лінія
                   if (markLat != null) {
                       float mx = sx(markLon), my = sy(markLat);
@@ -434,7 +583,6 @@ jobs:
           import android.graphics.Canvas;
           import android.graphics.DashPathEffect;
           import android.graphics.Paint;
-          import android.graphics.PathMeasure;
           import android.graphics.Path;
 
           import java.io.ByteArrayInputStream;
@@ -654,9 +802,26 @@ jobs:
                   return p;
               }
 
-              /** Лінії об'єкта окремо; напрямок вибирається так, щоб текст читався зліва направо. */
-              static List<Path> linePaths(Feat f, float sc) {
-                  List<Path> res = new ArrayList<Path>();
+              public static class Road {
+                  public String name;
+                  public int rank;
+                  public float[] xy;
+              }
+
+              public static class PointLabel {
+                  public String name, cls;
+                  public int kind; // 1 - номер будинку, 2 - заклад
+                  public float x, y;
+              }
+
+              public static class TileLabels {
+                  public List<Road> roads = new ArrayList<Road>();
+                  public List<PointLabel> pts = new ArrayList<PointLabel>();
+              }
+
+              /** Лінії об'єкта в нормалізованих координатах (0..1), напрямок зліва направо. */
+              static List<float[]> lines(Feat f, float sc) {
+                  List<float[]> res = new ArrayList<float[]>();
                   List<float[]> pts = new ArrayList<float[]>();
                   int x = 0, y = 0, i = 0;
                   int[] g = f.geom;
@@ -667,25 +832,33 @@ jobs:
                               x += unzig(g[i++]);
                               y += unzig(g[i++]);
                               if (id == 1 && !pts.isEmpty()) {
-                                  res.add(build(pts));
+                                  flat(pts, res);
                                   pts = new ArrayList<float[]>();
                               }
                               pts.add(new float[]{x * sc, y * sc});
                           }
                       }
                   }
-                  if (pts.size() > 1) res.add(build(pts));
+                  flat(pts, res);
                   return res;
               }
 
-              static Path build(List<float[]> pts) {
-                  if (pts.size() > 1 && pts.get(pts.size() - 1)[0] < pts.get(0)[0]) java.util.Collections.reverse(pts);
-                  Path p = new Path();
+              static void flat(List<float[]> pts, List<float[]> out) {
+                  if (pts.size() < 2) return;
+                  if (pts.get(pts.size() - 1)[0] < pts.get(0)[0]) java.util.Collections.reverse(pts);
+                  float[] a = new float[pts.size() * 2];
                   for (int i = 0; i < pts.size(); i++) {
-                      if (i == 0) p.moveTo(pts.get(i)[0], pts.get(i)[1]);
-                      else p.lineTo(pts.get(i)[0], pts.get(i)[1]);
+                      a[i * 2] = pts.get(i)[0];
+                      a[i * 2 + 1] = pts.get(i)[1];
                   }
-                  return p;
+                  out.add(a);
+              }
+
+              static String nameOf(Feat f) {
+                  String nm = f.str("name");
+                  if (nm == null) nm = f.str("name:uk");
+                  if (nm == null) nm = f.str("name:latin");
+                  return nm;
               }
 
               static final String[] RANK = {"service", "minor", "tertiary", "secondary", "primary", "trunk", "motorway"};
@@ -723,7 +896,7 @@ jobs:
                   return null;
               }
 
-              public static Bitmap render(byte[] raw, int z, int size) {
+              public static Bitmap render(byte[] raw, int z, int size, TileLabels out) {
                   Bitmap bm = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
                   Canvas c = new Canvas(bm);
                   c.drawColor(0xFFF2EFE9);
@@ -844,32 +1017,39 @@ jobs:
                           }
                           p.setPathEffect(null);
                       }
-                      Layer tn = L.get("transportation_name");
-                      if (tn != null && z >= 12) {
-                          float sc = size / (float) tn.extent;
-                          Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
-                          tp.setTextSize((z >= 14 ? 17 : 15) * size / 512f);
-                          PathMeasure pm = new PathMeasure();
-                          for (Feat f : tn.feats) {
-                              if (f.type != 2) continue;
-                              String cl = f.str("class");
-                              if (z < 14 && rank(cl) < 4) continue;
-                              String nm = f.str("name");
-                              if (nm == null) nm = f.str("name:uk");
-                              if (nm == null) nm = f.str("name:latin");
-                              if (nm == null) continue;
-                              float tw = tp.measureText(nm);
-                              for (Path pa : linePaths(f, sc)) {
-                                  pm.setPath(pa, false);
-                                  if (pm.getLength() < tw + 12) continue;
-                                  float off = (pm.getLength() - tw) / 2f;
-                                  tp.setStyle(Paint.Style.STROKE);
-                                  tp.setStrokeWidth(4f * size / 512f);
-                                  tp.setColor(0xFFFFFFFF);
-                                  c.drawTextOnPath(nm, pa, off, 5f * size / 512f, tp);
-                                  tp.setStyle(Paint.Style.FILL);
-                                  tp.setColor(0xFF444444);
-                                  c.drawTextOnPath(nm, pa, off, 5f * size / 512f, tp);
+                      if (out != null) {
+                          Layer tn = L.get("transportation_name");
+                          if (tn != null) {
+                              float sc = 1f / tn.extent;
+                              for (Feat f : tn.feats) {
+                                  if (f.type != 2) continue;
+                                  String nm = nameOf(f);
+                                  if (nm == null) continue;
+                                  int rk = Math.max(0, rank(f.str("class")));
+                                  for (float[] ln : lines(f, sc)) {
+                                      Road r = new Road();
+                                      r.name = nm;
+                                      r.rank = rk;
+                                      r.xy = ln;
+                                      out.roads.add(r);
+                                  }
+                              }
+                          }
+                          String[] pl2 = {"housenumber", "poi"};
+                          for (int q = 0; q < 2; q++) {
+                              Layer ly = L.get(pl2[q]);
+                              if (ly == null) continue;
+                              float sc = 1f / ly.extent;
+                              for (Feat f : ly.feats) {
+                                  if (f.type != 1 || f.geom.length < 3) continue;
+                                  PointLabel pt = new PointLabel();
+                                  pt.kind = q + 1;
+                                  pt.name = q == 0 ? f.str("housenumber") : nameOf(f);
+                                  pt.cls = q == 0 ? "" : String.valueOf(f.str("class")) + "/" + String.valueOf(f.str("subclass"));
+                                  if (pt.name == null && q == 0) continue;
+                                  pt.x = unzig(f.geom[1]) * sc;
+                                  pt.y = unzig(f.geom[2]) * sc;
+                                  out.pts.add(pt);
                               }
                           }
                       }
