@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 10
-                  versionName "2.1"
+                  versionCode 11
+                  versionName "2.2"
               }
               signingConfigs {
                   debug {
@@ -936,65 +936,249 @@ jobs:
                   }
               }
 
+              static final String[] CATS = {"Двигун і ТО", "Ходова", "Гальма", "Електрика", "Трансмісія", "Кузов і салон", "Колеса й шини", "Інше"};
+              static final String[][] DEFW = {
+                      {"Заміна масла", "Масляний фільтр", "Повітряний фільтр", "Салонний фільтр (пилник)", "Паливний фільтр", "Свічки розжарення", "Ремінь / ланцюг ГРМ", "Антифриз", "Ремінь генератора"},
+                      {"Стійка амортизатора", "Амортизатор", "Пружина", "Сайлентблоки", "Шарова опора", "Рульова тяга", "Рульовий наконечник", "Ступичний підшипник", "Стійка стабілізатора"},
+                      {"Гальмівні колодки (перед)", "Гальмівні колодки (зад)", "Гальмівні диски", "Гальмівна рідина", "Гальмівний шланг"},
+                      {"Акумулятор", "Лампи", "Генератор", "Стартер", "Запобіжники"},
+                      {"Олива в КПП", "Зчеплення", "ШРУС", "Піввісь"},
+                      {"Двірники", "Скло", "Дзеркало", "Фара"},
+                      {"Сезонна заміна шин", "Балансування", "Розвал-сходження", "Ремонт колеса"},
+                      {"Діагностика"}};
+
+              List<String[]> works() {
+                  String s = sp.getString("works", null);
+                  List<String[]> l = new ArrayList<String[]>();
+                  if (s == null) {
+                      for (int i = 0; i < CATS.length; i++) for (String w : DEFW[i]) l.add(new String[]{String.valueOf(i), w});
+                      saveWorks(l);
+                      return l;
+                  }
+                  for (String x : s.split("\n")) {
+                      int k = x.indexOf('|');
+                      if (k > 0) l.add(new String[]{x.substring(0, k), x.substring(k + 1)});
+                  }
+                  return l;
+              }
+
+              void saveWorks(List<String[]> l) {
+                  StringBuilder sb = new StringBuilder();
+                  for (String[] w : l) {
+                      if (sb.length() > 0) sb.append('\n');
+                      sb.append(w[0]).append('|').append(w[1]);
+                  }
+                  sp.edit().putString("works", sb.toString()).apply();
+              }
+
               void addWorkDialog() {
-                  LinearLayout col = new LinearLayout(this);
-                  col.setOrientation(LinearLayout.VERTICAL);
-                  col.setPadding(px(24), px(10), px(24), px(10));
+                  final Dialog dlg = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                  dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+                          | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
                   final Calendar cal = Calendar.getInstance();
                   final SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy", Locale.US);
-                  final Button dateBtn = new Button(this);
-                  dateBtn.setText("Дата: " + df.format(cal.getTime()));
+                  final java.util.Set<String> sel = new java.util.LinkedHashSet<String>();
+                  final int[] cat = {0};
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(BG2 | 0xFF000000);
+                  root.setPadding(px(24), px(16), px(24), px(16));
+                  root.setFocusableInTouchMode(true);
+
+                  LinearLayout head = new LinearLayout(this);
+                  head.setOrientation(LinearLayout.HORIZONTAL);
+                  head.setGravity(Gravity.CENTER_VERTICAL);
+                  head.addView(text("Нова робота", 32, TXT, true), lp(0, -2, 1));
+                  final Button dateBtn = btn("Дата: " + df.format(cal.getTime()), 22);
+                  dateBtn.setPadding(px(16), 0, px(16), 0);
                   dateBtn.setOnClickListener(v -> new DatePickerDialog(this, (dp, y, m, d) -> {
                       cal.set(y, m, d);
                       dateBtn.setText("Дата: " + df.format(cal.getTime()));
                   }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show());
-                  col.addView(dateBtn);
-                  final CheckBox[] cb = new CheckBox[WORKS.length];
-                  for (int i = 0; i < WORKS.length; i++) {
-                      cb[i] = new CheckBox(this);
-                      cb[i].setText(WORKS[i]);
-                      cb[i].setTextSize(TypedValue.COMPLEX_UNIT_PX, 24 * u);
-                      col.addView(cb[i]);
-                  }
-                  final EditText other = new EditText(this);
-                  other.setHint("Інше (свій текст)");
-                  col.addView(other);
-                  ScrollView sv = new ScrollView(this);
-                  sv.addView(col);
-                  new AlertDialog.Builder(this).setTitle("Нова робота").setView(sv)
-                          .setPositiveButton("Зберегти", (d, w) -> {
-                              StringBuilder sb = new StringBuilder();
-                              boolean oilDone = false;
-                              for (int i = 0; i < cb.length; i++) {
-                                  if (!cb[i].isChecked()) continue;
-                                  if (sb.length() > 0) sb.append(';');
-                                  sb.append(WORKS[i]);
-                                  if (i == 0) oilDone = true;
-                              }
-                              String o = other.getText().toString().replace("|", " ").replace(";", " ").replace("\n", " ").trim();
-                              if (!o.isEmpty()) {
-                                  if (sb.length() > 0) sb.append(';');
-                                  sb.append(o);
-                              }
-                              if (sb.length() == 0) {
-                                  Toast.makeText(this, "Нічого не вибрано", Toast.LENGTH_SHORT).show();
-                                  return;
-                              }
-                              List<String> all = recs();
-                              all.add(ymd(cal.getTime()) + "|" + sb + "|" + Math.round(odo));
-                              saveRecs(all);
-                              if (oilDone) {
-                                  oilKm = 0;
-                                  saveTrip();
-                                  updateOilBadge();
-                              }
-                              rebuildService();
-                          })
-                          .setNegativeButton("Скасувати", null).show();
+                  LinearLayout.LayoutParams dp1 = lp(-2, 56, 0);
+                  dp1.setMargins(0, 0, px(10), 0);
+                  head.addView(dateBtn, dp1);
+                  Button cancel = btn("Скасувати", 22);
+                  cancel.setOnClickListener(v -> dlg.dismiss());
+                  LinearLayout.LayoutParams cp1 = lp(160, 56, 0);
+                  cp1.setMargins(0, 0, px(10), 0);
+                  head.addView(cancel, cp1);
+                  Button save = btn("Зберегти", 22);
+                  head.addView(save, lp(160, 56, 0));
+                  root.addView(head, lp(-1, -2, 0));
+
+                  final LinearLayout chips = new LinearLayout(this);
+                  chips.setOrientation(LinearLayout.VERTICAL);
+                  root.addView(chips, lp(-1, -2, 0));
+                  ScrollView sc = new ScrollView(this);
+                  final LinearLayout list = new LinearLayout(this);
+                  list.setOrientation(LinearLayout.VERTICAL);
+                  sc.addView(list, new FrameLayout.LayoutParams(-1, -2));
+                  LinearLayout.LayoutParams scp = lp(-1, 0, 1);
+                  scp.setMargins(0, px(10), 0, 0);
+                  root.addView(sc, scp);
+
+                  LinearLayout addRow = new LinearLayout(this);
+                  addRow.setOrientation(LinearLayout.HORIZONTAL);
+                  addRow.setGravity(Gravity.CENTER_VERTICAL);
+                  final EditText et = new EditText(this);
+                  et.setHint("Своя робота в цій категорії");
+                  et.setTextColor(TXT);
+                  et.setHintTextColor(DIM);
+                  et.setTextSize(TypedValue.COMPLEX_UNIT_PX, 24 * u);
+                  et.setSingleLine(true);
+                  addRow.addView(et, lp(0, -2, 1));
+                  Button addBtn = btn("Додати", 22);
+                  LinearLayout.LayoutParams abp = lp(150, 56, 0);
+                  abp.setMargins(px(10), 0, 0, 0);
+                  addRow.addView(addBtn, abp);
+                  LinearLayout.LayoutParams arp = lp(-1, -2, 0);
+                  arp.setMargins(0, px(8), 0, 0);
+                  root.addView(addRow, arp);
+
+                  final Runnable[] refresh = new Runnable[1];
+                  refresh[0] = () -> {
+                      chips.removeAllViews();
+                      List<String[]> all = works();
+                      for (int r = 0; r < 2; r++) {
+                          LinearLayout cr = new LinearLayout(this);
+                          cr.setOrientation(LinearLayout.HORIZONTAL);
+                          for (int k = 0; k < 4; k++) {
+                              final int ci = r * 4 + k;
+                              int n = 0;
+                              for (String[] w : all) if (w[0].equals(String.valueOf(ci)) && sel.contains(w[1])) n++;
+                              Button cb = btn(CATS[ci] + (n > 0 ? " (" + n + ")" : ""), 20);
+                              cb.setBackground(rounded(ci == cat[0] ? ACC : BTN, 16));
+                              cb.setTextColor(ci == cat[0] ? 0xFF0A1424 : TXT);
+                              cb.setSingleLine(true);
+                              cb.setOnClickListener(v -> {
+                                  cat[0] = ci;
+                                  refresh[0].run();
+                              });
+                              LinearLayout.LayoutParams cbp = lp(0, 56, 1);
+                              cbp.setMargins(k == 0 ? 0 : px(8), px(8), 0, 0);
+                              cr.addView(cb, cbp);
+                          }
+                          chips.addView(cr, lp(-1, -2, 0));
+                      }
+                      list.removeAllViews();
+                      for (final String[] w : all) {
+                          if (!w[0].equals(String.valueOf(cat[0]))) continue;
+                          LinearLayout rw = new LinearLayout(this);
+                          rw.setOrientation(LinearLayout.HORIZONTAL);
+                          rw.setGravity(Gravity.CENTER_VERTICAL);
+                          CheckBox c = new CheckBox(this);
+                          c.setText(w[1]);
+                          c.setTextColor(TXT);
+                          c.setTextSize(TypedValue.COMPLEX_UNIT_PX, 26 * u);
+                          c.setChecked(sel.contains(w[1]));
+                          c.setOnCheckedChangeListener((bv, on) -> {
+                              if (on) sel.add(w[1]);
+                              else sel.remove(w[1]);
+                          });
+                          rw.addView(c, lp(0, -2, 1));
+                          Button x = btn("✕", 24);
+                          x.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Видалити зі списку?").setMessage(w[1])
+                                  .setPositiveButton("Видалити", (d2, w2) -> {
+                                      List<String[]> a2 = works();
+                                      for (int i2 = a2.size() - 1; i2 >= 0; i2--)
+                                          if (a2.get(i2)[0].equals(w[0]) && a2.get(i2)[1].equals(w[1])) a2.remove(i2);
+                                      saveWorks(a2);
+                                      sel.remove(w[1]);
+                                      refresh[0].run();
+                                  }).setNegativeButton("Ні", null).show());
+                          LinearLayout.LayoutParams xp = lp(56, 56, 0);
+                          xp.setMargins(px(10), px(4), 0, px(4));
+                          rw.addView(x, xp);
+                          list.addView(rw, lp(-1, -2, 0));
+                      }
+                  };
+                  addBtn.setOnClickListener(v -> {
+                      String nm = et.getText().toString().replace("|", " ").replace(";", " ").replace("\n", " ").trim();
+                      if (nm.isEmpty()) return;
+                      List<String[]> all = works();
+                      boolean has = false;
+                      for (String[] w : all) if (w[0].equals(String.valueOf(cat[0])) && w[1].equalsIgnoreCase(nm)) has = true;
+                      if (!has) {
+                          all.add(new String[]{String.valueOf(cat[0]), nm});
+                          saveWorks(all);
+                      }
+                      sel.add(nm);
+                      et.setText("");
+                      refresh[0].run();
+                  });
+                  save.setOnClickListener(v -> {
+                      if (sel.isEmpty()) {
+                          Toast.makeText(this, "Нічого не вибрано", Toast.LENGTH_SHORT).show();
+                          return;
+                      }
+                      StringBuilder sb = new StringBuilder();
+                      for (String s2 : sel) {
+                          if (sb.length() > 0) sb.append(';');
+                          sb.append(s2);
+                      }
+                      List<String> all = recs();
+                      all.add(ymd(cal.getTime()) + "|" + sb + "|" + Math.round(odo));
+                      saveRecs(all);
+                      if (sel.contains("Заміна масла")) {
+                          oilKm = 0;
+                          saveTrip();
+                          updateOilBadge();
+                      }
+                      dlg.dismiss();
+                      rebuildService();
+                  });
+                  dlg.setContentView(root);
+                  refresh[0].run();
+                  dlg.show();
               }
 
               void updPlay(PlaybackState s) {
                   if (aPlay != null) aPlay.setText(s != null && s.getState() == PlaybackState.STATE_PLAYING ? "❚❚" : "▶");
+              }
+
+              /** Іконки налаштувань (шестерня) і сервісу (гайковий ключ) у кольорі теми. */
+              class IconView extends View {
+                  final int kind;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  IconView(Context c, int k) {
+                      super(c);
+                      kind = k;
+                      setClickable(true);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), s = Math.min(w, h) * 0.9f;
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(ACC);
+                      cv.translate(w / 2, h / 2);
+                      if (kind == 0) {
+                          for (int k = 0; k < 8; k++) {
+                              cv.save();
+                              cv.rotate(k * 45);
+                              cv.drawRoundRect(new RectF(-s * 0.085f, -s * 0.47f, s * 0.085f, -s * 0.25f), s * 0.03f, s * 0.03f, p);
+                              cv.restore();
+                          }
+                          Path ring = new Path();
+                          ring.addCircle(0, 0, s * 0.33f, Path.Direction.CW);
+                          Path hole = new Path();
+                          hole.addCircle(0, 0, s * 0.13f, Path.Direction.CW);
+                          ring.op(hole, Path.Op.DIFFERENCE);
+                          cv.drawPath(ring, p);
+                      } else {
+                          cv.rotate(-45);
+                          Path head = new Path();
+                          head.addCircle(s * 0.27f, 0, s * 0.23f, Path.Direction.CW);
+                          Path slot = new Path();
+                          slot.addRect(s * 0.27f, -s * 0.095f, s * 0.60f, s * 0.095f, Path.Direction.CW);
+                          head.op(slot, Path.Op.DIFFERENCE);
+                          cv.drawPath(head, p);
+                          cv.drawRoundRect(new RectF(-s * 0.40f, -s * 0.09f, s * 0.30f, s * 0.09f), s * 0.09f, s * 0.09f, p);
+                          cv.drawCircle(-s * 0.40f, 0, s * 0.13f, p);
+                      }
+                  }
               }
 
               int px(float v) {
@@ -2113,14 +2297,12 @@ jobs:
                       ip.setMargins(px(4), 0, px(4), 0);
                       appsRow.addView(iv, ip);
                   }
-                  TextView g = text("⚙", 64, ACC, false);
-                  g.setGravity(Gravity.CENTER);
+                  IconView g = new IconView(this, 0);
                   g.setOnClickListener(v -> settingsMenu());
                   LinearLayout.LayoutParams gp = lp(0, -1, 1);
                   gp.setMargins(px(4), 0, px(4), 0);
                   appsRow.addView(g, gp);
-                  TextView sv = text("Сервіс", 24, ACC, true);
-                  sv.setGravity(Gravity.CENTER);
+                  IconView sv = new IconView(this, 1);
                   sv.setOnClickListener(v -> showService());
                   LinearLayout.LayoutParams sp2 = lp(0, -1, 1);
                   sp2.setMargins(px(4), 0, px(4), 0);
