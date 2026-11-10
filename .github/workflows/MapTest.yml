@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.maptest"
                   minSdk 23
                   targetSdk 26
-                  versionCode 3
-                  versionName "1.2"
+                  versionCode 4
+                  versionName "1.3"
               }
               signingConfigs {
                   debug {
@@ -434,6 +434,7 @@ jobs:
           import android.graphics.Canvas;
           import android.graphics.DashPathEffect;
           import android.graphics.Paint;
+          import android.graphics.PathMeasure;
           import android.graphics.Path;
 
           import java.io.ByteArrayInputStream;
@@ -653,6 +654,40 @@ jobs:
                   return p;
               }
 
+              /** Лінії об'єкта окремо; напрямок вибирається так, щоб текст читався зліва направо. */
+              static List<Path> linePaths(Feat f, float sc) {
+                  List<Path> res = new ArrayList<Path>();
+                  List<float[]> pts = new ArrayList<float[]>();
+                  int x = 0, y = 0, i = 0;
+                  int[] g = f.geom;
+                  while (i < g.length) {
+                      int cmd = g[i++], id = cmd & 7, cnt = cmd >>> 3;
+                      if (id == 1 || id == 2) {
+                          for (int k = 0; k < cnt; k++) {
+                              x += unzig(g[i++]);
+                              y += unzig(g[i++]);
+                              if (id == 1 && !pts.isEmpty()) {
+                                  res.add(build(pts));
+                                  pts = new ArrayList<float[]>();
+                              }
+                              pts.add(new float[]{x * sc, y * sc});
+                          }
+                      }
+                  }
+                  if (pts.size() > 1) res.add(build(pts));
+                  return res;
+              }
+
+              static Path build(List<float[]> pts) {
+                  if (pts.size() > 1 && pts.get(pts.size() - 1)[0] < pts.get(0)[0]) java.util.Collections.reverse(pts);
+                  Path p = new Path();
+                  for (int i = 0; i < pts.size(); i++) {
+                      if (i == 0) p.moveTo(pts.get(i)[0], pts.get(i)[1]);
+                      else p.lineTo(pts.get(i)[0], pts.get(i)[1]);
+                  }
+                  return p;
+              }
+
               static final String[] RANK = {"service", "minor", "tertiary", "secondary", "primary", "trunk", "motorway"};
               static final int[] FILL = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF7FABF, 0xFFFCD6A4, 0xFFF9B29C, 0xFFE892A2};
               static final int[] CASE = {0xFFBDBDBD, 0xFFBDBDBD, 0xFFBDBDBD, 0xFFB9B97A, 0xFFD9A55A, 0xFFD98A74, 0xFFDC2A67};
@@ -808,6 +843,35 @@ jobs:
                               c.drawPath(toPath(f, sc), p);
                           }
                           p.setPathEffect(null);
+                      }
+                      Layer tn = L.get("transportation_name");
+                      if (tn != null && z >= 12) {
+                          float sc = size / (float) tn.extent;
+                          Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                          tp.setTextSize((z >= 14 ? 17 : 15) * size / 512f);
+                          PathMeasure pm = new PathMeasure();
+                          for (Feat f : tn.feats) {
+                              if (f.type != 2) continue;
+                              String cl = f.str("class");
+                              if (z < 14 && rank(cl) < 4) continue;
+                              String nm = f.str("name");
+                              if (nm == null) nm = f.str("name:uk");
+                              if (nm == null) nm = f.str("name:latin");
+                              if (nm == null) continue;
+                              float tw = tp.measureText(nm);
+                              for (Path pa : linePaths(f, sc)) {
+                                  pm.setPath(pa, false);
+                                  if (pm.getLength() < tw + 12) continue;
+                                  float off = (pm.getLength() - tw) / 2f;
+                                  tp.setStyle(Paint.Style.STROKE);
+                                  tp.setStrokeWidth(4f * size / 512f);
+                                  tp.setColor(0xFFFFFFFF);
+                                  c.drawTextOnPath(nm, pa, off, 5f * size / 512f, tp);
+                                  tp.setStyle(Paint.Style.FILL);
+                                  tp.setColor(0xFF444444);
+                                  c.drawTextOnPath(nm, pa, off, 5f * size / 512f, tp);
+                              }
+                          }
                       }
                       Layer pl = L.get("place");
                       if (pl != null) {
