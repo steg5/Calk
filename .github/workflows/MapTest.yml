@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.maptest"
                   minSdk 23
                   targetSdk 26
-                  versionCode 2
-                  versionName "1.1"
+                  versionCode 3
+                  versionName "1.2"
               }
               signingConfigs {
                   debug {
@@ -153,7 +153,13 @@ jobs:
               public String error = null;
               float density;
 
-              final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(160);
+              final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(48 * 1024 * 1024) {
+                  @Override
+                  protected int sizeOf(String k, Bitmap b) {
+                      return b.getByteCount();
+                  }
+              };
+              boolean vector = false;
               final Set<String> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
               final ExecutorService ex = Executors.newSingleThreadExecutor();
               final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -241,6 +247,15 @@ jobs:
                           maxZ = c.getInt(1);
                       }
                       c.close();
+                      try {
+                          Cursor mc = db.rawQuery("select value from metadata where name='format'", null);
+                          if (mc.moveToFirst()) {
+                              String f = mc.getString(0);
+                              vector = f != null && (f.equalsIgnoreCase("pbf") || f.equalsIgnoreCase("mvt"));
+                          }
+                          mc.close();
+                      } catch (Throwable ignored) {
+                      }
                       zoom = Math.max(minZ, Math.min(maxZ, zoom));
                       return true;
                   } catch (Throwable t) {
@@ -271,7 +286,7 @@ jobs:
                                   Bitmap bm = null;
                                   if (c.moveToFirst()) {
                                       byte[] d = c.getBlob(0);
-                                      bm = BitmapFactory.decodeByteArray(d, 0, d.length);
+                                      bm = vector ? VectorRenderer.render(d, z, 512) : BitmapFactory.decodeByteArray(d, 0, d.length);
                                   }
                                   c.close();
                                   if (bm != null) cache.put(key, bm);
@@ -408,6 +423,432 @@ jobs:
                   sg.onTouchEvent(e);
                   gd.onTouchEvent(e);
                   return true;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/maptest/VectorRenderer.java <<'EOF'
+          package com.example.maptest;
+
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.DashPathEffect;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.HashMap;
+          import java.util.List;
+          import java.util.Map;
+          import java.util.zip.GZIPInputStream;
+
+          /** Дуже проста відмальовка векторних плиток (Mapbox Vector Tile, схема OpenMapTiles) у растр. */
+          public class VectorRenderer {
+              static class Layer {
+                  String name;
+                  List<String> keys = new ArrayList<String>();
+                  List<Object> vals = new ArrayList<Object>();
+                  List<Feat> feats = new ArrayList<Feat>();
+                  int extent = 4096;
+              }
+
+              static class Feat {
+                  int type;
+                  int[] tags, geom;
+                  Layer layer;
+
+                  Object get(String k) {
+                      if (tags == null) return null;
+                      for (int i = 0; i + 1 < tags.length; i += 2) {
+                          int ki = tags[i], vi = tags[i + 1];
+                          if (ki < layer.keys.size() && layer.keys.get(ki).equals(k)) return vi < layer.vals.size() ? layer.vals.get(vi) : null;
+                      }
+                      return null;
+                  }
+
+                  String str(String k) {
+                      Object o = get(k);
+                      return o == null ? null : String.valueOf(o);
+                  }
+
+                  double num(String k, double d) {
+                      Object o = get(k);
+                      if (o instanceof Number) return ((Number) o).doubleValue();
+                      return d;
+                  }
+              }
+
+              static class Pb {
+                  byte[] b;
+                  int p, end;
+
+                  Pb(byte[] b, int p, int end) {
+                      this.b = b;
+                      this.p = p;
+                      this.end = end;
+                  }
+
+                  boolean more() {
+                      return p < end;
+                  }
+
+                  long v64() {
+                      long r = 0;
+                      int sh = 0;
+                      while (true) {
+                          int c = b[p++];
+                          r |= (long) (c & 0x7f) << sh;
+                          if ((c & 0x80) == 0) break;
+                          sh += 7;
+                      }
+                      return r;
+                  }
+
+                  int v32() {
+                      return (int) v64();
+                  }
+
+                  void skip(int w) {
+                      if (w == 0) v64();
+                      else if (w == 1) p += 8;
+                      else if (w == 2) p += v32();
+                      else if (w == 5) p += 4;
+                  }
+              }
+
+              static byte[] gunzip(byte[] d) throws Exception {
+                  GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(d));
+                  ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                  byte[] buf = new byte[8192];
+                  int n;
+                  while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                  return bo.toByteArray();
+              }
+
+              static int[] packed(byte[] d, int s, int e) {
+                  int[] tmp = new int[e - s];
+                  int n = 0;
+                  Pb pb = new Pb(d, s, e);
+                  while (pb.more()) tmp[n++] = pb.v32();
+                  return Arrays.copyOf(tmp, n);
+              }
+
+              static Object parseValue(byte[] d, int s, int e) {
+                  Pb pb = new Pb(d, s, e);
+                  Object r = null;
+                  while (pb.more()) {
+                      int tag = pb.v32(), f = tag >>> 3, w = tag & 7;
+                      if (f == 1 && w == 2) {
+                          int len = pb.v32();
+                          r = new String(d, pb.p, len, java.nio.charset.Charset.forName("UTF-8"));
+                          pb.p += len;
+                      } else if (f == 2 && w == 5) {
+                          int bits = (d[pb.p] & 0xff) | (d[pb.p + 1] & 0xff) << 8 | (d[pb.p + 2] & 0xff) << 16 | (d[pb.p + 3] & 0xff) << 24;
+                          r = (double) Float.intBitsToFloat(bits);
+                          pb.p += 4;
+                      } else if (f == 3 && w == 1) {
+                          long bits = 0;
+                          for (int i = 7; i >= 0; i--) bits = (bits << 8) | (d[pb.p + i] & 0xff);
+                          r = Double.longBitsToDouble(bits);
+                          pb.p += 8;
+                      } else if (w == 0) {
+                          long v = pb.v64();
+                          if (f == 6) v = (v >>> 1) ^ -(v & 1);
+                          r = v;
+                      } else {
+                          pb.skip(w);
+                      }
+                  }
+                  return r;
+              }
+
+              static Layer parseLayer(byte[] d, int s, int e) {
+                  Layer l = new Layer();
+                  Pb pb = new Pb(d, s, e);
+                  while (pb.more()) {
+                      int tag = pb.v32(), f = tag >>> 3, w = tag & 7;
+                      if (w == 2 && (f == 1 || f == 3)) {
+                          int len = pb.v32();
+                          String str = new String(d, pb.p, len, java.nio.charset.Charset.forName("UTF-8"));
+                          pb.p += len;
+                          if (f == 1) l.name = str;
+                          else l.keys.add(str);
+                      } else if (w == 2 && f == 2) {
+                          int len = pb.v32();
+                          Feat ft = new Feat();
+                          ft.layer = l;
+                          Pb fp = new Pb(d, pb.p, pb.p + len);
+                          while (fp.more()) {
+                              int t2 = fp.v32(), f2 = t2 >>> 3, w2 = t2 & 7;
+                              if (f2 == 2 && w2 == 2) {
+                                  int n = fp.v32();
+                                  ft.tags = packed(d, fp.p, fp.p + n);
+                                  fp.p += n;
+                              } else if (f2 == 3 && w2 == 0) {
+                                  ft.type = fp.v32();
+                              } else if (f2 == 4 && w2 == 2) {
+                                  int n = fp.v32();
+                                  ft.geom = packed(d, fp.p, fp.p + n);
+                                  fp.p += n;
+                              } else {
+                                  fp.skip(w2);
+                              }
+                          }
+                          if (ft.geom != null) l.feats.add(ft);
+                          pb.p += len;
+                      } else if (w == 2 && f == 4) {
+                          int len = pb.v32();
+                          l.vals.add(parseValue(d, pb.p, pb.p + len));
+                          pb.p += len;
+                      } else if (w == 0 && f == 5) {
+                          l.extent = pb.v32();
+                      } else {
+                          pb.skip(w);
+                      }
+                  }
+                  return l;
+              }
+
+              static Map<String, Layer> parse(byte[] d) {
+                  Map<String, Layer> m = new HashMap<String, Layer>();
+                  Pb t = new Pb(d, 0, d.length);
+                  while (t.more()) {
+                      int tag = t.v32(), f = tag >>> 3, w = tag & 7;
+                      if (f == 3 && w == 2) {
+                          int len = t.v32();
+                          Layer l = parseLayer(d, t.p, t.p + len);
+                          t.p += len;
+                          if (l.name != null) m.put(l.name, l);
+                      } else {
+                          t.skip(w);
+                      }
+                  }
+                  return m;
+              }
+
+              static int unzig(int v) {
+                  return (v >>> 1) ^ -(v & 1);
+              }
+
+              static Path toPath(Feat f, float sc) {
+                  Path p = new Path();
+                  int x = 0, y = 0, i = 0;
+                  int[] g = f.geom;
+                  while (i < g.length) {
+                      int cmd = g[i++], id = cmd & 7, cnt = cmd >>> 3;
+                      if (id == 1 || id == 2) {
+                          for (int k = 0; k < cnt && i + 1 < g.length + 1; k++) {
+                              x += unzig(g[i++]);
+                              y += unzig(g[i++]);
+                              if (id == 1) p.moveTo(x * sc, y * sc);
+                              else p.lineTo(x * sc, y * sc);
+                          }
+                      } else if (id == 7) {
+                          p.close();
+                      }
+                  }
+                  return p;
+              }
+
+              static final String[] RANK = {"service", "minor", "tertiary", "secondary", "primary", "trunk", "motorway"};
+              static final int[] FILL = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF7FABF, 0xFFFCD6A4, 0xFFF9B29C, 0xFFE892A2};
+              static final int[] CASE = {0xFFBDBDBD, 0xFFBDBDBD, 0xFFBDBDBD, 0xFFB9B97A, 0xFFD9A55A, 0xFFD98A74, 0xFFDC2A67};
+              static final float[] WID = {1.5f, 2.2f, 3f, 3.5f, 4f, 4.5f, 5f};
+
+              static int rank(String c) {
+                  if (c == null) return -1;
+                  if (c.equals("residential") || c.equals("unclassified") || c.equals("living_street")) c = "minor";
+                  for (int i = 0; i < RANK.length; i++) if (RANK[i].equals(c)) return i;
+                  return -1;
+              }
+
+              static Integer landColor(String layer, String c) {
+                  if (c == null) return null;
+                  if (layer.equals("landcover")) {
+                      if (c.equals("wood")) return 0xFFC5E0B0;
+                      if (c.equals("grass")) return 0xFFDDEBC8;
+                      if (c.equals("farmland")) return 0xFFEEEFD5;
+                      if (c.equals("wetland")) return 0xFFD3E8E0;
+                      if (c.equals("sand")) return 0xFFF5E9C6;
+                      if (c.equals("rock")) return 0xFFE0DCD5;
+                      if (c.equals("ice")) return 0xFFFFFFFF;
+                  } else {
+                      if (c.equals("residential") || c.equals("suburb")) return 0xFFE9E5DC;
+                      if (c.equals("commercial") || c.equals("retail")) return 0xFFF2DAD9;
+                      if (c.equals("industrial") || c.equals("railway")) return 0xFFE6DDE8;
+                      if (c.equals("cemetery")) return 0xFFAACBAF;
+                      if (c.equals("garden") || c.equals("park") || c.equals("playground") || c.equals("pitch") || c.equals("zoo") || c.equals("theme_park"))
+                          return 0xFFCDEBB1;
+                      if (c.equals("military")) return 0xFFF1D9D9;
+                      if (c.equals("quarry")) return 0xFFC5C3C3;
+                  }
+                  return null;
+              }
+
+              public static Bitmap render(byte[] raw, int z, int size) {
+                  Bitmap bm = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                  Canvas c = new Canvas(bm);
+                  c.drawColor(0xFFF2EFE9);
+                  try {
+                      byte[] d = raw;
+                      if (raw.length > 2 && (raw[0] & 0xff) == 0x1f && (raw[1] & 0xff) == 0x8b) d = gunzip(raw);
+                      Map<String, Layer> L = parse(d);
+                      float k = (float) Math.max(0.6, Math.min(3.0, 0.6 + 0.35 * (z - 10))) * size / 512f;
+                      Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      p.setStrokeCap(Paint.Cap.ROUND);
+                      p.setStrokeJoin(Paint.Join.ROUND);
+
+                      for (String ln : new String[]{"landcover", "landuse"}) {
+                          Layer l = L.get(ln);
+                          if (l == null) continue;
+                          float sc = size / (float) l.extent;
+                          for (Feat f : l.feats) {
+                              if (f.type != 3) continue;
+                              Integer col = landColor(ln, f.str("class"));
+                              if (col == null) continue;
+                              Path pa = toPath(f, sc);
+                              pa.setFillType(Path.FillType.EVEN_ODD);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(col);
+                              c.drawPath(pa, p);
+                          }
+                      }
+                      Layer w = L.get("water");
+                      if (w != null) {
+                          float sc = size / (float) w.extent;
+                          for (Feat f : w.feats) {
+                              if (f.type != 3) continue;
+                              Path pa = toPath(f, sc);
+                              pa.setFillType(Path.FillType.EVEN_ODD);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(0xFFAAD3DF);
+                              c.drawPath(pa, p);
+                          }
+                      }
+                      Layer ww = L.get("waterway");
+                      if (ww != null) {
+                          float sc = size / (float) ww.extent;
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setColor(0xFF8CBCDB);
+                          p.setStrokeWidth(1.6f * k);
+                          for (Feat f : ww.feats) if (f.type == 2) c.drawPath(toPath(f, sc), p);
+                      }
+                      Layer bl = L.get("building");
+                      if (bl != null && z >= 13) {
+                          float sc = size / (float) bl.extent;
+                          for (Feat f : bl.feats) {
+                              if (f.type != 3) continue;
+                              Path pa = toPath(f, sc);
+                              pa.setFillType(Path.FillType.EVEN_ODD);
+                              p.setStyle(Paint.Style.FILL);
+                              p.setColor(0xFFD9D0C9);
+                              c.drawPath(pa, p);
+                              p.setStyle(Paint.Style.STROKE);
+                              p.setStrokeWidth(1f);
+                              p.setColor(0xFFC4B7AE);
+                              c.drawPath(pa, p);
+                          }
+                      }
+                      Layer tr = L.get("transportation");
+                      if (tr != null) {
+                          float sc = size / (float) tr.extent;
+                          List<List<Path>> byRank = new ArrayList<List<Path>>();
+                          for (int i = 0; i < RANK.length; i++) byRank.add(new ArrayList<Path>());
+                          List<Path> rail = new ArrayList<Path>(), paths = new ArrayList<Path>();
+                          for (Feat f : tr.feats) {
+                              if (f.type != 2) continue;
+                              String cl = f.str("class");
+                              if ("rail".equals(cl)) {
+                                  rail.add(toPath(f, sc));
+                                  continue;
+                              }
+                              if ("path".equals(cl) || "track".equals(cl)) {
+                                  if (z >= 13) paths.add(toPath(f, sc));
+                                  continue;
+                              }
+                              int r = rank(cl);
+                              if (r >= 0) byRank.get(r).add(toPath(f, sc));
+                          }
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setPathEffect(new DashPathEffect(new float[]{6 * k, 4 * k}, 0));
+                          p.setColor(0xFFB5A99C);
+                          p.setStrokeWidth(1.2f * k);
+                          for (Path pa : paths) c.drawPath(pa, p);
+                          p.setPathEffect(null);
+                          for (int r = 0; r < RANK.length; r++) {
+                              List<Path> l = byRank.get(r);
+                              if (l.isEmpty()) continue;
+                              p.setColor(CASE[r]);
+                              p.setStrokeWidth(WID[r] * k + 1.6f * k);
+                              for (Path pa : l) c.drawPath(pa, p);
+                              p.setColor(FILL[r]);
+                              p.setStrokeWidth(WID[r] * k);
+                              for (Path pa : l) c.drawPath(pa, p);
+                          }
+                          p.setColor(0xFF888888);
+                          p.setStrokeWidth(1.3f * k);
+                          p.setPathEffect(new DashPathEffect(new float[]{10 * k, 6 * k}, 0));
+                          for (Path pa : rail) c.drawPath(pa, p);
+                          p.setPathEffect(null);
+                      }
+                      Layer bd = L.get("boundary");
+                      if (bd != null) {
+                          float sc = size / (float) bd.extent;
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setColor(0xFF9E7CB3);
+                          p.setPathEffect(new DashPathEffect(new float[]{12 * k, 6 * k}, 0));
+                          for (Feat f : bd.feats) {
+                              if (f.type != 2) continue;
+                              double al = f.num("admin_level", 9);
+                              if (al > 6) continue;
+                              p.setStrokeWidth((al <= 2 ? 3f : 1.8f) * k);
+                              c.drawPath(toPath(f, sc), p);
+                          }
+                          p.setPathEffect(null);
+                      }
+                      Layer pl = L.get("place");
+                      if (pl != null) {
+                          float sc = size / (float) pl.extent;
+                          Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                          tp.setTextAlign(Paint.Align.CENTER);
+                          for (Feat f : pl.feats) {
+                              if (f.type != 1) continue;
+                              String cl = f.str("class");
+                              if (cl == null) continue;
+                              float ts;
+                              if (cl.equals("country")) ts = z <= 6 ? 30 : 0;
+                              else if (cl.equals("state") || cl.equals("region")) ts = z >= 4 && z <= 8 ? 24 : 0;
+                              else if (cl.equals("city")) ts = 30;
+                              else if (cl.equals("town")) ts = z >= 7 ? 26 : 0;
+                              else if (cl.equals("village")) ts = z >= 9 ? 22 : 0;
+                              else if (cl.equals("suburb") || cl.equals("hamlet")) ts = z >= 11 ? 19 : 0;
+                              else if (cl.equals("neighbourhood")) ts = z >= 13 ? 17 : 0;
+                              else ts = 0;
+                              if (ts == 0) continue;
+                              String nm = f.str("name");
+                              if (nm == null) nm = f.str("name:uk");
+                              if (nm == null) nm = f.str("name:latin");
+                              if (nm == null) continue;
+                              int[] g = f.geom;
+                              if (g.length < 3) continue;
+                              float x = unzig(g[1]) * sc, y = unzig(g[2]) * sc;
+                              tp.setTextSize(ts * size / 512f);
+                              tp.setStyle(Paint.Style.STROKE);
+                              tp.setStrokeWidth(4f * size / 512f);
+                              tp.setColor(0xFFFFFFFF);
+                              c.drawText(nm, x, y, tp);
+                              tp.setStyle(Paint.Style.FILL);
+                              tp.setColor(0xFF333333);
+                              c.drawText(nm, x, y, tp);
+                          }
+                      }
+                  } catch (Throwable t) {
+                      // залишаємо те, що встигли намалювати
+                  }
+                  return bm;
               }
           }
           EOF
