@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.maptest"
                   minSdk 23
                   targetSdk 26
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 2
+                  versionName "1.1"
               }
               signingConfigs {
                   debug {
@@ -527,7 +527,8 @@ jobs:
                   if (opened) return;
                   opened = true;
                   File ext = getExternalFilesDir(null);
-                  String[] paths = {"/sdcard/map.mbtiles", ext == null ? "" : ext.getAbsolutePath() + "/map.mbtiles"};
+                  String root = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
+                  String[] paths = {root + "/map.mbtiles", "/storage/emulated/0/map.mbtiles", "/sdcard/map.mbtiles", ext == null ? "" : ext.getAbsolutePath() + "/map.mbtiles"};
                   boolean ok = false;
                   for (String p : paths) {
                       if (!p.isEmpty() && new File(p).canRead() && map.open(p)) {
@@ -535,7 +536,7 @@ jobs:
                           break;
                       }
                   }
-                  if (!ok) info.setText("Файл карти не знайдено.\nПоклади /sdcard/map.mbtiles" + (map.error == null ? "" : "\n" + map.error));
+                  if (!ok) info.setText("Файл карти не знайдено.\nПоклади в корінь пам'яті (" + root + "/map.mbtiles)" + (map.error == null ? "" : "\n" + map.error));
                   startGps();
                   onMarkChanged();
               }
