@@ -1,7 +1,10 @@
-name: Build CarServiceProbe Headlight Monitor APK
+name: Build CarServiceProbe APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -56,8 +59,8 @@ jobs:
                   applicationId 'ua.step.carserviceprobe'
                   minSdk 23
                   targetSdk 27
-                  versionCode 3
-                  versionName '1.2-headlight-monitor'
+                  versionCode 2
+                  versionName '1.1-headlight-monitor'
               }
           }
           EOF
@@ -132,7 +135,7 @@ jobs:
                   public void run() {
                       if (!polling || !bound || carBinder == null) return;
                       readHeadlight();
-                      handler.postDelayed(this, POLL_INTERVAL_MS);
+                      if (polling) handler.postDelayed(this, POLL_INTERVAL_MS);
                   }
               };
 
@@ -168,7 +171,6 @@ jobs:
 
                   statusView = new TextView(this);
                   statusView.setTextSize(18);
-                  statusView.setText("CarService: ПІДКЛЮЧЕННЯ...");
                   root.addView(statusView);
 
                   valueView = new TextView(this);
@@ -185,7 +187,7 @@ jobs:
                   explanation.setTextSize(14);
                   explanation.setText(
                           "Автоматичне читання Binder-транзакції №5 кожні 500 мс. " +
-                          "Жодних команд запису в CAN або UART не надсилається.");
+                          "Команди запису в CAN або UART не надсилаються.");
                   root.addView(explanation);
 
                   TextView historyTitle = new TextView(this);
@@ -215,6 +217,7 @@ jobs:
                           bound = true;
                           setStatus(service.isBinderAlive() ? "ПІДКЛЮЧЕНО" : "BINDER НЕАКТИВНИЙ");
                           appendHistory(now() + "  CarService підключено");
+                          appendHistory("Binder ping: " + service.pingBinder());
                           try {
                               appendHistory("Descriptor: " + service.getInterfaceDescriptor());
                           } catch (Exception e) {
@@ -293,7 +296,7 @@ jobs:
                               TRANSACTION_GET_HEADLIGHT, data, reply, 0);
 
                       if (!handled) {
-                          setStatus("ПІДКЛЮЧЕНО, АЛЕ ТРАНЗАКЦІЮ №5 НЕ ОБРОБЛЕНО");
+                          setStatus("ТРАНЗАКЦІЮ №5 НЕ ОБРОБЛЕНО");
                           appendHistory(now() + "  transact(5) повернув false");
                           stopPolling();
                           return;
@@ -306,8 +309,8 @@ jobs:
 
                       if (value != lastValue) {
                           String label;
-                          if (value == 1) label = "1 (ймовірно ON)";
-                          else if (value == 0) label = "0 (ймовірно OFF)";
+                          if (value == 1) label = "1 (можливе ON)";
+                          else if (value == 0) label = "0 (можливе OFF)";
                           else if (value == -1) label = "-1 (недоступне/не задане)";
                           else label = value + " (невідоме значення)";
 
@@ -318,7 +321,7 @@ jobs:
                       }
 
                       if (sampleCount % 20 == 0) {
-                          appendHistory(now() + "  Контрольне значення: " + value +
+                          appendHistory(now() + "  Контроль: " + value +
                                   " (зразок " + sampleCount + ")");
                       }
                   } catch (Exception e) {
@@ -356,9 +359,10 @@ jobs:
 
       - name: Install Android SDK components
         run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
+            echo "sdkmanager не знайдено в $ANDROID_HOME/cmdline-tools"
             exit 1
           fi
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
@@ -378,6 +382,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: CarServiceProbe-Headlight-Monitor-APK
+          name: CarServiceProbe-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
