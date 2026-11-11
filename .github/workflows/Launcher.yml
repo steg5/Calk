@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 12
-                  versionName "2.3"
+                  versionCode 13
+                  versionName "2.4"
               }
               signingConfigs {
                   debug {
@@ -192,6 +192,7 @@ jobs:
           import android.view.Surface;
           import android.view.TextureView;
           import android.view.View;
+          import android.view.ViewGroup;
           import android.widget.Button;
           import android.widget.FrameLayout;
           import android.widget.HorizontalScrollView;
@@ -1156,7 +1157,7 @@ jobs:
                       p.setStyle(Paint.Style.FILL);
                       p.setColor(BTN);
                       cv.drawRoundRect(new RectF(w / 2 - side / 2, h / 2 - side / 2, w / 2 + side / 2, h / 2 + side / 2), side * 0.2f, side * 0.2f, p);
-                      p.setColor(ACC);
+                      p.setColor(icCol());
                       cv.translate(w / 2, h / 2);
                       if (kind == 0) {
                           for (int k = 0; k < 8; k++) {
@@ -1183,6 +1184,10 @@ jobs:
                           cv.drawCircle(-s * 0.40f, 0, s * 0.13f, p);
                       }
                   }
+              }
+
+              int icCol() {
+                  return sp.getInt("theme", 0) == 8 ? TXT : 0xFFFFFFFF;
               }
 
               int px(float v) {
@@ -1233,6 +1238,308 @@ jobs:
               }
 
               /** Іконка супутника, намальована кодом. */
+              class ClockLayout extends ViewGroup {
+                  final View[] el = new View[5];
+                  final float[] fx = new float[5], fy = new float[5], sc = new float[5];
+                  View badge;
+                  LinearLayout bar;
+                  boolean edit = false;
+                  int sel = -1;
+                  float lx, ly, gx = -1, gy = -1;
+                  final Paint gp = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  ClockLayout(Context c) {
+                      super(c);
+                      setWillNotDraw(false);
+                      for (int i = 0; i < 5; i++) {
+                          fx[i] = Float.NaN;
+                          sc[i] = 1f;
+                          String v = sp.getString("ck" + i, null);
+                          if (v != null) {
+                              try {
+                                  String[] q = v.split(",");
+                                  fx[i] = Float.parseFloat(q[0]);
+                                  fy[i] = Float.parseFloat(q[1]);
+                                  sc[i] = Float.parseFloat(q[2]);
+                              } catch (Throwable ignored) {
+                                  fx[i] = Float.NaN;
+                              }
+                          }
+                      }
+                  }
+
+                  void put(int i, View v, int w, int h) {
+                      el[i] = v;
+                      addView(v, new ViewGroup.LayoutParams(w, h));
+                  }
+
+                  void save() {
+                      SharedPreferences.Editor ed = sp.edit();
+                      for (int i = 0; i < 5; i++)
+                          if (!Float.isNaN(fx[i])) ed.putString("ck" + i, fx[i] + "," + fy[i] + "," + sc[i]);
+                      ed.apply();
+                  }
+
+                  void reset() {
+                      SharedPreferences.Editor ed = sp.edit();
+                      for (int i = 0; i < 5; i++) {
+                          ed.remove("ck" + i);
+                          fx[i] = Float.NaN;
+                          sc[i] = 1f;
+                          el[i].setScaleX(1f);
+                          el[i].setScaleY(1f);
+                      }
+                      ed.apply();
+                      requestLayout();
+                  }
+
+                  @Override
+                  protected void onMeasure(int ws, int hs) {
+                      int W = MeasureSpec.getSize(ws), H = MeasureSpec.getSize(hs);
+                      setMeasuredDimension(W, H);
+                      for (int i = 0; i < getChildCount(); i++) {
+                          View c = getChildAt(i);
+                          ViewGroup.LayoutParams p = c.getLayoutParams();
+                          int cw = p.width > 0 ? MeasureSpec.makeMeasureSpec(p.width, MeasureSpec.EXACTLY) : MeasureSpec.makeMeasureSpec(W, MeasureSpec.AT_MOST);
+                          int chh = p.height > 0 ? MeasureSpec.makeMeasureSpec(p.height, MeasureSpec.EXACTLY) : MeasureSpec.makeMeasureSpec(H, MeasureSpec.AT_MOST);
+                          c.measure(cw, chh);
+                      }
+                  }
+
+                  @Override
+                  protected void onLayout(boolean ch, int l, int t, int r, int b) {
+                      int W = r - l, H = b - t;
+                      if (W <= 0 || H <= 0) return;
+                      int top = px(12);
+                      for (int i = 0; i < 5; i++) {
+                          View v = el[i];
+                          if (v == null) continue;
+                          int w = v.getMeasuredWidth(), h = v.getMeasuredHeight();
+                          if (Float.isNaN(fx[i])) {
+                              float cx, cy;
+                              int h0 = el[0].getMeasuredHeight(), h1 = el[1].getMeasuredHeight();
+                              switch (i) {
+                                  case 0:
+                                      cx = W / 2f;
+                                      cy = top + h0 / 2f;
+                                      break;
+                                  case 1:
+                                      cx = W / 2f;
+                                      cy = top + h0 + h1 / 2f;
+                                      break;
+                                  case 2:
+                                      cx = W / 2f;
+                                      cy = (top + h0 + h1 + H - top) / 2f;
+                                      break;
+                                  case 3:
+                                      cx = W - px(14) - w / 2f;
+                                      cy = top + h / 2f;
+                                      break;
+                                  default:
+                                      cx = px(12) + w / 2f;
+                                      cy = px(12) + h / 2f;
+                              }
+                              fx[i] = cx / W;
+                              fy[i] = cy / H;
+                          }
+                          int cx = Math.round(fx[i] * W), cy = Math.round(fy[i] * H);
+                          v.layout(cx - w / 2, cy - h / 2, cx - w / 2 + w, cy - h / 2 + h);
+                          v.setScaleX(sc[i]);
+                          v.setScaleY(sc[i]);
+                      }
+                      if (badge != null) {
+                          int w = badge.getMeasuredWidth(), h = badge.getMeasuredHeight();
+                          badge.layout(W - px(16) - w, H - px(16) - h, W - px(16), H - px(16));
+                      }
+                      if (bar != null) {
+                          int w = bar.getMeasuredWidth(), h = bar.getMeasuredHeight();
+                          bar.layout((W - w) / 2, H - px(8) - h, (W - w) / 2 + w, H - px(8));
+                      }
+                  }
+
+                  RectF box(int i) {
+                      View v = el[i];
+                      float w = v.getWidth() * sc[i], h = v.getHeight() * sc[i];
+                      float cx = v.getLeft() + v.getWidth() / 2f, cy = v.getTop() + v.getHeight() / 2f;
+                      return new RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+                  }
+
+                  void startEdit() {
+                      edit = true;
+                      sel = -1;
+                      if (bar != null) bar.setVisibility(View.VISIBLE);
+                      invalidate();
+                  }
+
+                  void stopEdit() {
+                      edit = false;
+                      sel = -1;
+                      gx = gy = -1;
+                      if (bar != null) bar.setVisibility(View.GONE);
+                      save();
+                      invalidate();
+                  }
+
+                  void grow(float k) {
+                      if (sel < 0) return;
+                      sc[sel] = Math.max(0.4f, Math.min(3f, sc[sel] * k));
+                      el[sel].setScaleX(sc[sel]);
+                      el[sel].setScaleY(sc[sel]);
+                      invalidate();
+                  }
+
+                  @Override
+                  public boolean onInterceptTouchEvent(MotionEvent e) {
+                      if (!edit) return false;
+                      if (bar != null && bar.getVisibility() == View.VISIBLE) {
+                          float x = e.getX(), y = e.getY();
+                          if (x >= bar.getLeft() && x <= bar.getRight() && y >= bar.getTop() && y <= bar.getBottom()) return false;
+                      }
+                      return true;
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(MotionEvent e) {
+                      if (!edit) return false;
+                      float x = e.getX(), y = e.getY();
+                      int W = getWidth(), H = getHeight();
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              sel = -1;
+                              for (int i = 4; i >= 0; i--) {
+                                  RectF b = box(i);
+                                  b.inset(-px(10), -px(10));
+                                  if (b.contains(x, y)) {
+                                      sel = i;
+                                      break;
+                                  }
+                              }
+                              lx = x;
+                              ly = y;
+                              invalidate();
+                              return true;
+                          case MotionEvent.ACTION_MOVE:
+                              if (sel < 0) return true;
+                              fx[sel] += (x - lx) / W;
+                              fy[sel] += (y - ly) / H;
+                              lx = x;
+                              ly = y;
+                              fx[sel] = Math.max(0, Math.min(1, fx[sel]));
+                              fy[sel] = Math.max(0, Math.min(1, fy[sel]));
+                              snap(W, H);
+                              requestLayout();
+                              invalidate();
+                              return true;
+                          case MotionEvent.ACTION_UP:
+                          case MotionEvent.ACTION_CANCEL:
+                              gx = gy = -1;
+                              save();
+                              invalidate();
+                              return true;
+                      }
+                      return true;
+                  }
+
+                  void snap(int W, int H) {
+                      View v = el[sel];
+                      float hw = v.getWidth() * sc[sel] / 2f, hh = v.getHeight() * sc[sel] / 2f;
+                      float cx = fx[sel] * W, cy = fy[sel] * H, th = px(14), pad = px(6);
+                      gx = gy = -1;
+                      float[] tx = {W / 2f, pad + hw, W - pad - hw};
+                      float[] gl = {W / 2f, pad, W - pad};
+                      for (int k = 0; k < 3; k++)
+                          if (Math.abs(cx - tx[k]) < th) {
+                              cx = tx[k];
+                              gx = gl[k];
+                              break;
+                          }
+                      float[] ty = {H / 2f, pad + hh, H - pad - hh};
+                      float[] gm = {H / 2f, pad, H - pad};
+                      for (int k = 0; k < 3; k++)
+                          if (Math.abs(cy - ty[k]) < th) {
+                              cy = ty[k];
+                              gy = gm[k];
+                              break;
+                          }
+                      fx[sel] = cx / W;
+                      fy[sel] = cy / H;
+                  }
+
+                  @Override
+                  protected void dispatchDraw(Canvas cv) {
+                      super.dispatchDraw(cv);
+                      if (!edit) return;
+                      gp.setStyle(Paint.Style.STROKE);
+                      gp.setStrokeWidth(px(1.5f));
+                      for (int i = 0; i < 5; i++) {
+                          RectF b = box(i);
+                          gp.setColor(i == sel ? ACC : 0x66FFFFFF);
+                          cv.drawRect(b, gp);
+                      }
+                      gp.setColor(0xFF00E5FF);
+                      if (gx >= 0) cv.drawLine(gx, 0, gx, getHeight(), gp);
+                      if (gy >= 0) cv.drawLine(0, gy, getWidth(), gy, gp);
+                  }
+              }
+
+              ClockLayout clockLay;
+
+              void clockEdit() {
+                  if (clockLay != null) clockLay.startEdit();
+              }
+
+              void markDialog() {
+                  final LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(16), px(16), px(16), px(8));
+                  final LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  col.addView(row, lp(-1, 110, 0));
+                  final Button cb = btn(sp.getInt("mcol", 0) == 0 ? "Колір: тема" : "Колір: синій", 22);
+                  col.addView(cb, lp(-1, 56, 0));
+                  final View[] pv = new View[5];
+                  for (int i = 0; i < 5; i++) {
+                      final int k = i;
+                      pv[i] = new View(this) {
+                          @Override
+                          protected void onDraw(Canvas cv) {
+                              Paint pp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                              if (sp.getInt("mstyle", 0) == k) {
+                                  pp.setColor(0x55FFFFFF);
+                                  cv.drawRoundRect(new RectF(px(4), px(4), getWidth() - px(4), getHeight() - px(4)), px(14), px(14), pp);
+                              }
+                              cv.save();
+                              cv.translate(getWidth() / 2f, getHeight() / 2f);
+                              MapView.drawMarker(cv, pp, k, px(24), sp.getInt("mcol", 0) == 0 ? ACC : 0xFF1E88E5, u);
+                              cv.restore();
+                          }
+                      };
+                      pv[i].setOnClickListener(v -> {
+                          sp.edit().putInt("mstyle", k).apply();
+                          applyMark();
+                          for (View q : pv) q.invalidate();
+                      });
+                      row.addView(pv[i], lp(0, -1, 1));
+                  }
+                  cb.setOnClickListener(v -> {
+                      int c = sp.getInt("mcol", 0) == 0 ? 1 : 0;
+                      sp.edit().putInt("mcol", c).apply();
+                      cb.setText(c == 0 ? "Колір: тема" : "Колір: синій");
+                      applyMark();
+                      for (View q : pv) q.invalidate();
+                  });
+                  col.setBackgroundColor(BG2 | 0xFF000000);
+                  new AlertDialog.Builder(this).setTitle("Мій значок").setView(col)
+                          .setPositiveButton("Готово", (d, w) -> rebuildSettings()).show();
+              }
+
+              void applyMark() {
+                  if (map == null) return;
+                  map.markStyle = sp.getInt("mstyle", 0);
+                  map.markColor = sp.getInt("mcol", 0) == 0 ? ACC : 0xFF1E88E5;
+                  map.invalidate();
+              }
+
               class SatView extends View {
                   final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -1243,7 +1550,7 @@ jobs:
                   @Override
                   protected void onDraw(Canvas cv) {
                       float w = getWidth(), h = getHeight(), s = Math.min(w, h);
-                      p.setColor(ACC);
+                      p.setColor(icCol());
                       p.setStyle(Paint.Style.FILL);
                       cv.save();
                       cv.translate(w / 2, h / 2);
@@ -1297,20 +1604,17 @@ jobs:
                   });
 
                   // --- плитка з годинником і швидкістю ---
-                  FrameLayout clockCard = new FrameLayout(this);
+                  final ClockLayout clockCard = new ClockLayout(this);
+                  clockLay = clockCard;
                   clockCard.setBackground(rounded(CARD, 24));
                   addBlock(0, clockCard);
-                  LinearLayout cc = new LinearLayout(this);
-                  cc.setOrientation(LinearLayout.VERTICAL);
-                  cc.setPadding(px(22), px(12), px(22), px(12));
-                  clockCard.addView(cc, new FrameLayout.LayoutParams(-1, -1));
                   tvClock = text("00:00", 76, TXT, true);
                   tvClock.setGravity(Gravity.CENTER);
-                  cc.addView(tvClock, lp(-1, -2, 0));
+                  clockCard.put(0, tvClock, -2, -2);
                   tvDate = text("", 22, DIM, false);
                   tvDate.setSingleLine(true);
                   tvDate.setGravity(Gravity.CENTER);
-                  cc.addView(tvDate, lp(-1, -2, 0));
+                  clockCard.put(1, tvDate, -2, -2);
                   LinearLayout speedRow = new LinearLayout(this);
                   speedRow.setOrientation(LinearLayout.VERTICAL);
                   speedRow.setGravity(Gravity.CENTER);
@@ -1319,7 +1623,7 @@ jobs:
                       resetTrip();
                       return true;
                   });
-                  cc.addView(speedRow, lp(-1, 0, 1));
+                  clockCard.put(2, speedRow, -2, -2);
                   tvSpeed = text("—", 110, ACC, true);
                   tvSpeed.setGravity(Gravity.CENTER);
                   speedRow.addView(tvSpeed, lp(-1, -2, 0));
@@ -1340,9 +1644,11 @@ jobs:
                   tvSats = text(" —", 20, DIM, false);
                   satRow.addView(tvSats, lp(-2, -2, 0));
                   stats.addView(satRow, lp(-2, -2, 0));
-                  FrameLayout.LayoutParams stp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
-                  stp.setMargins(0, px(12), px(14), 0);
-                  clockCard.addView(stats, stp);
+                  clockCard.put(3, stats, -2, -2);
+                  tvAvg.setPadding(px(8), px(4), 0, px(4));
+                  tvMax.setPadding(px(8), px(4), 0, px(4));
+                  tvAvg.setOnClickListener(v -> resetTrip());
+                  tvMax.setOnClickListener(v -> resetTrip());
 
                   // --- яскравість: квадратна кнопка зверху зліва ---
                   dayNight = new FrameLayout(this);
@@ -1355,9 +1661,7 @@ jobs:
                       minDialog();
                       return true;
                   });
-                  FrameLayout.LayoutParams dnp = new FrameLayout.LayoutParams(px(72), px(72), Gravity.TOP | Gravity.LEFT);
-                  dnp.setMargins(px(12), px(12), 0, 0);
-                  clockCard.addView(dayNight, dnp);
+                  clockCard.put(4, dayNight, px(72), px(72));
                   oilBadge = text("!", 40, 0xFFFFFFFF, true);
                   oilBadge.setGravity(Gravity.CENTER);
                   GradientDrawable og = new GradientDrawable();
@@ -1366,9 +1670,25 @@ jobs:
                   oilBadge.setBackground(og);
                   oilBadge.setOnClickListener(v -> showService());
                   oilBadge.setVisibility(View.GONE);
-                  FrameLayout.LayoutParams obp = new FrameLayout.LayoutParams(px(56), px(56), Gravity.BOTTOM | Gravity.RIGHT);
-                  obp.setMargins(0, 0, px(16), px(16));
-                  clockCard.addView(oilBadge, obp);
+                  clockCard.badge = oilBadge;
+                  clockCard.addView(oilBadge, new ViewGroup.LayoutParams(px(56), px(56)));
+                  final LinearLayout cbar = new LinearLayout(this);
+                  cbar.setOrientation(LinearLayout.HORIZONTAL);
+                  cbar.setBackground(rounded(0xCC101A28, 14));
+                  cbar.setPadding(px(6), px(4), px(6), px(4));
+                  cbar.setVisibility(View.GONE);
+                  Button cm = btn("−", 24), cp = btn("+", 24), cr = btn("Скинути", 18), cd = btn("Готово", 18);
+                  cm.setOnClickListener(v -> clockCard.grow(1f / 1.1f));
+                  cp.setOnClickListener(v -> clockCard.grow(1.1f));
+                  cr.setOnClickListener(v -> clockCard.reset());
+                  cd.setOnClickListener(v -> clockCard.stopEdit());
+                  cbar.addView(cm, lp(48, 44, 0));
+                  cbar.addView(cp, lp(48, 44, 0));
+                  cbar.addView(cr, lp(100, 44, 0));
+                  cbar.addView(cd, lp(90, 44, 0));
+                  clockCard.bar = cbar;
+                  clockCard.addView(cbar, new ViewGroup.LayoutParams(-2, -2));
+
 
                   // --- радіо і AIMP: дві вертикальні плитки ---
                   LinearLayout radio = card(LinearLayout.VERTICAL);
@@ -1465,6 +1785,7 @@ jobs:
                   map = new MapView(this);
                   map.listener = this::saveMark;
                   map.autoMin = sp.getFloat("azmin", 13f);
+                  applyMark();
                   map.autoMax = sp.getFloat("azmax", 15f);
                   nav.addView(map, new FrameLayout.LayoutParams(-1, -1));
                   final int bs = px(56), gap = px(10);
@@ -1999,9 +2320,11 @@ jobs:
                   group("Блоки",
                           t("Розташування і розміри", "тягнути, змінювати", true, this::enterEdit),
                           t("Скільки програм", String.valueOf(sp.getInt("napps", 5)), true, this::countMenu),
-                          t("Програми внизу", "вибрати значки", true, this::pickApps));
+                          t("Програми внизу", "вибрати значки", true, this::pickApps),
+                          t("Елементи годинника", "місце і розмір", true, this::clockEdit));
                   group("Навігація",
                           t("Карта", mapName(), true, this::mapMenu),
+                          t("Мій значок", "стрілка, авто…", false, this::markDialog),
                           t("Автомасштаб: мін", String.valueOf(Math.round(sp.getFloat("azmin", 13f))), true, () -> zoomMenu(true)),
                           t("Автомасштаб: макс", String.valueOf(Math.round(sp.getFloat("azmax", 15f))), true, () -> zoomMenu(false)),
                           t("Авто день / ніч", onOff(sp.getBoolean("autonav", true)), false, () -> {
@@ -2825,6 +3148,7 @@ jobs:
               // відображуваний стан (плавно рухається до цілі)
               public double lat = 49.8397, lon = 24.0297, zoom = 12;
               public float rot = 0;
+              public int markStyle = 0, markColor = 0xFF1E88E5;
               public double autoMin = 13, autoMax = 15, zoomLimit = 15;
               float pivY = -1;
               public boolean follow = true, night = false, hasFix = false, headingUp = true;
@@ -3359,24 +3683,76 @@ jobs:
                       cv.save();
                       cv.translate(me[0], me[1]);
                       cv.rotate(fixBearing - rot);
-                      Path a = new Path();
-                      float s = 18 * density;
+                      drawMarker(cv, p, markStyle, 18 * density, markColor, density);
+                      cv.restore();
+                  }
+                  p.setStyle(Paint.Style.FILL);
+                  if (fl) postInvalidateOnAnimation();
+              }
+
+              /** Значок моєї позиції (дивиться вгору), s - розмір. */
+              public static void drawMarker(Canvas cv, Paint p, int st, float s, int fill, float d) {
+                  Path a = new Path();
+                  p.setStrokeJoin(Paint.Join.ROUND);
+                  if (st == 1) {
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFF1A1A1A);
+                      float[][] wh = {{-0.64f, -0.68f}, {0.52f, -0.68f}, {-0.64f, 0.34f}, {0.52f, 0.34f}};
+                      for (float[] w : wh) cv.drawRoundRect(new RectF(s * w[0], s * w[1], s * (w[0] + 0.12f), s * (w[1] + 0.4f)), s * 0.04f, s * 0.04f, p);
+                      a.addRoundRect(new RectF(-s * 0.52f, -s, s * 0.52f, s), s * 0.36f, s * 0.36f, Path.Direction.CW);
+                      p.setColor(fill);
+                      cv.drawPath(a, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(2.2f * d);
+                      p.setColor(0xFFFFFFFF);
+                      cv.drawPath(a, p);
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xDD10151C);
+                      cv.drawRoundRect(new RectF(-s * 0.38f, -s * 0.5f, s * 0.38f, -s * 0.12f), s * 0.12f, s * 0.12f, p);
+                      cv.drawRoundRect(new RectF(-s * 0.38f, s * 0.36f, s * 0.38f, s * 0.64f), s * 0.1f, s * 0.1f, p);
+                      return;
+                  }
+                  if (st == 2) {
+                      a.moveTo(0, -s * 1.15f);
+                      a.lineTo(s * 0.45f, -s * 0.4f);
+                      a.lineTo(-s * 0.45f, -s * 0.4f);
+                      a.close();
+                      a.addCircle(0, 0.1f * s, s * 0.62f, Path.Direction.CW);
+                  } else if (st == 3) {
+                      a.moveTo(0, -s);
+                      a.lineTo(s * 0.9f, s * 0.85f);
+                      a.lineTo(s * 0.55f, s * 0.85f);
+                      a.lineTo(0, -s * 0.1f);
+                      a.lineTo(-s * 0.55f, s * 0.85f);
+                      a.lineTo(-s * 0.9f, s * 0.85f);
+                      a.close();
+                  } else if (st == 4) {
+                      Path c = new Path();
+                      c.addCircle(0, s * 0.25f, s * 0.62f, Path.Direction.CW);
+                      Path t = new Path();
+                      t.moveTo(0, -s * 1.05f);
+                      t.lineTo(s * 0.57f, s * 0.05f);
+                      t.lineTo(-s * 0.57f, s * 0.05f);
+                      t.close();
+                      a.op(c, t, Path.Op.UNION);
+                  } else {
                       a.moveTo(0, -s);
                       a.lineTo(s * 0.75f, s * 0.8f);
                       a.lineTo(0, s * 0.4f);
                       a.lineTo(-s * 0.75f, s * 0.8f);
                       a.close();
-                      p.setStyle(Paint.Style.FILL);
-                      p.setColor(0xFF1E88E5);
-                      cv.drawPath(a, p);
-                      p.setStyle(Paint.Style.STROKE);
-                      p.setStrokeWidth(2.5f * density);
-                      p.setColor(0xFFFFFFFF);
-                      cv.drawPath(a, p);
-                      cv.restore();
                   }
                   p.setStyle(Paint.Style.FILL);
-                  if (fl) postInvalidateOnAnimation();
+                  p.setColor(fill);
+                  cv.drawPath(a, p);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(2.5f * d);
+                  p.setColor(0xFFFFFFFF);
+                  cv.drawPath(a, p);
+                  if (st == 2 || st == 4) {
+                      p.setStyle(Paint.Style.FILL);
+                      cv.drawCircle(0, st == 2 ? s * 0.1f : s * 0.25f, s * 0.2f, p);
+                  }
               }
 
               @Override
