@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 15
-                  versionName "2.6"
+                  versionCode 16
+                  versionName "2.7"
               }
               signingConfigs {
                   debug {
@@ -1877,6 +1877,7 @@ jobs:
                   map.autoMin = sp.getFloat("azmin", 13f);
                   applyMark();
                   map.autoMax = sp.getFloat("azmax", 15f);
+                  map.zoomLimit = sp.getFloat("zlim", 15f);
                   nav.addView(map, new FrameLayout.LayoutParams(-1, -1));
                   final int bs = px(56), gap = px(10);
                   View[] mb = new View[6];
@@ -1924,7 +1925,7 @@ jobs:
                   if (sp.contains("clat")) {
                       map.lat = sp.getFloat("clat", 49.84f);
                       map.lon = sp.getFloat("clon", 24.03f);
-                      map.zoom = Math.min(15f, sp.getFloat("czoom", 14f));
+                      map.zoom = Math.min(17f, sp.getFloat("czoom", 14f));
                   }
                   if (sp.contains("mlat")) {
                       map.markLat = (double) sp.getFloat("mlat", 0);
@@ -2242,7 +2243,7 @@ jobs:
               void appsDrawer() {
                   final Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
                   ScrollView sc = new ScrollView(this);
-                  sc.setBackgroundColor(BG2 | 0xFF000000);
+                  sc.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1 | 0xFF000000, BG2 | 0xFF000000}));
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   col.setPadding(px(24), px(16), px(24), px(24));
@@ -2261,18 +2262,18 @@ jobs:
                       if (i % cols == 0) {
                           row = new LinearLayout(this);
                           LinearLayout.LayoutParams rp = lp(-1, -2, 0);
-                          rp.setMargins(0, px(14), 0, 0);
+                          rp.setMargins(0, px(2), 0, 0);
                           col.addView(row, rp);
                       }
                       final ResolveInfo ri = l.get(i);
                       LinearLayout cell = new LinearLayout(this);
                       cell.setOrientation(LinearLayout.VERTICAL);
                       cell.setGravity(Gravity.CENTER_HORIZONTAL);
-                      cell.setPadding(px(4), px(8), px(4), px(8));
+                      cell.setPadding(px(2), px(4), px(2), px(4));
                       ImageView iv = new ImageView(this);
                       iv.setImageDrawable(ri.loadIcon(pm));
-                      cell.addView(iv, lp(72, 72, 0));
-                      TextView tv = text(String.valueOf(ri.loadLabel(pm)), 18, TXT, false);
+                      cell.addView(iv, lp(104, 104, 0));
+                      TextView tv = text(String.valueOf(ri.loadLabel(pm)), 20, TXT, false);
                       tv.setGravity(Gravity.CENTER);
                       tv.setSingleLine(true);
                       tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -2542,6 +2543,7 @@ jobs:
                   group("Навігація",
                           t("Карта", mapName(), true, this::mapMenu),
                           t("Мій значок", "стрілка, авто…", false, this::markDialog),
+                          t("Макс. ручний масштаб", String.valueOf(Math.round(sp.getFloat("zlim", 15f))), true, this::zlimMenu),
                           t("Автомасштаб: мін", String.valueOf(Math.round(sp.getFloat("azmin", 13f))), true, () -> zoomMenu(true)),
                           t("Автомасштаб: макс", String.valueOf(Math.round(sp.getFloat("azmax", 15f))), true, () -> zoomMenu(false)),
                           t("Авто день / ніч", onOff(sp.getBoolean("autonav", true)), false, () -> {
@@ -2663,11 +2665,11 @@ jobs:
               }
 
               void zoomMenu(final boolean isMin) {
-                  final String[] n = {"9", "10", "11", "12", "13", "14", "15"};
+                  final String[] n = {"9", "10", "11", "12", "13", "14", "15", "16", "17"};
                   float cur = sp.getFloat(isMin ? "azmin" : "azmax", isMin ? 13f : 15f);
                   new AlertDialog.Builder(this)
                           .setTitle(isMin ? "Мінімальний масштаб (траса)" : "Максимальний масштаб (місто)")
-                          .setSingleChoiceItems(n, Math.max(0, Math.min(6, Math.round(cur) - 9)), (dd, i) -> {
+                          .setSingleChoiceItems(n, Math.max(0, Math.min(8, Math.round(cur) - 9)), (dd, i) -> {
                               float val = 9 + i;
                               float mn = sp.getFloat("azmin", 13f), mx = sp.getFloat("azmax", 15f);
                               if (isMin) {
@@ -2681,6 +2683,19 @@ jobs:
                               map.autoMin = mn;
                               map.autoMax = mx;
                               dd.dismiss();
+                          }).setNegativeButton("Скасувати", null).show();
+              }
+
+              void zlimMenu() {
+                  final String[] n = {"13", "14", "15", "16", "17"};
+                  float cur = sp.getFloat("zlim", 15f);
+                  new AlertDialog.Builder(this).setTitle("Максимальний ручний масштаб")
+                          .setSingleChoiceItems(n, Math.max(0, Math.min(4, Math.round(cur) - 13)), (dd, i) -> {
+                              float val = 13 + i;
+                              sp.edit().putFloat("zlim", val).apply();
+                              map.zoomLimit = val;
+                              dd.dismiss();
+                              rebuildSettings();
                           }).setNegativeButton("Скасувати", null).show();
               }
 
