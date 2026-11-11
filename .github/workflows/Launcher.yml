@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 17
-                  versionName "2.8"
+                  versionCode 18
+                  versionName "2.9"
               }
               signingConfigs {
                   debug {
@@ -1483,13 +1483,16 @@ jobs:
                   final LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   col.addView(row, lp(-1, 110, 0));
+                  final LinearLayout row2 = new LinearLayout(this);
+                  row2.setOrientation(LinearLayout.HORIZONTAL);
+                  col.addView(row2, lp(-1, 110, 0));
                   final LinearLayout crow = new LinearLayout(this);
                   crow.setOrientation(LinearLayout.HORIZONTAL);
                   LinearLayout.LayoutParams crp = lp(-1, 56, 0);
                   crp.setMargins(0, px(10), 0, 0);
                   col.addView(crow, crp);
-                  final View[] pv = new View[5];
-                  for (int i = 0; i < 5; i++) {
+                  final View[] pv = new View[8];
+                  for (int i = 0; i < 8; i++) {
                       final int k = i;
                       pv[i] = new View(this) {
                           @Override
@@ -1499,6 +1502,19 @@ jobs:
                                   pp.setColor(0x55FFFFFF);
                                   cv.drawRoundRect(new RectF(px(4), px(4), getWidth() - px(4), getHeight() - px(4)), px(14), px(14), pp);
                               }
+                              if (k >= 5) {
+                                  Bitmap mb = loadMarkBmp(k);
+                                  if (mb != null) {
+                                      float h2 = Math.min(getWidth(), getHeight()) / 2f - px(10);
+                                      cv.drawBitmap(mb, null, new RectF(getWidth() / 2f - h2, getHeight() / 2f - h2, getWidth() / 2f + h2, getHeight() / 2f + h2), new Paint(Paint.FILTER_BITMAP_FLAG));
+                                  } else {
+                                      pp.setColor(TXT);
+                                      pp.setTextSize(px(40));
+                                      pp.setTextAlign(Paint.Align.CENTER);
+                                      cv.drawText("+", getWidth() / 2f, getHeight() / 2f + px(14), pp);
+                                  }
+                                  return;
+                              }
                               cv.save();
                               cv.translate(getWidth() / 2f, getHeight() / 2f);
                               MapView.drawMarker(cv, pp, k, px(24), markFill(), u);
@@ -1506,11 +1522,28 @@ jobs:
                           }
                       };
                       pv[i].setOnClickListener(v -> {
+                          if (k >= 5 && loadMarkBmp(k) == null) {
+                              pickMark(k);
+                              return;
+                          }
                           sp.edit().putInt("mstyle", k).apply();
                           applyMark();
                           for (View q : pv) q.invalidate();
                       });
-                      row.addView(pv[i], lp(0, -1, 1));
+                      if (k >= 5) pv[i].setOnLongClickListener(v -> {
+                          new AlertDialog.Builder(this).setTitle("Значок " + (k - 4))
+                                  .setItems(new String[]{"Замінити файлом", "Видалити"}, (dd, w) -> {
+                                      if (w == 0) pickMark(k);
+                                      else {
+                                          new File(getFilesDir(), "mk" + k + ".png").delete();
+                                          if (sp.getInt("mstyle", 0) == k) sp.edit().putInt("mstyle", 0).apply();
+                                          applyMark();
+                                          for (View q : pv) q.invalidate();
+                                      }
+                                  }).show();
+                          return true;
+                      });
+                      (k < 5 ? row : row2).addView(pv[i], lp(0, -1, 1));
                   }
                   for (int i = 0; i < MCOL.length; i++) {
                       final int k = i;
@@ -1549,6 +1582,26 @@ jobs:
                           .setPositiveButton("Готово", (d, w) -> rebuildSettings()).show();
               }
 
+              View[] markPv;
+              int markSlot = 0;
+
+              Bitmap loadMarkBmp(int slot) {
+                  try {
+                      File f = new File(getFilesDir(), "mk" + slot + ".png");
+                      return f.exists() ? BitmapFactory.decodeFile(f.getAbsolutePath()) : null;
+                  } catch (Throwable t) {
+                      return null;
+                  }
+              }
+
+              void pickMark(int slot) {
+                  markSlot = slot;
+                  Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                  in.addCategory(Intent.CATEGORY_OPENABLE);
+                  in.setType("image/*");
+                  startActivityForResult(in, 7);
+              }
+
               final int[] MCOL = {0, 0xFF1E88E5, 0xFFFFFFFF, 0xFFE53935, 0xFF43A047, 0xFFFDD835, 0xFFFB8C00, 0xFF00E5FF, 0xFFAB47BC, 0xFFFF4081};
 
               int markFill() {
@@ -1560,6 +1613,7 @@ jobs:
                   if (map == null) return;
                   map.markStyle = sp.getInt("mstyle", 0);
                   map.markColor = markFill();
+                  map.markBmp = map.markStyle >= 5 ? loadMarkBmp(map.markStyle) : null;
                   map.invalidate();
               }
 
@@ -2868,6 +2922,29 @@ jobs:
               @Override
               protected void onActivityResult(int req, int res, Intent data) {
                   super.onActivityResult(req, res, data);
+                  if (req == 7 && res == RESULT_OK && data != null && data.getData() != null) {
+                      try {
+                          InputStream in = getContentResolver().openInputStream(data.getData());
+                          Bitmap src = BitmapFactory.decodeStream(in);
+                          in.close();
+                          int side = 192;
+                          float k = Math.min(side / (float) src.getWidth(), side / (float) src.getHeight());
+                          int w = Math.max(1, Math.round(src.getWidth() * k)), h = Math.max(1, Math.round(src.getHeight() * k));
+                          Bitmap out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888);
+                          Canvas cv = new Canvas(out);
+                          cv.drawBitmap(Bitmap.createScaledBitmap(src, w, h, true), (side - w) / 2f, (side - h) / 2f, null);
+                          FileOutputStream fo = new FileOutputStream(new File(getFilesDir(), "mk" + markSlot + ".png"));
+                          out.compress(Bitmap.CompressFormat.PNG, 100, fo);
+                          fo.close();
+                          sp.edit().putInt("mstyle", markSlot).apply();
+                          applyMark();
+                          Toast.makeText(this, "Значок збережено", Toast.LENGTH_SHORT).show();
+                          markDialog();
+                      } catch (Throwable t) {
+                          Toast.makeText(this, "Не вдалось: " + t, Toast.LENGTH_LONG).show();
+                      }
+                      return;
+                  }
                   if (req != 5 || res != RESULT_OK || data == null || data.getData() == null) return;
                   final Uri uri = data.getData();
                   new Thread(() -> {
@@ -3517,6 +3594,7 @@ jobs:
               public double lat = 49.8397, lon = 24.0297, zoom = 12;
               public float rot = 0;
               public int markStyle = 0, markColor = 0xFF1E88E5;
+              public Bitmap markBmp = null;
               public double autoMin = 13, autoMax = 15, zoomLimit = 15;
               float pivY = -1;
               public boolean follow = true, night = false, hasFix = false, headingUp = true;
@@ -4053,7 +4131,13 @@ jobs:
                       cv.save();
                       cv.translate(me[0], me[1]);
                       cv.rotate(fixBearing - rot);
-                      drawMarker(cv, p, markStyle, 18 * density, markColor, density);
+                      if (markStyle >= 5 && markBmp != null) {
+                          float s2 = 26 * density;
+                          Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+                          cv.drawBitmap(markBmp, null, new RectF(-s2, -s2, s2, s2), bp);
+                      } else {
+                          drawMarker(cv, p, markStyle, 18 * density, markColor, density);
+                      }
                       cv.restore();
                   }
                   p.setStyle(Paint.Style.FILL);
