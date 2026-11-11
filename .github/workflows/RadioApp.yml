@@ -22,6 +22,7 @@ jobs:
       - name: Write project
         run: |
           mkdir -p app/src/main/java/com/example/radioapp
+          echo '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' | base64 -d > debug.keystore
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -63,8 +64,16 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "1.4"
+                  versionCode 6
+                  versionName "1.5"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -106,49 +115,65 @@ jobs:
 
           import android.app.Activity;
           import android.app.AlertDialog;
-          import android.graphics.Color;
+          import android.content.SharedPreferences;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
           import android.graphics.Typeface;
           import android.graphics.drawable.GradientDrawable;
-          import android.graphics.drawable.StateListDrawable;
           import android.os.Bundle;
           import android.os.Handler;
           import android.os.Looper;
           import android.view.Gravity;
+          import android.view.MotionEvent;
           import android.view.View;
           import android.view.WindowManager;
-          import android.widget.Button;
           import android.widget.EditText;
           import android.widget.FrameLayout;
           import android.widget.ImageView;
           import android.widget.LinearLayout;
           import android.widget.ScrollView;
-          import android.widget.SeekBar;
           import android.widget.TextView;
           import android.widget.Toast;
 
-          import java.util.ArrayList;
-          import java.util.List;
-
           public class MainActivity extends Activity {
-              static final int BG = 0xFF0B0F17, CARD = 0xFF172033, CARD2 = 0xFF1F2B42, TXT = 0xFFF1F5F9,
-                      DIM = 0xFF8A99B3, ACC = 0xFF22D3EE, GRN = 0xFF16A34A, RED = 0xFFDC2626, ORG = 0xFFEA580C;
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний"};
+              // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст
+              static final int[][] TH = {
+                      {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC},
+                      {0xFF2B2F36, 0xFF111316, 0xFFB0BEC5, 0xB3181A1E, 0xFF343942, 0xFFF1F5F9, 0xFFA9B0B8},
+                      {0xFF0F3D33, 0xFF071A16, 0xFF4DD6A8, 0xB30D211C, 0xFF1F4A3F, 0xFFF1F5F9, 0xFF9CBFB4},
+                      {0xFF4A3010, 0xFF1A1006, 0xFFFFB74D, 0xB3231708, 0xFF4F3A1B, 0xFFF8F1E7, 0xFFC4B29A},
+                      {0xFF3A1F5C, 0xFF150B26, 0xFFCE93D8, 0xB31F1030, 0xFF40295E, 0xFFF4EEF8, 0xFFB7A6C9},
+                      {0xFF3A0508, 0xFF120203, 0xFFFF1E1E, 0xB3200709, 0xFF5A0F12, 0xFFFFECEC, 0xFFFF9A9A},
+                      {0xFF0B4F6C, 0xFF05202B, 0xFF4DD0E1, 0xB30A2A38, 0xFF16627F, 0xFFEFF9FC, 0xFF9CC4D0},
+                      {0xFF2E4A1E, 0xFF111C0B, 0xFFAED581, 0xB3172410, 0xFF3A5A2A, 0xFFF3F8EE, 0xFFB0C4A0},
+                      {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075},
+                      {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A},
+                      {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663},
+                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B}};
+              int BG1, BG2, ACC, CARD, BTN, TXT, DIM;
               static final int FMIN = 8750, FMAX = 10800;
 
               final Handler ui = new Handler(Looper.getMainLooper());
               Store store;
               Tuner tuner;
+              SharedPreferences uisp;
               boolean land;
               int cur = 0;
               int shownLogoFreq = -1;
               boolean dragging;
               volatile boolean scanning, scanStop;
+              boolean seekWait, seenSeek;
+              long seekT;
 
               View[] tabs = new View[3];
-              Button[] tabBtns = new Button[3];
-              TextView tvFreq, tvName, tvSub, tvScan, tvStar;
+              Glyph[] tabBtns = new Glyph[4];
+              TextView tvFreq, tvName, tvSub, tvScan;
               ImageView ivLogo;
-              SeekBar seek;
-              Button btnFav, btnScan;
+              FreqSlider seek;
+              Glyph btnFav, btnScan;
               LinearLayout favList, allList;
 
               int dp(int v) {
@@ -162,6 +187,12 @@ jobs:
                   return g;
               }
 
+              GradientDrawable card(int radiusDp) {
+                  GradientDrawable g = rect(CARD, radiusDp);
+                  g.setStroke(dp(1), (ACC & 0xFFFFFF) | 0x44000000);
+                  return g;
+              }
+
               TextView tv(String s, int sp, int color, boolean bold) {
                   TextView t = new TextView(this);
                   t.setText(s);
@@ -171,22 +202,211 @@ jobs:
                   return t;
               }
 
-              Button bigBtn(String s, int color, int sp) {
-                  Button b = new Button(this);
-                  b.setText(s);
-                  b.setAllCaps(false);
-                  b.setTextColor(Color.WHITE);
-                  b.setTextSize(sp);
-                  b.setTypeface(Typeface.DEFAULT_BOLD);
-                  StateListDrawable sl = new StateListDrawable();
-                  sl.addState(new int[]{android.R.attr.state_pressed}, rect(darker(color), 18));
-                  sl.addState(new int[]{}, rect(color, 18));
-                  b.setBackground(sl);
-                  return b;
+              // ---------- власні кнопки з намальованими значками ----------
+              class Glyph extends View {
+                  int kind;
+                  String label;
+                  float sp;
+                  boolean sel;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  Glyph(int kind, String label, float sp) {
+                      super(MainActivity.this);
+                      this.kind = kind;
+                      this.label = label;
+                      this.sp = sp;
+                      setClickable(true);
+                  }
+
+                  void set(int kind, String label, boolean sel) {
+                      this.kind = kind;
+                      this.label = label;
+                      this.sel = sel;
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void drawableStateChanged() {
+                      super.drawableStateChanged();
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), st = dp(1) * 1.5f;
+                      RectF r = new RectF(st, st, w - st, h - st);
+                      p.setStyle(Paint.Style.FILL);
+                      int base = (BTN & 0xFFFFFF) | 0x99000000;
+                      p.setColor(isPressed() ? (ACC & 0xFFFFFF) | 0x66000000 : sel ? (ACC & 0xFFFFFF) | 0x44000000 : base);
+                      cv.drawRoundRect(r, dp(16), dp(16), p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(st);
+                      p.setColor((ACC & 0xFFFFFF) | (sel ? 0xDD000000 : 0x77000000));
+                      cv.drawRoundRect(r, dp(16), dp(16), p);
+                      p.setStyle(Paint.Style.FILL);
+                      float ts = sp * getResources().getDisplayMetrics().scaledDensity;
+                      p.setTextSize(ts);
+                      p.setTypeface(Typeface.DEFAULT_BOLD);
+                      p.setColor(TXT);
+                      float tw = p.measureText(label);
+                      float is = kind >= 0 ? ts * 1.25f : 0, gap = kind >= 0 ? ts * 0.5f : 0;
+                      float x0 = (w - (is + gap + tw)) / 2f;
+                      if (kind >= 0) drawIcon(cv, kind, x0 + is / 2f, h / 2f, is);
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(TXT);
+                      p.setTextAlign(Paint.Align.LEFT);
+                      cv.drawText(label, x0 + is + gap, h / 2f + ts * 0.35f, p);
+                  }
+
+                  void drawIcon(Canvas cv, int k, float cx, float cy, float s) {
+                      p.setColor(ACC);
+                      p.setStyle(Paint.Style.FILL);
+                      float q = s / 2f;
+                      Path a = new Path();
+                      switch (k) {
+                          case 0: // ⏮
+                              cv.drawRect(cx - q, cy - q * 0.8f, cx - q * 0.65f, cy + q * 0.8f, p);
+                              a.moveTo(cx + q, cy - q * 0.85f);
+                              a.lineTo(cx - q * 0.5f, cy);
+                              a.lineTo(cx + q, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 1: // ⏭
+                              cv.drawRect(cx + q * 0.65f, cy - q * 0.8f, cx + q, cy + q * 0.8f, p);
+                              a.moveTo(cx - q, cy - q * 0.85f);
+                              a.lineTo(cx + q * 0.5f, cy);
+                              a.lineTo(cx - q, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 2: // ◀
+                              a.moveTo(cx + q * 0.7f, cy - q * 0.85f);
+                              a.lineTo(cx - q * 0.8f, cy);
+                              a.lineTo(cx + q * 0.7f, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 3: // ▶
+                              a.moveTo(cx - q * 0.7f, cy - q * 0.85f);
+                              a.lineTo(cx + q * 0.8f, cy);
+                              a.lineTo(cx - q * 0.7f, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 4: // зірка (порожня) / 5 - заповнена
+                          case 5:
+                              for (int i = 0; i < 10; i++) {
+                                  double ang = -Math.PI / 2 + i * Math.PI / 5;
+                                  float rr = i % 2 == 0 ? q : q * 0.45f;
+                                  float xx = cx + (float) Math.cos(ang) * rr, yy = cy + (float) Math.sin(ang) * rr;
+                                  if (i == 0) a.moveTo(xx, yy);
+                                  else a.lineTo(xx, yy);
+                              }
+                              a.close();
+                              if (k == 4) {
+                                  p.setStyle(Paint.Style.STROKE);
+                                  p.setStrokeWidth(s * 0.1f);
+                                  p.setStrokeJoin(Paint.Join.ROUND);
+                              }
+                              cv.drawPath(a, p);
+                              break;
+                          case 6: // пошук
+                              p.setStyle(Paint.Style.STROKE);
+                              p.setStrokeWidth(s * 0.13f);
+                              p.setStrokeCap(Paint.Cap.ROUND);
+                              cv.drawCircle(cx - q * 0.15f, cy - q * 0.15f, q * 0.6f, p);
+                              cv.drawLine(cx + q * 0.3f, cy + q * 0.3f, cx + q * 0.9f, cy + q * 0.9f, p);
+                              break;
+                          case 7: // стоп
+                              cv.drawRoundRect(new RectF(cx - q * 0.7f, cy - q * 0.7f, cx + q * 0.7f, cy + q * 0.7f), q * 0.15f, q * 0.15f, p);
+                              break;
+                      }
+                  }
               }
 
-              static int darker(int c) {
-                  return Color.rgb((int) (Color.red(c) * 0.7), (int) (Color.green(c) * 0.7), (int) (Color.blue(c) * 0.7));
+              // ---------- повзунок частоти ----------
+              class FreqSlider extends View {
+                  int f = FMIN;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  FreqSlider() {
+                      super(MainActivity.this);
+                  }
+
+                  void setF(int v) {
+                      f = Math.max(FMIN, Math.min(FMAX, v));
+                      invalidate();
+                  }
+
+                  float padX() {
+                      return dp(34);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), x0 = padX(), x1 = w - padX(), cy = h / 2f;
+                      float fr = (f - FMIN) / (float) (FMAX - FMIN), tx = x0 + (x1 - x0) * fr;
+                      float th = dp(12);
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor((BTN & 0xFFFFFF) | 0x99000000);
+                      cv.drawRoundRect(new RectF(x0, cy - th / 2, x1, cy + th / 2), th / 2, th / 2, p);
+                      p.setColor((ACC & 0xFFFFFF) | 0xCC000000);
+                      cv.drawRoundRect(new RectF(x0, cy - th / 2, Math.max(x0 + th, tx), cy + th / 2), th / 2, th / 2, p);
+                      p.setColor((TXT & 0xFFFFFF) | 0x55000000);
+                      p.setStrokeWidth(dp(1));
+                      for (int m = 88; m <= 108; m++) {
+                          float x = x0 + (x1 - x0) * ((m * 100 - FMIN) / (float) (FMAX - FMIN));
+                          cv.drawLine(x, cy + th / 2 + dp(5), x, cy + th / 2 + dp(m % 5 == 0 ? 14 : 9), p);
+                      }
+                      float r = dp(21);
+                      p.setColor(0x55000000);
+                      cv.drawCircle(tx, cy + dp(2), r + dp(2), p);
+                      p.setColor(BG1 | 0xFF000000);
+                      cv.drawCircle(tx, cy, r, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(dp(3));
+                      p.setColor(ACC);
+                      cv.drawCircle(tx, cy, r - dp(1), p);
+                      p.setStyle(Paint.Style.FILL);
+                      cv.drawCircle(tx, cy, dp(6), p);
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(MotionEvent e) {
+                      float x0 = padX(), x1 = getWidth() - padX();
+                      int a = e.getActionMasked();
+                      if (a == MotionEvent.ACTION_DOWN) {
+                          dragging = true;
+                          getParent().requestDisallowInterceptTouchEvent(true);
+                      }
+                      if (a == MotionEvent.ACTION_DOWN || a == MotionEvent.ACTION_MOVE || a == MotionEvent.ACTION_UP) {
+                          float fr = Math.max(0, Math.min(1, (e.getX() - x0) / (x1 - x0)));
+                          int v = FMIN + Math.round(fr * (FMAX - FMIN) / 10f) * 10;
+                          setF(v);
+                          tvFreq.setText(Station.fmt(v));
+                          if (a == MotionEvent.ACTION_UP) {
+                              dragging = false;
+                              tuneTo(v);
+                          }
+                      }
+                      if (a == MotionEvent.ACTION_CANCEL) {
+                          dragging = false;
+                          updateUi();
+                      }
+                      return true;
+                  }
+              }
+
+              void applyTheme() {
+                  int[] t = TH[Math.min(TH.length - 1, Math.max(0, uisp.getInt("theme", 0)))];
+                  BG1 = t[0];
+                  BG2 = t[1];
+                  ACC = t[2];
+                  CARD = (0x80 << 24) | (t[3] & 0xFFFFFF);
+                  BTN = t[4];
+                  TXT = t[5];
+                  DIM = t[6];
               }
 
               @Override
@@ -198,6 +418,8 @@ jobs:
                       CrashGuard.show(this, crash);
                       return;
                   }
+                  uisp = getSharedPreferences("ui", MODE_PRIVATE);
+                  applyTheme();
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                   store = new Store(this);
                   tuner = new Tuner(this::onState);
@@ -205,16 +427,19 @@ jobs:
 
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setBackgroundColor(BG);
+                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1, BG2}));
                   root.setPadding(dp(10), dp(8), dp(10), dp(8));
 
                   LinearLayout bar = new LinearLayout(this);
-                  String[] names = {"Радіо", "Обрані", "Станції"};
-                  for (int i = 0; i < 3; i++) {
+                  String[] names = {"Радіо", "Обрані", "Станції", "Тема"};
+                  for (int i = 0; i < 4; i++) {
                       final int idx = i;
-                      Button t = bigBtn(names[i], CARD, 20);
-                      t.setOnClickListener(v -> showTab(idx));
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(62), 1);
+                      Glyph t = new Glyph(-1, names[i], 19);
+                      t.setOnClickListener(v -> {
+                          if (idx == 3) themeDialog();
+                          else showTab(idx);
+                      });
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(58), i == 3 ? 0.6f : 1);
                       lp.setMargins(dp(4), 0, dp(4), dp(8));
                       bar.addView(t, lp);
                       tabBtns[i] = t;
@@ -236,9 +461,18 @@ jobs:
                   cur = store.last() >= FMIN && store.last() <= FMAX ? store.last() : 0;
                   updateUi();
                   if (b == null) {
-                      // при запуску: вмикаємо штатне радіо на останній станції
+                      // при запуску: вмикаємо тюнер на останній станції
                       tuner.tune(this, cur, MainActivity.class);
                   }
+              }
+
+              void themeDialog() {
+                  new AlertDialog.Builder(this).setTitle("Колірна тема")
+                          .setSingleChoiceItems(THN, uisp.getInt("theme", 0), (d, i) -> {
+                              uisp.edit().putInt("theme", i).apply();
+                              d.dismiss();
+                              recreate();
+                          }).setNegativeButton("Скасувати", null).show();
               }
 
               @Override
@@ -256,7 +490,7 @@ jobs:
                   LinearLayout left = new LinearLayout(this);
                   left.setOrientation(LinearLayout.VERTICAL);
                   left.setGravity(Gravity.CENTER);
-                  left.setBackground(rect(CARD, 24));
+                  left.setBackground(card(24));
                   left.setPadding(dp(12), dp(10), dp(12), dp(10));
                   ivLogo = new ImageView(this);
                   ivLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -279,69 +513,45 @@ jobs:
                   right.setOrientation(LinearLayout.VERTICAL);
                   right.setPadding(dp(6), dp(4), dp(6), dp(4));
 
-                  TextView lab = tv("87.5 ─────────────── 108.0 МГц", 13, DIM, false);
+                  TextView lab = tv("87.5  —  108.0 МГц", 13, DIM, false);
                   lab.setGravity(Gravity.CENTER);
                   right.addView(lab);
-                  seek = new SeekBar(this);
-                  seek.setMax((FMAX - FMIN) / 10);
-                  seek.setPadding(dp(30), dp(10), dp(30), dp(10));
-                  GradientDrawable trBg = new GradientDrawable();
-                  trBg.setColor(0xFF334155);
-                  trBg.setCornerRadius(dp(10));
-                  trBg.setSize(-1, dp(20));
-                  GradientDrawable trFg = new GradientDrawable();
-                  trFg.setColor(ACC);
-                  trFg.setCornerRadius(dp(10));
-                  trFg.setSize(-1, dp(20));
-                  android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
-                          new android.graphics.drawable.Drawable[]{trBg,
-                                  new android.graphics.drawable.ClipDrawable(trFg, Gravity.LEFT, android.graphics.drawable.ClipDrawable.HORIZONTAL)});
-                  ld.setId(0, android.R.id.background);
-                  ld.setId(1, android.R.id.progress);
-                  seek.setProgressDrawable(ld);
-                  GradientDrawable thumb = new GradientDrawable();
-                  thumb.setShape(GradientDrawable.OVAL);
-                  thumb.setColor(0xFFF1F5F9);
-                  thumb.setStroke(dp(4), ACC);
-                  thumb.setSize(dp(56), dp(56));
-                  seek.setThumb(thumb);
-                  seek.setThumbOffset(dp(26));
-                  seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                      @Override
-                      public void onProgressChanged(SeekBar s, int p, boolean fromUser) {
-                          if (fromUser) {
-                              tvFreq.setText(Station.fmt(FMIN + p * 10));
-                          }
-                      }
-
-                      @Override
-                      public void onStartTrackingTouch(SeekBar s) {
-                          dragging = true;
-                      }
-
-                      @Override
-                      public void onStopTrackingTouch(SeekBar s) {
-                          dragging = false;
-                          tuneTo(FMIN + s.getProgress() * 10);
-                      }
-                  });
+                  seek = new FreqSlider();
                   right.addView(seek, new LinearLayout.LayoutParams(-1, dp(84)));
 
-                  right.addView(row2(bigBtn("⏮  Попередня станція", 0xFF2563EB, 19), bigBtn("Наступна станція  ⏭", 0xFF2563EB, 19),
-                          () -> tuner.prev(), () -> tuner.next()));
-                  right.addView(row2(bigBtn("◀  Крок назад", 0xFF475569, 19), bigBtn("Крок вперед  ▶", 0xFF475569, 19),
+                  right.addView(row2(new Glyph(0, "Попередня станція", 19), new Glyph(1, "Наступна станція", 19),
+                          this::doPrev, this::doNext));
+                  right.addView(row2(new Glyph(2, "Крок назад", 19), new Glyph(3, "Крок вперед", 19),
                           () -> tuner.stepDown(), () -> tuner.stepUp()));
-                  btnFav = bigBtn("☆  В обрані", ORG, 19);
-                  Button sc = bigBtn("🔍  Знайти станції", GRN, 19);
-                  btnScan = sc;
-                  right.addView(row2(btnFav, sc, this::toggleFav, this::startScan));
+                  btnFav = new Glyph(4, "В обрані", 19);
+                  btnScan = new Glyph(6, "Знайти станції", 19);
+                  right.addView(row2(btnFav, btnScan, this::toggleFav, this::startScan));
 
                   LinearLayout.LayoutParams lpR = land ? new LinearLayout.LayoutParams(0, -1, 1.15f) : new LinearLayout.LayoutParams(-1, 0, 1.3f);
                   main.addView(right, lpR);
                   return main;
               }
 
-              LinearLayout row2(Button a, Button b, final Runnable ra, final Runnable rb) {
+              void doNext() {
+                  beginSeek();
+                  tuner.next();
+              }
+
+              void doPrev() {
+                  beginSeek();
+                  tuner.prev();
+              }
+
+              void beginSeek() {
+                  seekWait = true;
+                  seenSeek = false;
+                  seekT = System.currentTimeMillis();
+                  updateUi();
+                  ui.postDelayed(this::onState, 2700);
+                  ui.postDelayed(this::onState, 9200);
+              }
+
+              LinearLayout row2(View a, View b, final Runnable ra, final Runnable rb) {
                   LinearLayout r = new LinearLayout(this);
                   a.setOnClickListener(v -> ra.run());
                   b.setOnClickListener(v -> rb.run());
@@ -357,12 +567,16 @@ jobs:
 
               void onState() {
                   int f = tuner.freq;
-                  if (f >= FMIN && f <= FMAX) {
+                  long now = System.currentTimeMillis();
+                  if (seekWait) {
+                      if (tuner.seeking) seenSeek = true;
+                      if ((seenSeek && !tuner.seeking) || (!seenSeek && now - seekT > 2500) || now - seekT > 9000) seekWait = false;
+                  }
+                  boolean hold = seekWait || scanning || tuner.busy();
+                  if (!hold && f >= FMIN && f <= FMAX) {
                       cur = f;
-                      if (!tuner.seeking) {
-                          ui.removeCallbacks(saveRun);
-                          ui.postDelayed(saveRun, 1500);
-                      }
+                      ui.removeCallbacks(saveRun);
+                      ui.postDelayed(saveRun, 1500);
                   }
                   updateUi();
               }
@@ -403,11 +617,12 @@ jobs:
                   if (cur <= 0) return;
                   if (!dragging) {
                       tvFreq.setText(Station.fmt(cur));
-                      seek.setProgress(Math.max(0, Math.min(seek.getMax(), (cur - FMIN + 5) / 10)));
+                      seek.setF(cur);
                   }
                   String name = nameFor(cur);
                   tvName.setText(name);
-                  if (tuner.seeking) tvSub.setText("Шукаю станцію…");
+                  if (seekWait || scanning) tvSub.setText("Шукаю станцію…");
+                  else if (tuner.busy()) tvSub.setText("Налаштування…");
                   else if (!tuner.ps.isEmpty() && cur == tuner.freq) tvSub.setText("RDS: " + tuner.ps);
                   else tvSub.setText("FM · МГц");
                   if (shownLogoFreq != cur) {
@@ -417,11 +632,12 @@ jobs:
                   }
                   Station s = store.get(cur);
                   boolean fav = s != null && s.fav;
-                  btnFav.setText(fav ? "★  В обраних" : "☆  В обрані");
+                  btnFav.set(fav ? 5 : 4, fav ? "В обраних" : "В обрані", false);
               }
 
               void tuneTo(int f) {
                   f = Math.max(FMIN, Math.min(FMAX, f));
+                  seekWait = false;
                   cur = f;
                   updateUi();
                   tuner.tune(this, f, MainActivity.class);
@@ -450,9 +666,9 @@ jobs:
               View buildAllTab() {
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  Button b = bigBtn("🔍  Сканувати діапазон", GRN, 20);
+                  Glyph b = new Glyph(6, "Сканувати діапазон", 19);
                   b.setOnClickListener(v -> startScan());
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(66));
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(60));
                   lp.setMargins(dp(4), 0, dp(4), dp(4));
                   col.addView(b, lp);
                   tvScan = tv("", 15, DIM, false);
@@ -469,8 +685,8 @@ jobs:
               void showTab(int i) {
                   for (int k = 0; k < 3; k++) {
                       tabs[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
-                      GradientDrawable g = rect(k == i ? 0xFF0891B2 : CARD, 18);
-                      tabBtns[k].setBackground(g);
+                      tabBtns[k].sel = k == i;
+                      tabBtns[k].invalidate();
                   }
                   refreshLists();
               }
@@ -515,7 +731,7 @@ jobs:
                   String name = nameFor(f);
                   LinearLayout r = new LinearLayout(this);
                   r.setGravity(Gravity.CENTER_VERTICAL);
-                  r.setBackground(rect(CARD, 16));
+                  r.setBackground(card(16));
                   r.setPadding(dp(10), dp(8), dp(10), dp(8));
                   ImageView iv = new ImageView(this);
                   iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -529,7 +745,7 @@ jobs:
                   t.addView(tv(s != null ? "Знайдена станція" : (li >= 0 ? "Довідник Львова" : ""), 13, DIM, false));
                   r.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
                   r.addView(tv(Station.fmt(f), 26, ACC, true));
-                  final TextView star = tv(s != null && s.fav ? "★" : "☆", 34, s != null && s.fav ? 0xFFFBBF24 : DIM, false);
+                  final TextView star = tv(s != null && s.fav ? "★" : "☆", 34, s != null && s.fav ? ACC : DIM, false);
                   star.setPadding(dp(14), 0, dp(6), 0);
                   star.setOnClickListener(v -> {
                       Station st = store.getOrCreate(f);
@@ -605,7 +821,8 @@ jobs:
                   }
                   scanning = true;
                   scanStop = false;
-                  btnScan.setText("⏹  Зупинити пошук");
+                  btnScan.set(7, "Зупинити пошук", false);
+                  updateUi();
                   showTab(2);
                   new Thread(new Runnable() {
                       @Override
@@ -615,7 +832,7 @@ jobs:
                               tuner.tune(MainActivity.this, FMIN, MainActivity.class);
                               Thread.sleep(500);
                               long tw = System.currentTimeMillis();
-                              while (tuner.stepping && System.currentTimeMillis() - tw < 40000) Thread.sleep(100);
+                              while (tuner.busy() && System.currentTimeMillis() - tw < 40000) Thread.sleep(100);
                               Thread.sleep(2000);
                               int last = 0;
                               for (int n = 0; n < 80 && !scanStop; n++) {
@@ -653,8 +870,9 @@ jobs:
                           scanning = false;
                           final int total = found;
                           runOnUiThread(() -> {
-                              btnScan.setText("🔍  Знайти станції");
+                              btnScan.set(6, "Знайти станції", false);
                               tvScan.setText("Готово. Знайдено станцій: " + total);
+                              if (tuner.freq >= FMIN && tuner.freq <= FMAX) cur = tuner.freq;
                               refreshLists();
                               updateUi();
                           });
@@ -985,10 +1203,63 @@ jobs:
                   }
               }
 
-              void next() { ensure(new Runnable() { public void run() { write(0x401, 1, 0); } }); }
-              void prev() { ensure(new Runnable() { public void run() { write(0x401, 1, 1); } }); }
-              void stepUp() { ensure(new Runnable() { public void run() { write(0x401, 2, 0); } }); }
-              void stepDown() { ensure(new Runnable() { public void run() { write(0x401, 2, 1); } }); }
+              volatile boolean directPending;
+              private int directTries;
+
+              boolean busy() {
+                  return stepping || directPending;
+              }
+
+              void cancelTune() {
+                  stepping = false;
+                  directPending = false;
+                  h.removeCallbacks(stepper);
+                  h.removeCallbacks(directCheck);
+              }
+
+              private void notifyState() {
+                  if (listener != null) listener.onState();
+              }
+
+              void next() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 1, 0); } }); }
+              void prev() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 1, 1); } }); }
+              void stepUp() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 0); } }); }
+              void stepDown() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 1); } }); }
+
+              private void sendDirect() {
+                  write(0x402, 255, tgt);
+                  h.postDelayed(directCheck, 900);
+              }
+
+              private final Runnable directCheck = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (!directPending) return;
+                      if (Math.abs(tgt - freq) <= 2) {
+                          directOk = true;
+                          directPending = false;
+                          notifyState();
+                          return;
+                      }
+                      if (++directTries < 2) {
+                          sendDirect();
+                          return;
+                      }
+                      directPending = false;
+                      if (!directOk) directFailed = true;
+                      startStepping();
+                  }
+              };
+
+              private void startStepping() {
+                  if (stepping) return;
+                  stepping = true;
+                  lastFreq = freq;
+                  lastSentFrom = -1;
+                  nearSends = 0;
+                  lastMoveAt = System.currentTimeMillis();
+                  h.post(stepper);
+              }
 
               /** Налаштування на частоту (одиниці 10 кГц) кроками ±0.05 МГц — без відкриття штатного радіо. */
               void tune(final Context c, final int f10k, final Class<?> fr) {
@@ -998,14 +1269,15 @@ jobs:
                       @Override
                       public void run() {
                           if (f10k <= 0) return;
+                          cancelTune();
                           tgt = f10k;
-                          if (stepping) return;
-                          stepping = true;
-                          lastFreq = freq;
-                          lastSentFrom = -1;
-                          nearSends = 0;
-                          lastMoveAt = System.currentTimeMillis();
-                          h.post(stepper);
+                          if (!directFailed) {
+                              directPending = true;
+                              directTries = 0;
+                              sendDirect();
+                          } else {
+                              startStepping();
+                          }
                       }
                   });
               }
@@ -1018,6 +1290,7 @@ jobs:
                       int ad = Math.abs(diff);
                       if (ad <= 2 || (ad <= 5 && nearSends >= 2)) {
                           stepping = false;
+                          notifyState();
                           return;
                       }
                       if (freq != lastFreq) {
@@ -1032,6 +1305,7 @@ jobs:
                           } else {
                               stepping = false;
                               stuck = 0;
+                              notifyState();
                               toast("Тюнер не реагує на кроки.");
                               return;
                           }
