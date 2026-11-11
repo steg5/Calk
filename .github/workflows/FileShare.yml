@@ -22,6 +22,7 @@ jobs:
       - name: Write project
         run: |
           mkdir -p app/src/main/java/com/example/fileshare app/src/main/res/drawable
+          echo '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' | base64 -d > debug.keystore
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -63,8 +64,16 @@ jobs:
                   applicationId "com.example.fileshare"
                   minSdk 23
                   targetSdk 26
-                  versionCode 3
-                  versionName "1.2"
+                  versionCode 4
+                  versionName "1.3"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
@@ -111,6 +120,8 @@ jobs:
           import android.Manifest;
           import android.app.Activity;
           import android.app.AlertDialog;
+          import android.app.Dialog;
+          import android.widget.ProgressBar;
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
@@ -469,9 +480,11 @@ jobs:
               }
 
               void upload(Uri u) {
+                  final String key = "up" + System.nanoTime();
+                  String ttl = "Відправлення";
+                  long size = -1;
                   try {
                       String name = "file";
-                      long size = -1;
                       Cursor c = getContentResolver().query(u, null, null, null, null);
                       if (c != null) {
                           if (c.moveToFirst()) {
@@ -482,6 +495,7 @@ jobs:
                           }
                           c.close();
                       }
+                      ttl = "Відправлення: " + name;
                       InputStream in = getContentResolver().openInputStream(u);
                       File tmp = null;
                       if (size <= 0) {
@@ -496,6 +510,7 @@ jobs:
                           in = new java.io.FileInputStream(tmp);
                       }
                       log("Відправляю " + name + " (" + size / 1024 + " КБ)…");
+                      progress(key, ttl, 0, size, false, null);
                       HttpURLConnection c2 = (HttpURLConnection) new URL(base() + "/upload?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
                       c2.setConnectTimeout(6000);
                       c2.setReadTimeout(30000);
@@ -505,15 +520,108 @@ jobs:
                       OutputStream o = c2.getOutputStream();
                       byte[] buf = new byte[65536];
                       int n;
-                      while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+                      long sent = 0;
+                      while ((n = in.read(buf)) > 0) {
+                          o.write(buf, 0, n);
+                          sent += n;
+                          progress(key, ttl, sent, size, false, null);
+                      }
                       o.close();
                       in.close();
                       int code = c2.getResponseCode();
+                      progress(key, ttl, size, size, true, code == 200 ? "Відправлено ✓" : "Помилка " + code);
                       log(code == 200 ? "Відправлено ✓ " + name : "Помилка " + code + " " + readAll(code == 200 ? c2.getInputStream() : c2.getErrorStream()));
                       if (tmp != null) tmp.delete();
                   } catch (Throwable t) {
+                      progress(key, ttl, 0, Math.max(1, size), true, "Не вдалось: " + t);
                       log("Не вдалось відправити: " + t);
                   }
+              }
+
+              // ---- вікно прогресу ----
+              Dialog pDlg;
+              TextView pTitle, pPct, pInfo;
+              ProgressBar pBar;
+              Button pBtn;
+              String pKey = "";
+              long pT0, pLast;
+
+              static String fmtSize(double b) {
+                  if (b >= 1048576) return String.format(Locale.US, "%.1f МБ", b / 1048576.0);
+                  return String.format(Locale.US, "%.0f КБ", b / 1024.0);
+              }
+
+              @Override
+              public synchronized void progress(final String key, final String title, final long done, final long total, final boolean end, final String msg) {
+                  long now = System.currentTimeMillis();
+                  if (!key.equals(pKey)) {
+                      pKey = key;
+                      pT0 = now;
+                      pLast = 0;
+                  }
+                  if (!end && now - pLast < 200) return;
+                  pLast = now;
+                  final double el = Math.max(1, now - pT0) / 1000.0;
+                  final double spd = done / el;
+                  final int pct = total > 0 ? (int) Math.min(100, done * 100 / total) : 0;
+                  String eta = "";
+                  if (!end && spd > 1 && total > done) eta = "   залишилось " + Math.max(1, Math.round((total - done) / spd)) + " с";
+                  final String info = fmtSize(done) + " з " + fmtSize(total) + "\n" + fmtSize(spd) + "/с" + eta;
+                  ui.post(() -> {
+                      if (pDlg == null || !pDlg.isShowing() || !key.equals(pDlg.getWindow().getDecorView().getTag())) showProg(key);
+                      pTitle.setText(title);
+                      pBar.setProgress(end && msg != null && msg.contains("✓") ? 100 : pct);
+                      pPct.setText(end ? msg : pct + " %");
+                      pInfo.setText(end && !(msg != null && msg.contains("✓")) ? "" : info);
+                      if (end) {
+                          pBtn.setText("Закрити");
+                          if (msg != null && msg.contains("✓")) ui.postDelayed(() -> {
+                              try {
+                                  if (pDlg != null && key.equals(pDlg.getWindow().getDecorView().getTag())) pDlg.dismiss();
+                              } catch (Throwable ignored) {
+                              }
+                          }, 1800);
+                      }
+                  });
+              }
+
+              void showProg(String key) {
+                  try {
+                      if (pDlg != null) pDlg.dismiss();
+                  } catch (Throwable ignored) {
+                  }
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(dp(24), dp(20), dp(24), dp(16));
+                  col.setBackgroundColor(CARD);
+                  pTitle = new TextView(this);
+                  pTitle.setTextColor(TXT);
+                  pTitle.setTextSize(20);
+                  pTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                  col.addView(pTitle);
+                  pPct = new TextView(this);
+                  pPct.setTextColor(ACC);
+                  pPct.setTextSize(40);
+                  pPct.setTypeface(Typeface.DEFAULT_BOLD);
+                  col.addView(pPct);
+                  pBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                  pBar.setMax(100);
+                  col.addView(pBar, new LinearLayout.LayoutParams(-1, dp(14)));
+                  pInfo = new TextView(this);
+                  pInfo.setTextColor(DIM);
+                  pInfo.setTextSize(18);
+                  pInfo.setPadding(0, dp(10), 0, dp(10));
+                  col.addView(pInfo);
+                  pBtn = btn("Сховати", 0xFF2563EB);
+                  pBtn.setOnClickListener(v -> pDlg.dismiss());
+                  col.addView(pBtn, new LinearLayout.LayoutParams(-1, dp(56)));
+                  Dialog d = new Dialog(this);
+                  d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  d.setContentView(col);
+                  d.getWindow().getDecorView().setTag(key);
+                  d.getWindow().setLayout((int) (getResources().getDisplayMetrics().widthPixels * 0.6f), -2);
+                  pDlg = d;
+                  d.show();
               }
 
               static String readAll(InputStream in) {
@@ -567,6 +675,8 @@ jobs:
               }
 
               void download(String name) {
+                  final String key = "dn" + System.nanoTime(), ttl = "Приймання: " + name;
+                  long tot = 0;
                   try {
                       log("Приймаю " + name + "…");
                       HttpURLConnection c = (HttpURLConnection) new URL(base() + "/get?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
@@ -574,23 +684,29 @@ jobs:
                       c.setReadTimeout(30000);
                       if (c.getResponseCode() != 200) {
                           log("Помилка " + c.getResponseCode());
+                          progress(key, ttl, 0, 1, true, "Помилка " + c.getResponseCode());
                           return;
                       }
+                      tot = c.getContentLength();
                       File f = new File(dir(), name);
                       InputStream in = c.getInputStream();
                       FileOutputStream fo = new FileOutputStream(f);
                       byte[] buf = new byte[65536];
                       int n;
                       long total = 0;
+                      progress(key, ttl, 0, tot, false, null);
                       while ((n = in.read(buf)) > 0) {
                           fo.write(buf, 0, n);
                           total += n;
+                          progress(key, ttl, total, tot, false, null);
                       }
                       fo.close();
                       in.close();
+                      progress(key, ttl, total, total, true, "Прийнято ✓");
                       log("Прийнято ✓ " + name + " (" + total / 1024 + " КБ) → " + f.getParent());
                       received(f);
                   } catch (Throwable t) {
+                      progress(key, ttl, 0, Math.max(1, tot), true, "Не вдалось: " + t);
                       log("Не вдалось прийняти: " + t);
                   }
               }
@@ -660,6 +776,8 @@ jobs:
                   String clipText();
 
                   void setClip(String t);
+
+                  void progress(String key, String title, long done, long total, boolean end, String msg);
               }
 
               private final Host host;
@@ -764,14 +882,18 @@ jobs:
                           FileOutputStream fo = new FileOutputStream(tmp);
                           byte[] buf = new byte[65536];
                           long left = len;
+                          String key = "in" + System.nanoTime(), ttl = "Отримання: " + name;
+                          host.progress(key, ttl, 0, len, false, null);
                           while (left > 0) {
                               int n = in.read(buf, 0, (int) Math.min(buf.length, left));
                               if (n < 0) break;
                               fo.write(buf, 0, n);
                               left -= n;
+                              host.progress(key, ttl, len - left, len, false, null);
                           }
                           fo.close();
                           if (left > 0) {
+                              host.progress(key, ttl, len - left, len, true, "Обірвано");
                               tmp.delete();
                               reply(out, 500, "text/plain; charset=utf-8", "Обірвано".getBytes("UTF-8"));
                               host.log("Отримання обірвано: " + name);
@@ -781,6 +903,7 @@ jobs:
                           if (dst.exists()) dst.delete();
                           tmp.renameTo(dst);
                           reply(out, 200, "text/plain; charset=utf-8", "OK".getBytes("UTF-8"));
+                          host.progress(key, ttl, len, len, true, "Отримано ✓");
                           host.log("Отримано: " + name + " (" + len / 1024 + " КБ)");
                           host.received(dst);
                       } else if (path.equals("/list")) {
@@ -813,9 +936,23 @@ jobs:
                           FileInputStream fi = new FileInputStream(f);
                           byte[] buf = new byte[65536];
                           int n;
-                          while ((n = fi.read(buf)) > 0) out.write(buf, 0, n);
+                          long sent = 0, tot = f.length();
+                          String key = "out" + System.nanoTime(), ttl = "Віддача: " + f.getName();
+                          host.progress(key, ttl, 0, tot, false, null);
+                          try {
+                              while ((n = fi.read(buf)) > 0) {
+                                  out.write(buf, 0, n);
+                                  sent += n;
+                                  host.progress(key, ttl, sent, tot, false, null);
+                              }
+                              out.flush();
+                          } catch (IOException e) {
+                              host.progress(key, ttl, sent, tot, true, "Обірвано");
+                              fi.close();
+                              throw e;
+                          }
                           fi.close();
-                          out.flush();
+                          host.progress(key, ttl, tot, tot, true, "Віддано ✓");
                           host.log("Віддано: " + f.getName());
                       } else if (path.equals("/clipget")) {
                           reply(out, 200, "text/plain; charset=utf-8", host.clipText().getBytes("UTF-8"));
