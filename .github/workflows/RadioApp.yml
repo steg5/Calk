@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 6
-                  versionName "1.5"
+                  versionCode 7
+                  versionName "1.6"
               }
               signingConfigs {
                   debug {
@@ -115,6 +115,8 @@ jobs:
 
           import android.app.Activity;
           import android.app.AlertDialog;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
           import android.content.SharedPreferences;
           import android.graphics.Canvas;
           import android.graphics.Paint;
@@ -173,7 +175,7 @@ jobs:
               TextView tvFreq, tvName, tvSub, tvScan;
               ImageView ivLogo;
               FreqSlider seek;
-              Glyph btnFav, btnScan;
+              Glyph btnFav, btnScan, btnPause;
               LinearLayout favList, allList;
 
               int dp(int v) {
@@ -317,6 +319,10 @@ jobs:
                               p.setStrokeCap(Paint.Cap.ROUND);
                               cv.drawCircle(cx - q * 0.15f, cy - q * 0.15f, q * 0.6f, p);
                               cv.drawLine(cx + q * 0.3f, cy + q * 0.3f, cx + q * 0.9f, cy + q * 0.9f, p);
+                              break;
+                          case 8: // пауза
+                              cv.drawRoundRect(new RectF(cx - q * 0.7f, cy - q * 0.8f, cx - q * 0.15f, cy + q * 0.8f), q * 0.1f, q * 0.1f, p);
+                              cv.drawRoundRect(new RectF(cx + q * 0.15f, cy - q * 0.8f, cx + q * 0.7f, cy + q * 0.8f), q * 0.1f, q * 0.1f, p);
                               break;
                           case 7: // стоп
                               cv.drawRoundRect(new RectF(cx - q * 0.7f, cy - q * 0.7f, cx + q * 0.7f, cy + q * 0.7f), q * 0.15f, q * 0.15f, p);
@@ -526,10 +532,42 @@ jobs:
                   btnFav = new Glyph(4, "В обрані", 19);
                   btnScan = new Glyph(6, "Знайти станції", 19);
                   right.addView(row2(btnFav, btnScan, this::toggleFav, this::startScan));
+                  btnPause = new Glyph(8, "Пауза", 19);
+                  right.addView(row2(btnPause, new Glyph(-1, "Журнал", 19), this::doPause, this::diagDialog));
 
                   LinearLayout.LayoutParams lpR = land ? new LinearLayout.LayoutParams(0, -1, 1.15f) : new LinearLayout.LayoutParams(-1, 0, 1.3f);
                   main.addView(right, lpR);
                   return main;
+              }
+
+              void doPause() {
+                  if (!tuner.paused) {
+                      scanStop = true;
+                      seekWait = false;
+                      tuner.pause();
+                  } else {
+                      tuner.resume();
+                      ui.postDelayed(() -> tuner.tune(this, cur, MainActivity.class), 1500);
+                  }
+                  updateUi();
+              }
+
+              void diagDialog() {
+                  final String txt = "Метод налаштування: " + tuner.method() + "\n\n" + tuner.getLog();
+                  ScrollView sv = new ScrollView(this);
+                  TextView t = new TextView(this);
+                  t.setTypeface(Typeface.MONOSPACE);
+                  t.setTextSize(12);
+                  t.setText(txt);
+                  t.setPadding(dp(12), dp(8), dp(12), dp(8));
+                  sv.addView(t);
+                  new AlertDialog.Builder(this).setTitle("Журнал тюнера").setView(sv)
+                          .setPositiveButton("Закрити", null)
+                          .setNeutralButton("Скинути підбір", (d, w) -> tuner.resetProbe())
+                          .setNegativeButton("Копіювати", (d, w) -> {
+                              ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("log", txt));
+                              Toast.makeText(this, "Скопійовано", Toast.LENGTH_SHORT).show();
+                          }).show();
               }
 
               void doNext() {
@@ -621,8 +659,10 @@ jobs:
                   }
                   String name = nameFor(cur);
                   tvName.setText(name);
-                  if (seekWait || scanning) tvSub.setText("Шукаю станцію…");
-                  else if (tuner.busy()) tvSub.setText("Налаштування…");
+                  if (btnPause != null) btnPause.set(tuner.paused ? 3 : 8, tuner.paused ? "Грати" : "Пауза", false);
+                  if (tuner.paused) tvSub.setText("Пауза");
+                  else if (seekWait || scanning) tvSub.setText("Шукаю станцію…");
+                  else if (tuner.busy()) tvSub.setText("Налаштування… зараз " + Station.fmt(tuner.freq));
                   else if (!tuner.ps.isEmpty() && cur == tuner.freq) tvSub.setText("RDS: " + tuner.ps);
                   else tvSub.setText("FM · МГц");
                   if (shownLogoFreq != cur) {
@@ -1032,6 +1072,7 @@ jobs:
 
           import android.content.Context;
           import android.content.Intent;
+          import android.content.SharedPreferences;
           import android.os.Handler;
           import android.os.Looper;
           import android.os.Message;
@@ -1050,7 +1091,37 @@ jobs:
               private Class<?> cls;
               private Method wr, wr2;
               private boolean inited;
-              boolean directFailed, directOk;
+              // підбір команди прямої установки частоти: -2 невідомо, 0..4 робочий варіант, 99 не працює
+              int dv = -2;
+              SharedPreferences tp;
+              volatile boolean paused, quiet;
+              private final StringBuilder logb = new StringBuilder();
+              private int lastLogF = -1, lastLogFl = -1;
+
+              synchronized void log(String s) {
+                  logb.append(new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date())).append(' ').append(s).append('\n');
+                  if (logb.length() > 20000) logb.delete(0, logb.length() - 15000);
+              }
+
+              synchronized String getLog() {
+                  return logb.toString();
+              }
+
+              String method() {
+                  return dv == -2 ? "ще не визначено" : dv == 99 ? "пряма команда не працює, лише кроки" : "варіант " + dv;
+              }
+
+              void resetProbe() {
+                  dv = -2;
+                  if (tp != null) tp.edit().remove("dv").apply();
+                  log("підбір скинуто");
+              }
+
+              static String hex(byte[] b) {
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < b.length && i < 24; i++) sb.append(String.format("%02x ", b[i] & 0xff));
+                  return sb.toString();
+              }
               private final Listener listener;
               private final Handler h;
 
@@ -1103,9 +1174,15 @@ jobs:
               }
 
               private void onMsg(Message m) {
-                  if (m.what != 0x401 || !(m.obj instanceof byte[])) return;
+                  if (m.what != 0x401 || !(m.obj instanceof byte[])) {
+                      log("RX 0x" + Integer.toHexString(m.what) + " a1=" + m.arg1 + " a2=" + m.arg2 + " " + (m.obj instanceof byte[] ? hex((byte[]) m.obj) : String.valueOf(m.obj)));
+                      return;
+                  }
                   byte[] b = (byte[]) m.obj;
-                  if (b.length < 13) return;
+                  if (b.length < 13) {
+                      log("RX 0x401 коротке: " + hex(b));
+                      return;
+                  }
                   int f = ((b[2] & 0xff) << 8) | (b[3] & 0xff);
                   flags = b[0] & 0xff;
                   b1 = b[1] & 0xff;
@@ -1122,6 +1199,11 @@ jobs:
                       sb.append((char) c);
                   }
                   ps = ok ? sb.toString().trim() : "";
+                  if (f != lastLogF || flags != lastLogFl) {
+                      lastLogF = f;
+                      lastLogFl = flags;
+                      log("RX freq=" + f + " flags=0x" + Integer.toHexString(flags) + (seeking ? " ПОШУК" : "") + " ps=" + ps);
+                  }
                   freq = f;
                   haveState = true;
                   lastMsg = System.currentTimeMillis();
@@ -1132,6 +1214,7 @@ jobs:
                   try {
                       if (wr == null) return -1;
                       Object r = wr.invoke(util, what, a1, a2);
+                      if (!quiet) log("TX 0x" + Integer.toHexString(what) + " " + a1 + " " + a2);
                       return r instanceof Integer ? (Integer) r : 0;
                   } catch (Throwable t) {
                       return -2;
@@ -1142,6 +1225,7 @@ jobs:
                   try {
                       if (wr2 == null) return -1;
                       Object r = wr2.invoke(util, what, a1);
+                      if (!quiet) log("TX 0x" + Integer.toHexString(what) + " " + a1);
                       return r instanceof Integer ? (Integer) r : 0;
                   } catch (Throwable t) {
                       return -2;
@@ -1169,6 +1253,10 @@ jobs:
               void setHost(Context c, Class<?> f) {
                   host = c;
                   front = f;
+                  if (tp == null) {
+                      tp = c.getSharedPreferences("tuner", Context.MODE_PRIVATE);
+                      dv = tp.getInt("dv", -2);
+                  }
               }
 
               /** Виконує дію, коли тюнер відповідає; якщо ні — тихо запускає штатне радіо (один раз), щоб воно «розбудило» тюнер. */
@@ -1204,7 +1292,6 @@ jobs:
               }
 
               volatile boolean directPending;
-              private int directTries;
 
               boolean busy() {
                   return stepping || directPending;
@@ -1226,8 +1313,24 @@ jobs:
               void stepUp() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 0); } }); }
               void stepDown() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 1); } }); }
 
-              private void sendDirect() {
-                  write(0x402, 255, tgt);
+              private int probeIdx, probeTries, directStart;
+              private long okDeadline;
+
+              private void sendVariant(int v, int f) {
+                  switch (v) {
+                      case 0: write(0x402, 255, f); break;
+                      case 1: write(0x402, 0, f); break;
+                      case 2: write2(0x402, f); break;
+                      case 3: write(0x401, 3, f); break;
+                      default:
+                          if (host != null) launchStock(host, f, front);
+                  }
+              }
+
+              private void sendProbe() {
+                  directStart = freq;
+                  log("налаштування на " + tgt + ", варіант " + probeIdx);
+                  sendVariant(probeIdx, tgt);
                   h.postDelayed(directCheck, 900);
               }
 
@@ -1235,21 +1338,67 @@ jobs:
                   @Override
                   public void run() {
                       if (!directPending) return;
-                      if (Math.abs(tgt - freq) <= 2) {
-                          directOk = true;
+                      long now = System.currentTimeMillis();
+                      boolean arrived = Math.abs(tgt - freq) <= 2;
+                      boolean closer = Math.abs(tgt - directStart) - Math.abs(tgt - freq) >= 5;
+                      if (arrived || closer) {
+                          if (dv != probeIdx) {
+                              dv = probeIdx;
+                              if (tp != null) tp.edit().putInt("dv", dv).apply();
+                              log("РОБОЧИЙ ВАРІАНТ: " + dv);
+                          }
+                          if (arrived) {
+                              directPending = false;
+                              notifyState();
+                              return;
+                          }
+                          if (okDeadline == 0) okDeadline = now + 4000;
+                          if (now < okDeadline) {
+                              h.postDelayed(directCheck, 400);
+                              return;
+                          }
                           directPending = false;
-                          notifyState();
+                          startStepping();
                           return;
                       }
-                      if (++directTries < 2) {
-                          sendDirect();
+                      if (dv >= 0) {
+                          if (++probeTries < 2) {
+                              sendProbe();
+                              return;
+                          }
+                          directPending = false;
+                          startStepping();
                           return;
                       }
+                      if (++probeIdx <= 4) {
+                          sendProbe();
+                          return;
+                      }
+                      dv = 99;
+                      if (tp != null) tp.edit().putInt("dv", 99).apply();
+                      log("жоден варіант не спрацював, лишаються кроки");
                       directPending = false;
-                      if (!directOk) directFailed = true;
                       startStepping();
                   }
               };
+
+              void pause() {
+                  cancelTune();
+                  paused = true;
+                  write2(0x9e00, 129);
+                  write(0x9e11, 192, 129);
+                  haveState = false;
+                  inited = false;
+                  log("ПАУЗА");
+                  notifyState();
+              }
+
+              void resume() {
+                  paused = false;
+                  inited = false;
+                  initRadio();
+                  log("ГРАТИ");
+              }
 
               private void startStepping() {
                   if (stepping) return;
@@ -1270,13 +1419,16 @@ jobs:
                       public void run() {
                           if (f10k <= 0) return;
                           cancelTune();
+                          paused = false;
                           tgt = f10k;
-                          if (!directFailed) {
-                              directPending = true;
-                              directTries = 0;
-                              sendDirect();
-                          } else {
+                          if (dv == 99 || Math.abs(tgt - freq) <= 5) {
                               startStepping();
+                          } else {
+                              directPending = true;
+                              probeIdx = dv >= 0 ? dv : 0;
+                              probeTries = 0;
+                              okDeadline = 0;
+                              sendProbe();
                           }
                       }
                   });
@@ -1312,7 +1464,9 @@ jobs:
                       }
                       boolean far = ad > 15;
                       if (far || freq != lastSentFrom || now - lastSendAt > 400) {
+                          quiet = true;
                           write(0x401, 2, diff > 0 ? 0 : 1);
+                          quiet = false;
                           lastSentFrom = freq;
                           lastSendAt = now;
                           if (ad <= 5) nearSends++;
