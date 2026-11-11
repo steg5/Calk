@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 11
-                  versionName "2.2"
+                  versionCode 12
+                  versionName "2.3"
               }
               signingConfigs {
                   debug {
@@ -215,7 +215,7 @@ jobs:
 
           public class MainActivity extends Activity implements Tuner.Listener {
               int ACC, TXT, DIM, CARD, BTN, BG1, BG2, OV;
-              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона", "Океан", "Ліс", "Світла", "Чорна"};
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний"};
               // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст, затемнення фону
               static final int[][] TH = {
                       {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC, 0x55000000},
@@ -223,11 +223,13 @@ jobs:
                       {0xFF0F3D33, 0xFF071A16, 0xFF4DD6A8, 0xB30D211C, 0xFF1F4A3F, 0xFFF1F5F9, 0xFF9CBFB4, 0x55000000},
                       {0xFF4A3010, 0xFF1A1006, 0xFFFFB74D, 0xB3231708, 0xFF4F3A1B, 0xFFF8F1E7, 0xFFC4B29A, 0x55000000},
                       {0xFF3A1F5C, 0xFF150B26, 0xFFCE93D8, 0xB31F1030, 0xFF40295E, 0xFFF4EEF8, 0xFFB7A6C9, 0x55000000},
-                      {0xFF4A1218, 0xFF1A0709, 0xFFFF8A80, 0xB3260B0F, 0xFF52232A, 0xFFF8EDEE, 0xFFC9A3A7, 0x55000000},
+                      {0xFF3A0508, 0xFF120203, 0xFFFF1E1E, 0xB3200709, 0xFF5A0F12, 0xFFFFECEC, 0xFFFF9A9A, 0x55000000},
                       {0xFF0B4F6C, 0xFF05202B, 0xFF4DD0E1, 0xB30A2A38, 0xFF16627F, 0xFFEFF9FC, 0xFF9CC4D0, 0x55000000},
                       {0xFF2E4A1E, 0xFF111C0B, 0xFFAED581, 0xB3172410, 0xFF3A5A2A, 0xFFF3F8EE, 0xFFB0C4A0, 0x55000000},
                       {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075, 0x00000000},
-                      {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A, 0x00000000}};
+                      {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A, 0x00000000},
+                      {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663, 0x55000000},
+                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B, 0x00000000}};
 
               void applyTheme() {
                   int[] t = TH[Math.min(TH.length - 1, Math.max(0, sp.getInt("theme", 0)))];
@@ -1150,8 +1152,10 @@ jobs:
 
                   @Override
                   protected void onDraw(Canvas cv) {
-                      float w = getWidth(), h = getHeight(), s = Math.min(w, h) * 0.9f;
+                      float w = getWidth(), h = getHeight(), side = Math.min(w, h) - px(12), s = side * 0.62f;
                       p.setStyle(Paint.Style.FILL);
+                      p.setColor(BTN);
+                      cv.drawRoundRect(new RectF(w / 2 - side / 2, h / 2 - side / 2, w / 2 + side / 2, h / 2 + side / 2), side * 0.2f, side * 0.2f, p);
                       p.setColor(ACC);
                       cv.translate(w / 2, h / 2);
                       if (kind == 0) {
@@ -1460,6 +1464,8 @@ jobs:
                   nav.setClipToOutline(true);
                   map = new MapView(this);
                   map.listener = this::saveMark;
+                  map.autoMin = sp.getFloat("azmin", 13f);
+                  map.autoMax = sp.getFloat("azmax", 15f);
                   nav.addView(map, new FrameLayout.LayoutParams(-1, -1));
                   final int bs = px(56), gap = px(10);
                   View[] mb = new View[6];
@@ -1495,28 +1501,19 @@ jobs:
                   for (int i = 0; i < mb.length; i++) {
                       FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(bs, bs, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
                       bp.setMargins(0, 0, px(12), 0);
-                      mb[i].setTranslationY((i - 2.5f) * (bs + gap));
+                      mb[i].setTranslationY((i - 3f) * (bs + gap));
                       nav.addView(mb[i], bp);
                   }
-                  LinearLayout chips = new LinearLayout(this);
-                  chips.setOrientation(LinearLayout.HORIZONTAL);
-                  chips.setGravity(Gravity.CENTER_VERTICAL);
-                  chips.setBackground(rounded(0xAA000000, 14));
-                  chips.setPadding(px(12), px(6), px(12), px(6));
                   navZoom = text("", 22, 0xFFFFFFFF, true);
-                  chips.addView(navZoom, lp(-2, -2, 0));
-                  LinearLayout.LayoutParams svp = lp(28, 28, 0);
-                  svp.setMargins(px(14), 0, 0, 0);
-                  chips.addView(new SatView(this), svp);
-                  tvNavSats = text(" —", 22, 0xFFFFFFFF, true);
-                  chips.addView(tvNavSats, lp(-2, -2, 0));
-                  FrameLayout.LayoutParams chp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
-                  chp.setMargins(px(12), px(12), 0, 0);
-                  nav.addView(chips, chp);
+                  navZoom.setGravity(Gravity.CENTER);
+                  navZoom.setBackground(rounded(0xAA000000, 14));
+                  FrameLayout.LayoutParams zp = new FrameLayout.LayoutParams(bs, px(36), Gravity.BOTTOM | Gravity.RIGHT);
+                  zp.setMargins(0, 0, px(12), px(10));
+                  nav.addView(navZoom, zp);
                   if (sp.contains("clat")) {
                       map.lat = sp.getFloat("clat", 49.84f);
                       map.lon = sp.getFloat("clon", 24.03f);
-                      map.zoom = sp.getFloat("czoom", 14f);
+                      map.zoom = Math.min(15f, sp.getFloat("czoom", 14f));
                   }
                   if (sp.contains("mlat")) {
                       map.markLat = (double) sp.getFloat("mlat", 0);
@@ -2005,6 +2002,8 @@ jobs:
                           t("Програми внизу", "вибрати значки", true, this::pickApps));
                   group("Навігація",
                           t("Карта", mapName(), true, this::mapMenu),
+                          t("Автомасштаб: мін", String.valueOf(Math.round(sp.getFloat("azmin", 13f))), true, () -> zoomMenu(true)),
+                          t("Автомасштаб: макс", String.valueOf(Math.round(sp.getFloat("azmax", 15f))), true, () -> zoomMenu(false)),
                           t("Авто день / ніч", onOff(sp.getBoolean("autonav", true)), false, () -> {
                               sp.edit().putBoolean("autonav", !sp.getBoolean("autonav", true)).apply();
                               updateBright();
@@ -2121,6 +2120,28 @@ jobs:
                       dd.dismiss();
                       openMap();
                   }).setNegativeButton("Скасувати", null).show();
+              }
+
+              void zoomMenu(final boolean isMin) {
+                  final String[] n = {"9", "10", "11", "12", "13", "14", "15"};
+                  float cur = sp.getFloat(isMin ? "azmin" : "azmax", isMin ? 13f : 15f);
+                  new AlertDialog.Builder(this)
+                          .setTitle(isMin ? "Мінімальний масштаб (траса)" : "Максимальний масштаб (місто)")
+                          .setSingleChoiceItems(n, Math.max(0, Math.min(6, Math.round(cur) - 9)), (dd, i) -> {
+                              float val = 9 + i;
+                              float mn = sp.getFloat("azmin", 13f), mx = sp.getFloat("azmax", 15f);
+                              if (isMin) {
+                                  mn = val;
+                                  if (mx < mn) mx = mn;
+                              } else {
+                                  mx = val;
+                                  if (mn > mx) mn = mx;
+                              }
+                              sp.edit().putFloat("azmin", mn).putFloat("azmax", mx).apply();
+                              map.autoMin = mn;
+                              map.autoMax = mx;
+                              dd.dismiss();
+                          }).setNegativeButton("Скасувати", null).show();
               }
 
               void saveMark() {
@@ -2804,6 +2825,7 @@ jobs:
               // відображуваний стан (плавно рухається до цілі)
               public double lat = 49.8397, lon = 24.0297, zoom = 12;
               public float rot = 0;
+              public double autoMin = 13, autoMax = 15, zoomLimit = 15;
               float pivY = -1;
               public boolean follow = true, night = false, hasFix = false, headingUp = true;
               long manualUntil = 0;
@@ -2889,7 +2911,7 @@ jobs:
               }
 
               void setManualZoom(double z) {
-                  zoom = Math.max(minZ, Math.min(maxZ + 3, z));
+                  zoom = Math.max(minZ, Math.min(zoomLimit, z));
                   manualUntil = System.nanoTime() + 15_000_000_000L;
                   invalidate();
               }
@@ -3081,7 +3103,8 @@ jobs:
                       rot += angDiff(tRot, rot) * (1 - Math.exp(-dt / 0.7));
                       rot = (rot % 360 + 360) % 360;
                       if (now > manualUntil) {
-                          double tz = Math.max(minZ, Math.min(maxZ + 3, speedZoom(fixSpeed * 3.6)));
+                          double t0 = Math.max(0, Math.min(1, (17.2 - speedZoom(fixSpeed * 3.6)) / 3.0));
+                          double tz = Math.max(minZ, Math.min(zoomLimit, autoMax - t0 * (autoMax - autoMin)));
                           zoom += (tz - zoom) * (1 - Math.exp(-dt / 1.2));
                       }
                   }
