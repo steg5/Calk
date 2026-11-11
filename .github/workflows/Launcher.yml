@@ -1681,9 +1681,9 @@ jobs:
                   root.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
           View handle = new View(this);
           handle.setBackground(rounded(0x88FFFFFF, 3));
-          FrameLayout.LayoutParams hlp = new FrameLayout.LayoutParams(px(90), px(5), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-          hlp.setMargins(0, 0, 0, px(7));
-          root.addView(handle, hlp);
+          FrameLayout.LayoutParams hdp = new FrameLayout.LayoutParams(px(90), px(5), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+          hdp.setMargins(0, 0, 0, px(7));
+          root.addView(handle, hdp);
                   canvas.addOnLayoutChangeListener((vw, l1, t1, r1, b1x, l0, t0, r0, b0) -> {
                       if (r1 - l1 != r0 - l0 || b1x - t1 != b0 - t0) canvas.post(this::layoutBlocks);
                   });
