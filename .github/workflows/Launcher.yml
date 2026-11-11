@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 13
-                  versionName "2.4"
+                  versionCode 15
+                  versionName "2.6"
               }
               signingConfigs {
                   debug {
@@ -671,7 +671,10 @@ jobs:
               }
 
               // ================= сервіс =================
-              float odo, oilKm, pendDay = 0;
+              float odo, oilKm, pendDay = 0, pendH = 0, pendMax = 0;
+              static float sessKm, sessMax, sessH;
+              static boolean sessInit = false;
+              SharedPreferences dst;
               SharedPreferences days;
               TextView oilBadge;
               Dialog svcDlg;
@@ -1187,7 +1190,7 @@ jobs:
               }
 
               int icCol() {
-                  return sp.getInt("theme", 0) == 8 ? TXT : 0xFFFFFFFF;
+                  return TXT;
               }
 
               int px(float v) {
@@ -1241,6 +1244,7 @@ jobs:
               class ClockLayout extends ViewGroup {
                   final View[] el = new View[5];
                   final float[] fx = new float[5], fy = new float[5], sc = new float[5];
+                  final boolean[] cu = new boolean[5];
                   View badge;
                   LinearLayout bar;
                   boolean edit = false;
@@ -1261,6 +1265,7 @@ jobs:
                                   fx[i] = Float.parseFloat(q[0]);
                                   fy[i] = Float.parseFloat(q[1]);
                                   sc[i] = Float.parseFloat(q[2]);
+                                  cu[i] = true;
                               } catch (Throwable ignored) {
                                   fx[i] = Float.NaN;
                               }
@@ -1276,7 +1281,7 @@ jobs:
                   void save() {
                       SharedPreferences.Editor ed = sp.edit();
                       for (int i = 0; i < 5; i++)
-                          if (!Float.isNaN(fx[i])) ed.putString("ck" + i, fx[i] + "," + fy[i] + "," + sc[i]);
+                          if (cu[i] && !Float.isNaN(fx[i])) ed.putString("ck" + i, fx[i] + "," + fy[i] + "," + sc[i]);
                       ed.apply();
                   }
 
@@ -1285,6 +1290,7 @@ jobs:
                       for (int i = 0; i < 5; i++) {
                           ed.remove("ck" + i);
                           fx[i] = Float.NaN;
+                          cu[i] = false;
                           sc[i] = 1f;
                           el[i].setScaleX(1f);
                           el[i].setScaleY(1f);
@@ -1311,11 +1317,12 @@ jobs:
                       int W = r - l, H = b - t;
                       if (W <= 0 || H <= 0) return;
                       int top = px(12);
+                      if (W < px(150) || H < px(120)) return;
                       for (int i = 0; i < 5; i++) {
                           View v = el[i];
                           if (v == null) continue;
                           int w = v.getMeasuredWidth(), h = v.getMeasuredHeight();
-                          if (Float.isNaN(fx[i])) {
+                          if (!cu[i]) {
                               float cx, cy;
                               int h0 = el[0].getMeasuredHeight(), h1 = el[1].getMeasuredHeight();
                               switch (i) {
@@ -1382,6 +1389,7 @@ jobs:
 
                   void grow(float k) {
                       if (sel < 0) return;
+                      cu[sel] = true;
                       sc[sel] = Math.max(0.4f, Math.min(3f, sc[sel] * k));
                       el[sel].setScaleX(sc[sel]);
                       el[sel].setScaleY(sc[sel]);
@@ -1420,12 +1428,11 @@ jobs:
                               return true;
                           case MotionEvent.ACTION_MOVE:
                               if (sel < 0) return true;
+                              cu[sel] = true;
                               fx[sel] += (x - lx) / W;
                               fy[sel] += (y - ly) / H;
                               lx = x;
                               ly = y;
-                              fx[sel] = Math.max(0, Math.min(1, fx[sel]));
-                              fy[sel] = Math.max(0, Math.min(1, fy[sel]));
                               snap(W, H);
                               requestLayout();
                               invalidate();
@@ -1443,7 +1450,9 @@ jobs:
                   void snap(int W, int H) {
                       View v = el[sel];
                       float hw = v.getWidth() * sc[sel] / 2f, hh = v.getHeight() * sc[sel] / 2f;
-                      float cx = fx[sel] * W, cy = fy[sel] * H, th = px(14), pad = px(6);
+                      float cx = fx[sel] * W, cy = fy[sel] * H, th = px(26), pad = px(6);
+                      cx = Math.max(pad + hw, Math.min(W - pad - hw, cx));
+                      cy = Math.max(pad + hh, Math.min(H - pad - hh, cy));
                       gx = gy = -1;
                       float[] tx = {W / 2f, pad + hw, W - pad - hw};
                       float[] gl = {W / 2f, pad, W - pad};
@@ -1495,8 +1504,11 @@ jobs:
                   final LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   col.addView(row, lp(-1, 110, 0));
-                  final Button cb = btn(sp.getInt("mcol", 0) == 0 ? "Колір: тема" : "Колір: синій", 22);
-                  col.addView(cb, lp(-1, 56, 0));
+                  final LinearLayout crow = new LinearLayout(this);
+                  crow.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams crp = lp(-1, 56, 0);
+                  crp.setMargins(0, px(10), 0, 0);
+                  col.addView(crow, crp);
                   final View[] pv = new View[5];
                   for (int i = 0; i < 5; i++) {
                       final int k = i;
@@ -1510,7 +1522,7 @@ jobs:
                               }
                               cv.save();
                               cv.translate(getWidth() / 2f, getHeight() / 2f);
-                              MapView.drawMarker(cv, pp, k, px(24), sp.getInt("mcol", 0) == 0 ? ACC : 0xFF1E88E5, u);
+                              MapView.drawMarker(cv, pp, k, px(24), markFill(), u);
                               cv.restore();
                           }
                       };
@@ -1521,22 +1533,54 @@ jobs:
                       });
                       row.addView(pv[i], lp(0, -1, 1));
                   }
-                  cb.setOnClickListener(v -> {
-                      int c = sp.getInt("mcol", 0) == 0 ? 1 : 0;
-                      sp.edit().putInt("mcol", c).apply();
-                      cb.setText(c == 0 ? "Колір: тема" : "Колір: синій");
-                      applyMark();
-                      for (View q : pv) q.invalidate();
-                  });
+                  for (int i = 0; i < MCOL.length; i++) {
+                      final int k = i;
+                      View sw = new View(this) {
+                          @Override
+                          protected void onDraw(Canvas cv) {
+                              Paint pp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                              int col0 = k == 0 ? ACC : MCOL[k];
+                              pp.setColor(col0);
+                              float r = Math.min(getWidth(), getHeight()) / 2f - px(8);
+                              cv.drawCircle(getWidth() / 2f, getHeight() / 2f, r, pp);
+                              if (k == 0) {
+                                  pp.setColor(TXT);
+                                  pp.setTextSize(px(16));
+                                  pp.setTextAlign(Paint.Align.CENTER);
+                                  cv.drawText("T", getWidth() / 2f, getHeight() / 2f + px(6), pp);
+                              }
+                              if (sp.getInt("mcol", 0) == k) {
+                                  pp.setStyle(Paint.Style.STROKE);
+                                  pp.setStrokeWidth(px(3));
+                                  pp.setColor(0xFFFFFFFF);
+                                  cv.drawCircle(getWidth() / 2f, getHeight() / 2f, r + px(4), pp);
+                              }
+                          }
+                      };
+                      sw.setOnClickListener(v -> {
+                          sp.edit().putInt("mcol", k).apply();
+                          applyMark();
+                          for (View q : pv) q.invalidate();
+                          for (int z = 0; z < crow.getChildCount(); z++) crow.getChildAt(z).invalidate();
+                      });
+                      crow.addView(sw, lp(0, -1, 1));
+                  }
                   col.setBackgroundColor(BG2 | 0xFF000000);
                   new AlertDialog.Builder(this).setTitle("Мій значок").setView(col)
                           .setPositiveButton("Готово", (d, w) -> rebuildSettings()).show();
               }
 
+              final int[] MCOL = {0, 0xFF1E88E5, 0xFFFFFFFF, 0xFFE53935, 0xFF43A047, 0xFFFDD835, 0xFFFB8C00, 0xFF00E5FF, 0xFFAB47BC, 0xFFFF4081};
+
+              int markFill() {
+                  int c = sp.getInt("mcol", 0);
+                  return c <= 0 || c >= MCOL.length ? ACC : MCOL[c];
+              }
+
               void applyMark() {
                   if (map == null) return;
                   map.markStyle = sp.getInt("mstyle", 0);
-                  map.markColor = sp.getInt("mcol", 0) == 0 ? ACC : 0xFF1E88E5;
+                  map.markColor = markFill();
                   map.invalidate();
               }
 
@@ -1587,8 +1631,44 @@ jobs:
                   odo = sp.getFloat("odo", 0);
                   oilKm = sp.getFloat("oil", 0);
                   days = getSharedPreferences("days", MODE_PRIVATE);
+                  dst = getSharedPreferences("daystat", MODE_PRIVATE);
+                  if (!sessInit) {
+                      sessInit = true;
+                      sp.edit().putFloat("p_km", sp.getFloat("s_km", 0)).putFloat("p_max", sp.getFloat("s_max", 0))
+                              .putFloat("p_h", sp.getFloat("s_h", 0)).putFloat("s_km", 0).putFloat("s_max", 0).putFloat("s_h", 0).apply();
+                      sessKm = 0;
+                      sessMax = 0;
+                      sessH = 0;
+                  }
 
-                  FrameLayout root = new FrameLayout(this);
+                  FrameLayout root = new FrameLayout(this) {
+                      float dy0 = 0;
+                      boolean zone = false, fired = false;
+
+                      @Override
+                      public boolean onInterceptTouchEvent(MotionEvent e) {
+                          switch (e.getActionMasked()) {
+                              case MotionEvent.ACTION_DOWN:
+                                  zone = e.getY() > getHeight() - px(46);
+                                  dy0 = e.getY();
+                                  fired = false;
+                                  break;
+                              case MotionEvent.ACTION_MOVE:
+                                  if (zone && !fired && dy0 - e.getY() > px(50)) {
+                                      fired = true;
+                                      appsDrawer();
+                                      return true;
+                                  }
+                                  break;
+                          }
+                          return false;
+                      }
+
+                      @Override
+                      public boolean onTouchEvent(MotionEvent e) {
+                          return true;
+                      }
+                  };
                   root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1, BG2}));
                   bg = new ImageView(this);
                   bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -1599,6 +1679,11 @@ jobs:
 
                   canvas = new FrameLayout(this);
                   root.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
+          View handle = new View(this);
+          handle.setBackground(rounded(0x88FFFFFF, 3));
+          FrameLayout.LayoutParams hlp = new FrameLayout.LayoutParams(px(90), px(5), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+          hlp.setMargins(0, 0, 0, px(7));
+          root.addView(handle, hlp);
                   canvas.addOnLayoutChangeListener((vw, l1, t1, r1, b1x, l0, t0, r0, b0) -> {
                       if (r1 - l1 != r0 - l0 || b1x - t1 != b0 - t0) canvas.post(this::layoutBlocks);
                   });
@@ -1629,7 +1714,12 @@ jobs:
                   speedRow.addView(tvSpeed, lp(-1, -2, 0));
                   TextView kmh = text("км/год", 20, DIM, false);
                   kmh.setGravity(Gravity.CENTER);
-                  speedRow.addView(kmh, lp(-1, -2, 0));
+                  LinearLayout.LayoutParams kmp = lp(-1, -2, 0);
+                  kmp.setMargins(0, -px(12), 0, 0);
+                  tvSpeed.setIncludeFontPadding(false);
+                  kmh.setIncludeFontPadding(false);
+                  speedRow.addView(kmh, kmp);
+                  speedRow.setOnClickListener(v -> tripStats());
                   LinearLayout stats = new LinearLayout(this);
                   stats.setOrientation(LinearLayout.VERTICAL);
                   stats.setGravity(Gravity.RIGHT);
@@ -2031,10 +2121,15 @@ jobs:
                           distKm += v * dt / 3600f;
                           addKm(v * dt / 3600f);
                           movH += dt / 3600f;
+                          sessKm += v * dt / 3600f;
+                          sessH += dt / 3600f;
+                          pendH += dt / 3600f;
                       }
                       lastLoc = now;
                       lastFix = now;
                       if (v > maxKmh) maxKmh = v;
+                      if (v > sessMax) sessMax = v;
+                      if (v > pendMax) pendMax = v;
                       tvSpeed.setText(String.valueOf(Math.round(v)));
                       showTrip();
                       if (now - lastSave > 15000) saveTrip();
@@ -2064,11 +2159,133 @@ jobs:
                   lastSave = System.currentTimeMillis();
                   sp.edit().putFloat("max", maxKmh).putFloat("dist", distKm).putFloat("mov", movH)
                           .putFloat("odo", odo).putFloat("oil", oilKm).apply();
+                  sp.edit().putFloat("s_km", sessKm).putFloat("s_max", sessMax).putFloat("s_h", sessH).apply();
+                  if (pendH > 0 || pendMax > 0) {
+                      String k2 = ymd(new Date());
+                      dst.edit().putFloat(k2 + "h", dst.getFloat(k2 + "h", 0) + pendH)
+                              .putFloat(k2 + "m", Math.max(dst.getFloat(k2 + "m", 0), pendMax)).apply();
+                      pendH = 0;
+                      pendMax = 0;
+                  }
                   if (pendDay > 0) {
                       String k = ymd(new Date());
                       days.edit().putFloat(k, days.getFloat(k, 0) + pendDay).apply();
                       pendDay = 0;
                   }
+              }
+
+              float[] agg(String[] pre) {
+                  float km = 0, h = 0, mx = 0;
+                  for (Map.Entry<String, ?> e : days.getAll().entrySet()) {
+                      if (!(e.getValue() instanceof Float)) continue;
+                      String k = e.getKey();
+                      boolean ok = false;
+                      for (String q : pre) if (k.startsWith(q)) ok = true;
+                      if (!ok) continue;
+                      km += (Float) e.getValue();
+                      h += dst.getFloat(k + "h", 0);
+                      mx = Math.max(mx, dst.getFloat(k + "m", 0));
+                  }
+                  return new float[]{km, h, mx};
+              }
+
+              void statLine(LinearLayout col, String name, float km, float h, float mx) {
+                  LinearLayout c = card(LinearLayout.VERTICAL);
+                  c.setPadding(px(20), px(12), px(20), px(12));
+                  c.addView(text(name, 24, DIM, true), lp(-1, -2, 0));
+                  String avg = h > 0.01f ? String.valueOf(Math.round(km / h)) : "—";
+                  c.addView(text(Math.round(km * 10) / 10f + " км     сер. " + avg + " км/год     макс. " + Math.round(mx) + " км/год", 28, TXT, false), lp(-1, -2, 0));
+                  LinearLayout.LayoutParams cp = lp(-1, -2, 0);
+                  cp.setMargins(0, px(10), 0, 0);
+                  col.addView(c, cp);
+              }
+
+              void tripStats() {
+                  saveTrip();
+                  final Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                  ScrollView sc = new ScrollView(this);
+                  sc.setBackgroundColor(BG2 | 0xFF000000);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(28), px(20), px(28), px(28));
+                  sc.addView(col, new FrameLayout.LayoutParams(-1, -2));
+                  LinearLayout head = new LinearLayout(this);
+                  head.setGravity(Gravity.CENTER_VERTICAL);
+                  head.addView(text("Статистика поїздок", 36, TXT, true), lp(0, -2, 1));
+                  Button close = btn("Закрити", 24);
+                  close.setOnClickListener(v -> d.dismiss());
+                  head.addView(close, lp(160, 56, 0));
+                  col.addView(head, lp(-1, -2, 0));
+                  Date now = new Date();
+                  String today = ymd(now);
+                  Calendar cal = Calendar.getInstance();
+                  String[] wk = new String[7];
+                  for (int i = 0; i < 7; i++) {
+                      wk[i] = ymd(cal.getTime());
+                      cal.add(Calendar.DAY_OF_YEAR, -1);
+                  }
+                  float[] a;
+                  statLine(col, "Ця поїздка (з запуску)", sessKm, sessH, sessMax);
+                  statLine(col, "Попередня поїздка", sp.getFloat("p_km", 0), sp.getFloat("p_h", 0), sp.getFloat("p_max", 0));
+                  a = agg(new String[]{today});
+                  statLine(col, "Сьогодні", a[0], a[1], a[2]);
+                  a = agg(wk);
+                  statLine(col, "Тиждень (7 днів)", a[0], a[1], a[2]);
+                  a = agg(new String[]{today.substring(0, 7)});
+                  statLine(col, "Цей місяць", a[0], a[1], a[2]);
+                  a = agg(new String[]{today.substring(0, 4)});
+                  statLine(col, "Цей рік", a[0], a[1], a[2]);
+                  d.setContentView(sc);
+                  d.show();
+              }
+
+              void appsDrawer() {
+                  final Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                  ScrollView sc = new ScrollView(this);
+                  sc.setBackgroundColor(BG2 | 0xFF000000);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(24), px(16), px(24), px(24));
+                  sc.addView(col, new FrameLayout.LayoutParams(-1, -2));
+                  LinearLayout head = new LinearLayout(this);
+                  head.setGravity(Gravity.CENTER_VERTICAL);
+                  head.addView(text("Усі програми", 34, TXT, true), lp(0, -2, 1));
+                  Button close = btn("Закрити", 24);
+                  close.setOnClickListener(v -> d.dismiss());
+                  head.addView(close, lp(160, 56, 0));
+                  col.addView(head, lp(-1, -2, 0));
+                  final int cols = 6;
+                  LinearLayout row = null;
+                  List<ResolveInfo> l = launchables();
+                  for (int i = 0; i < l.size(); i++) {
+                      if (i % cols == 0) {
+                          row = new LinearLayout(this);
+                          LinearLayout.LayoutParams rp = lp(-1, -2, 0);
+                          rp.setMargins(0, px(14), 0, 0);
+                          col.addView(row, rp);
+                      }
+                      final ResolveInfo ri = l.get(i);
+                      LinearLayout cell = new LinearLayout(this);
+                      cell.setOrientation(LinearLayout.VERTICAL);
+                      cell.setGravity(Gravity.CENTER_HORIZONTAL);
+                      cell.setPadding(px(4), px(8), px(4), px(8));
+                      ImageView iv = new ImageView(this);
+                      iv.setImageDrawable(ri.loadIcon(pm));
+                      cell.addView(iv, lp(72, 72, 0));
+                      TextView tv = text(String.valueOf(ri.loadLabel(pm)), 18, TXT, false);
+                      tv.setGravity(Gravity.CENTER);
+                      tv.setSingleLine(true);
+                      tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                      cell.addView(tv, lp(-1, -2, 0));
+                      cell.setOnClickListener(v -> {
+                          d.dismiss();
+                          launch(ri.activityInfo.packageName);
+                      });
+                      row.addView(cell, lp(0, -2, 1));
+                  }
+                  if (row != null) for (int k = l.size() % cols; k != 0 && k < cols; k++) row.addView(new View(this), lp(0, 1, 1));
+                  d.setContentView(sc);
+                  d.show();
               }
 
               void resetTrip() {
