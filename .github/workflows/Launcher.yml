@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 19
-                  versionName "3.0"
+                  versionCode 20
+                  versionName "3.1"
               }
               signingConfigs {
                   debug {
@@ -218,7 +218,7 @@ jobs:
 
           public class MainActivity extends Activity implements Tuner.Listener {
               int ACC, TXT, DIM, CARD, BTN, BG1, BG2, OV;
-              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний"};
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний", "Вишнева", "Рубін", "Бордо"};
               // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст, затемнення фону
               static final int[][] TH = {
                       {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC, 0x55000000},
@@ -232,7 +232,10 @@ jobs:
                       {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075, 0x00000000},
                       {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A, 0x00000000},
                       {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663, 0x55000000},
-                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B, 0x00000000}};
+                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B, 0x00000000},
+                      {0xFF4A0E22, 0xFF16040B, 0xFFFF4D79, 0xB3260813, 0xFF5E1830, 0xFFFFE9EF, 0xFFE39AB0, 0x55000000},
+                      {0xFF5C0A14, 0xFF1F0307, 0xFFFF2D4A, 0xB3290509, 0xFF7A1220, 0xFFFFEAEC, 0xFFFF9AA6, 0x55000000},
+                      {0xFF3B0A1E, 0xFF12030A, 0xFFD94A6B, 0xB31F0712, 0xFF521A33, 0xFFF3DCE3, 0xFFB98494, 0x55000000}};
 
               void applyTheme() {
                   int[] t = TH[Math.min(TH.length - 1, Math.max(0, sp.getInt("theme", 0)))];
@@ -1217,8 +1220,67 @@ jobs:
               LinearLayout card(int orientation) {
                   LinearLayout c = new LinearLayout(this);
                   c.setOrientation(orientation);
-                  c.setBackground(rounded(CARD, 24));
+                  c.setBackground(blockBg(24));
                   return c;
+              }
+
+              static final String[] BSN = {"Звичайний", "Градієнт вертикальний", "Градієнт до акценту", "Градієнт горизонтальний", "Світіння", "Скло з рамкою", "Лише контур"};
+
+              int mixC(int a, int b, float t) {
+                  int r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+                  int g = Math.round(((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+                  int bl = Math.round((a & 255) * (1 - t) + (b & 255) * t);
+                  return (r << 16) | (g << 8) | bl;
+              }
+
+              int withA(int rgb, int al) {
+                  return (al << 24) | (rgb & 0xFFFFFF);
+              }
+
+              GradientDrawable blockBg(float r) {
+                  int st = sp.getInt("bstyle", 0);
+                  int ca = CARD >>> 24, cr = CARD & 0xFFFFFF;
+                  GradientDrawable g = new GradientDrawable();
+                  g.setCornerRadius(px(r));
+                  switch (st) {
+                      case 1:
+                          g.setOrientation(GradientDrawable.Orientation.TOP_BOTTOM);
+                          g.setColors(new int[]{withA(mixC(cr, 0xFFFFFF, 0.14f), ca), withA(mixC(cr, 0x000000, 0.30f), ca)});
+                          break;
+                      case 2:
+                          g.setOrientation(GradientDrawable.Orientation.TL_BR);
+                          g.setColors(new int[]{withA(mixC(cr, ACC, 0.45f), ca), withA(mixC(cr, 0x000000, 0.2f), ca)});
+                          break;
+                      case 3:
+                          g.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
+                          g.setColors(new int[]{withA(mixC(cr, ACC, 0.38f), ca), withA(cr, ca)});
+                          break;
+                      case 4:
+                          g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+                          g.setGradientRadius(px(420));
+                          g.setColors(new int[]{withA(mixC(cr, ACC, 0.42f), ca), withA(cr, ca)});
+                          break;
+                      case 5:
+                          g.setColor(withA(TXT, 0x1E));
+                          g.setStroke(px(2), withA(ACC, 0x99));
+                          break;
+                      case 6:
+                          g.setColor(withA(cr, 0x33));
+                          g.setStroke(px(2), withA(ACC, 0xDD));
+                          break;
+                      default:
+                          g.setColor(CARD);
+                  }
+                  return g;
+              }
+
+              void blockStyleMenu() {
+                  new AlertDialog.Builder(this).setTitle("Стиль блоків")
+                          .setSingleChoiceItems(BSN, sp.getInt("bstyle", 0), (d, i) -> {
+                              sp.edit().putInt("bstyle", i).apply();
+                              d.dismiss();
+                              recreate();
+                          }).show();
               }
 
               /** Іконка супутника, намальована кодом. */
@@ -1484,17 +1546,20 @@ jobs:
                   col.setPadding(px(16), px(16), px(16), px(8));
                   final LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
-                  col.addView(row, lp(-1, 110, 0));
+                  col.addView(row, lp(-1, 100, 0));
                   final LinearLayout row2 = new LinearLayout(this);
                   row2.setOrientation(LinearLayout.HORIZONTAL);
-                  col.addView(row2, lp(-1, 110, 0));
+                  col.addView(row2, lp(-1, 90, 0));
+                  final LinearLayout row3 = new LinearLayout(this);
+                  row3.setOrientation(LinearLayout.HORIZONTAL);
+                  col.addView(row3, lp(-1, 90, 0));
                   final LinearLayout crow = new LinearLayout(this);
                   crow.setOrientation(LinearLayout.HORIZONTAL);
                   LinearLayout.LayoutParams crp = lp(-1, 56, 0);
                   crp.setMargins(0, px(10), 0, 0);
                   col.addView(crow, crp);
-                  final View[] pv = new View[8];
-                  for (int i = 0; i < 8; i++) {
+                  final View[] pv = new View[12];
+                  for (int i = 0; i < 12; i++) {
                       final int k = i;
                       pv[i] = new View(this) {
                           @Override
@@ -1545,7 +1610,7 @@ jobs:
                                   }).show();
                           return true;
                       });
-                      (k < 5 ? row : row2).addView(pv[i], lp(0, -1, 1));
+                      (k < 5 ? row : k < 9 ? row2 : row3).addView(pv[i], lp(0, -1, 1));
                   }
                   for (int i = 0; i < MCOL.length; i++) {
                       final int k = i;
@@ -1737,7 +1802,7 @@ jobs:
                   // --- плитка з годинником і швидкістю ---
                   final ClockLayout clockCard = new ClockLayout(this);
                   clockLay = clockCard;
-                  clockCard.setBackground(rounded(CARD, 24));
+                  clockCard.setBackground(blockBg(24));
                   addBlock(0, clockCard);
                   tvClock = text("00:00", 76, TXT, true);
                   tvClock.setGravity(Gravity.CENTER);
@@ -1990,7 +2055,7 @@ jobs:
                   appsRow = new LinearLayout(this);
                   appsRow.setOrientation(LinearLayout.HORIZONTAL);
                   appsRow.setGravity(Gravity.CENTER_VERTICAL);
-                  appsRow.setBackground(rounded(CARD, 24));
+                  appsRow.setBackground(blockBg(24));
                   appsRow.setPadding(px(10), px(8), px(10), px(8));
                   LinearLayout.LayoutParams hlp = lp(-1, 0, 1.7f);
                   hlp.setMargins(0, px(14), 0, 0);
@@ -2759,6 +2824,7 @@ jobs:
                   group("Вигляд",
                           t("Тема кольорів", THN[Math.min(THN.length - 1, sp.getInt("theme", 0))], false, this::themeMenu),
                           t("Шрифт", fname, false, this::fontMenu),
+                          t("Стиль блоків", BSN[Math.min(BSN.length - 1, sp.getInt("bstyle", 0))], false, this::blockStyleMenu),
                           t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", false, this::alphaDialog),
                           t("Фон з галереї", "вибрати картинку", false, () -> {
                               Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
