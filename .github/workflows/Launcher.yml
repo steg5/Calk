@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 21
-                  versionName "3.2"
+                  versionCode 22
+                  versionName "3.3"
               }
               signingConfigs {
                   debug {
@@ -183,6 +183,7 @@ jobs:
           import android.media.session.PlaybackState;
           import android.net.Uri;
           import android.os.Build;
+          import android.os.Environment;
           import android.os.Bundle;
           import android.os.Handler;
           import android.os.Looper;
@@ -1159,6 +1160,11 @@ jobs:
                           hole.addCircle(0, 0, s * 0.13f, Path.Direction.CW);
                           ring.op(hole, Path.Op.DIFFERENCE);
                           cv.drawPath(ring, p);
+                      } else if (kind == 2) {
+                          float cs = s * 0.2f, gap = s * 0.1f;
+                          for (int r = -1; r <= 1; r++)
+                              for (int c = -1; c <= 1; c++)
+                                  cv.drawRoundRect(new RectF(c * (cs + gap) - cs / 2, r * (cs + gap) - cs / 2, c * (cs + gap) + cs / 2, r * (cs + gap) + cs / 2), cs * 0.25f, cs * 0.25f, p);
                       } else {
                           cv.rotate(-45);
                           Path head = new Path();
@@ -1731,10 +1737,69 @@ jobs:
 
               void pickMark(int slot) {
                   markSlot = slot;
-                  Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                  in.addCategory(Intent.CATEGORY_OPENABLE);
-                  in.setType("image/*");
-                  startActivityForResult(in, 7);
+                  pickImage(7);
+              }
+
+              void pickImage(int req) {
+                  Intent a = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                  a.addCategory(Intent.CATEGORY_OPENABLE);
+                  a.setType("image/*");
+                  Intent b = new Intent(Intent.ACTION_GET_CONTENT);
+                  b.addCategory(Intent.CATEGORY_OPENABLE);
+                  b.setType("image/*");
+                  Intent c = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                  for (Intent in : new Intent[]{a, b, c}) {
+                      try {
+                          startActivityForResult(in, req);
+                          return;
+                      } catch (Throwable ignored) {
+                      }
+                  }
+                  imageBrowser(req, Environment.getExternalStorageDirectory());
+              }
+
+              void imageBrowser(final int req, final File dir) {
+                  File[] fs = dir.listFiles();
+                  if (fs == null) {
+                      Toast.makeText(this, "Немає доступу до " + dir + ". Дай програмі дозвіл на пам'ять.", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  final List<File> items = new ArrayList<File>();
+                  List<File> ds = new ArrayList<File>(), is = new ArrayList<File>();
+                  for (File f : fs) {
+                      String n = f.getName().toLowerCase();
+                      if (f.getName().startsWith(".")) continue;
+                      if (f.isDirectory()) ds.add(f);
+                      else if (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".webp") || n.endsWith(".bmp") || n.endsWith(".gif")) is.add(f);
+                  }
+                  Comparator<File> cmp = new Comparator<File>() {
+                      @Override
+                      public int compare(File x, File y2) {
+                          return x.getName().compareToIgnoreCase(y2.getName());
+                      }
+                  };
+                  Collections.sort(ds, cmp);
+                  Collections.sort(is, cmp);
+                  final File parent = dir.getParentFile();
+                  List<String> names = new ArrayList<String>();
+                  if (parent != null && parent.canRead()) {
+                      items.add(parent);
+                      names.add("⬆  Вгору");
+                  }
+                  for (File f : ds) {
+                      items.add(f);
+                      names.add("📁  " + f.getName());
+                  }
+                  for (File f : is) {
+                      items.add(f);
+                      names.add(f.getName());
+                  }
+                  new AlertDialog.Builder(this).setTitle(dir.getPath())
+                          .setItems(names.toArray(new String[0]), (d, i) -> {
+                              File f = items.get(i);
+                              if (f.isDirectory()) imageBrowser(req, f);
+                              else onActivityResult(req, RESULT_OK, new Intent().setData(Uri.fromFile(f)));
+                          }).setNegativeButton("Скасувати", null).show();
               }
 
               final int[] MCOL = {0, 0xFF1E88E5, 0xFFFFFFFF, 0xFFE53935, 0xFF43A047, 0xFFFDD835, 0xFFFB8C00, 0xFF00E5FF, 0xFFAB47BC, 0xFFFF4081};
@@ -1833,7 +1898,7 @@ jobs:
                                   fired = false;
                                   break;
                               case MotionEvent.ACTION_MOVE:
-                                  if (zone && !fired && dy0 - e.getY() > px(50)) {
+                                  if (false && zone && !fired && dy0 - e.getY() > px(50)) {
                                       fired = true;
                                       appsDrawer();
                                       return true;
@@ -1862,7 +1927,7 @@ jobs:
           handle.setBackground(rounded(0x88FFFFFF, 3));
           FrameLayout.LayoutParams hdp = new FrameLayout.LayoutParams(px(90), px(5), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
           hdp.setMargins(0, 0, 0, px(7));
-          root.addView(handle, hdp);
+
                   canvas.addOnLayoutChangeListener((vw, l1, t1, r1, b1x, l0, t0, r0, b0) -> {
                       if (r1 - l1 != r0 - l0 || b1x - t1 != b0 - t0) canvas.post(this::layoutBlocks);
                   });
@@ -2884,6 +2949,11 @@ jobs:
                   head.addView(text("Налаштування", 36, TXT, true), lp(0, -2, 1));
                   Button close = btn("Закрити", 24);
                   close.setOnClickListener(v -> closeSettings());
+                  Button svcB = btn("Сервіс", 24);
+                  svcB.setOnClickListener(v -> showService());
+                  LinearLayout.LayoutParams svp = lp(150, 56, 0);
+                  svp.setMargins(0, 0, px(12), 0);
+                  head.addView(svcB, svp);
                   head.addView(close, lp(160, 56, 0));
                   setCol.addView(head, lp(-1, -2, 0));
 
@@ -2894,12 +2964,7 @@ jobs:
                           t("Шрифт", fname, false, this::fontMenu),
                           t("Стиль блоків", BSN[Math.min(BSN.length - 1, sp.getInt("bstyle", 0))], false, this::blockStyleMenu),
                           t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", false, this::alphaDialog),
-                          t("Фон з галереї", "вибрати картинку", false, () -> {
-                              Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                              in.addCategory(Intent.CATEGORY_OPENABLE);
-                              in.setType("image/*");
-                              startActivityForResult(in, 5);
-                          }),
+                          t("Фон з галереї", "вибрати картинку", false, () -> pickImage(5)),
                           t("Прибрати фон", "повернути градієнт", false, () -> {
                               new File(getFilesDir(), "bg.jpg").delete();
                               loadBg();
@@ -3274,6 +3339,11 @@ jobs:
                       ip.setMargins(px(4), 0, px(4), 0);
                       appsRow.addView(iv, ip);
                   }
+                  IconView ap = new IconView(this, 2);
+                  ap.setOnClickListener(v -> appsDrawer());
+                  LinearLayout.LayoutParams apl = lp(0, -1, 1);
+                  apl.setMargins(px(4), 0, px(4), 0);
+                  appsRow.addView(ap, apl);
                   IconView g = new IconView(this, 0);
                   g.setOnClickListener(v -> settingsMenu());
                   g.setOnLongClickListener(v -> {
@@ -3287,11 +3357,6 @@ jobs:
                   LinearLayout.LayoutParams gp = lp(0, -1, 1);
                   gp.setMargins(px(4), 0, px(4), 0);
                   appsRow.addView(g, gp);
-                  IconView sv = new IconView(this, 1);
-                  sv.setOnClickListener(v -> showService());
-                  LinearLayout.LayoutParams sp2 = lp(0, -1, 1);
-                  sp2.setMargins(px(4), 0, px(4), 0);
-                  appsRow.addView(sv, sp2);
               }
 
               void pickApps() {
