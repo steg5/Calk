@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 20
-                  versionName "3.1"
+                  versionCode 21
+                  versionName "3.2"
               }
               signingConfigs {
                   debug {
@@ -1224,7 +1224,7 @@ jobs:
                   return c;
               }
 
-              static final String[] BSN = {"Звичайний", "Градієнт вертикальний", "Градієнт до акценту", "Градієнт горизонтальний", "Світіння", "Скло з рамкою", "Лише контур"};
+              static final String[] BSN = {"Звичайний", "Градієнт вертикальний", "Градієнт до акценту", "Градієнт горизонтальний", "Світіння", "Скло", "Лише контур"};
 
               int mixC(int a, int b, float t) {
                   int r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
@@ -1238,8 +1238,12 @@ jobs:
               }
 
               GradientDrawable blockBg(float r) {
+                  return blockBg(r, CARD);
+              }
+
+              GradientDrawable blockBg(float r, int base) {
                   int st = sp.getInt("bstyle", 0);
-                  int ca = CARD >>> 24, cr = CARD & 0xFFFFFF;
+                  int ca = base >>> 24, cr = base & 0xFFFFFF;
                   GradientDrawable g = new GradientDrawable();
                   g.setCornerRadius(px(r));
                   switch (st) {
@@ -1261,15 +1265,14 @@ jobs:
                           g.setColors(new int[]{withA(mixC(cr, ACC, 0.42f), ca), withA(cr, ca)});
                           break;
                       case 5:
-                          g.setColor(withA(TXT, 0x1E));
-                          g.setStroke(px(2), withA(ACC, 0x99));
+                          g.setColor(withA(TXT, Math.round(ca * 0.3f)));
                           break;
                       case 6:
-                          g.setColor(withA(cr, 0x33));
+                          g.setColor(withA(cr, Math.round(ca * 0.2f)));
                           g.setStroke(px(2), withA(ACC, 0xDD));
                           break;
                       default:
-                          g.setColor(CARD);
+                          g.setColor(base);
                   }
                   return g;
               }
@@ -1449,6 +1452,27 @@ jobs:
                       return true;
                   }
 
+                  float sx0, sy0;
+                  boolean anchorDown, downOnEl, dragMoved;
+
+                  float[] anchorPos(int a, int i) {
+                      View v = el[i];
+                      float hw = v.getWidth() * sc[i] / 2f, hh = v.getHeight() * sc[i] / 2f, pad = px(6);
+                      int W = getWidth(), H = getHeight();
+                      int col = a % 3, row = a / 3;
+                      float x = col == 0 ? pad + hw : col == 1 ? W / 2f : W - pad - hw;
+                      float y = row == 0 ? pad + hh : row == 1 ? H / 2f : H - pad - hh;
+                      return new float[]{x, y};
+                  }
+
+                  int anchorAt(float x, float y) {
+                      for (int a = 0; a < 9; a++) {
+                          float[] p = anchorPos(a, sel);
+                          if (Math.hypot(x - p[0], y - p[1]) < px(30)) return a;
+                      }
+                      return -1;
+                  }
+
                   @Override
                   public boolean onTouchEvent(MotionEvent e) {
                       if (!edit) return false;
@@ -1456,21 +1480,46 @@ jobs:
                       int W = getWidth(), H = getHeight();
                       switch (e.getActionMasked()) {
                           case MotionEvent.ACTION_DOWN:
-                              sel = -1;
+                              sx0 = lx = x;
+                              sy0 = ly = y;
+                              dragMoved = false;
+                              downOnEl = false;
+                              anchorDown = false;
+                              if (sel >= 0) {
+                                  int a = anchorAt(x, y);
+                                  if (a >= 0) {
+                                      float[] p = anchorPos(a, sel);
+                                      cu[sel] = true;
+                                      fx[sel] = p[0] / W;
+                                      fy[sel] = p[1] / H;
+                                      anchorDown = true;
+                                      save();
+                                      requestLayout();
+                                      invalidate();
+                                      return true;
+                                  }
+                              }
+                              int hit = -1;
                               for (int i = 4; i >= 0; i--) {
-                                  RectF b = box(i);
-                                  b.inset(-px(10), -px(10));
-                                  if (b.contains(x, y)) {
-                                      sel = i;
+                                  RectF bx = box(i);
+                                  bx.inset(-px(10), -px(10));
+                                  if (bx.contains(x, y)) {
+                                      hit = i;
                                       break;
                                   }
                               }
-                              lx = x;
-                              ly = y;
+                              sel = hit;
+                              downOnEl = hit >= 0;
                               invalidate();
                               return true;
                           case MotionEvent.ACTION_MOVE:
-                              if (sel < 0) return true;
+                              if (anchorDown || sel < 0 || !downOnEl) return true;
+                              if (!dragMoved) {
+                                  if (Math.hypot(x - sx0, y - sy0) < px(16)) return true;
+                                  dragMoved = true;
+                                  lx = x;
+                                  ly = y;
+                              }
                               cu[sel] = true;
                               fx[sel] += (x - lx) / W;
                               fy[sel] += (y - ly) / H;
@@ -1521,13 +1570,32 @@ jobs:
                   protected void dispatchDraw(Canvas cv) {
                       super.dispatchDraw(cv);
                       if (!edit) return;
+                      for (int i = 0; i < 5; i++) {
+                          RectF bx = box(i);
+                          gp.setStyle(Paint.Style.FILL);
+                          gp.setColor(i == sel ? (ACC & 0xFFFFFF) | 0x38000000 : 0x00000000);
+                          cv.drawRect(bx, gp);
+                          gp.setStyle(Paint.Style.STROKE);
+                          gp.setStrokeWidth(i == sel ? px(3) : px(1.5f));
+                          gp.setColor(i == sel ? ACC : 0x66FFFFFF);
+                          cv.drawRect(bx, gp);
+                      }
+                      if (sel >= 0) {
+                          float[] cur = {box(sel).centerX(), box(sel).centerY()};
+                          for (int a = 0; a < 9; a++) {
+                              float[] p = anchorPos(a, sel);
+                              boolean here = Math.hypot(cur[0] - p[0], cur[1] - p[1]) < px(5);
+                              gp.setStyle(Paint.Style.FILL);
+                              gp.setColor(here ? ACC : (ACC & 0xFFFFFF) | 0x66000000);
+                              cv.drawCircle(p[0], p[1], px(13), gp);
+                              gp.setStyle(Paint.Style.STROKE);
+                              gp.setStrokeWidth(px(2));
+                              gp.setColor(ACC);
+                              cv.drawCircle(p[0], p[1], px(13), gp);
+                          }
+                      }
                       gp.setStyle(Paint.Style.STROKE);
                       gp.setStrokeWidth(px(1.5f));
-                      for (int i = 0; i < 5; i++) {
-                          RectF b = box(i);
-                          gp.setColor(i == sel ? ACC : 0x66FFFFFF);
-                          cv.drawRect(b, gp);
-                      }
                       gp.setColor(0xFF00E5FF);
                       if (gx >= 0) cv.drawLine(gx, 0, gx, getHeight(), gp);
                       if (gy >= 0) cv.drawLine(0, gy, getWidth(), gy, gp);
@@ -2777,7 +2845,7 @@ jobs:
                       tile.setOrientation(LinearLayout.VERTICAL);
                       tile.setGravity(Gravity.CENTER_VERTICAL);
                       tile.setPadding(px(18), px(12), px(18), px(12));
-                      tile.setBackground(rounded(BTN, 18));
+                      tile.setBackground(blockBg(18, BTN));
                       TextView tt = text((String) it[0], 24, TXT, true);
                       tt.setSingleLine(true);
                       tt.setEllipsize(android.text.TextUtils.TruncateAt.END);
