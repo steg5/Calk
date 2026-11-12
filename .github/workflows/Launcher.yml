@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 18
-                  versionName "2.9"
+                  versionCode 19
+                  versionName "3.0"
               }
               signingConfigs {
                   debug {
@@ -152,6 +152,8 @@ jobs:
           import android.app.Dialog;
           import android.app.ActivityOptions;
           import android.app.AlertDialog;
+          import android.content.BroadcastReceiver;
+          import android.content.IntentFilter;
           import android.content.ComponentName;
           import android.content.Context;
           import android.content.Intent;
@@ -1654,6 +1656,17 @@ jobs:
                   }
                   sp = getSharedPreferences("launcher", MODE_PRIVATE);
                   pm = getPackageManager();
+                  IntentFilter pf = new IntentFilter();
+                  pf.addAction(Intent.ACTION_PACKAGE_ADDED);
+                  pf.addAction(Intent.ACTION_PACKAGE_REMOVED);
+                  pf.addDataScheme("package");
+                  registerReceiver(new BroadcastReceiver() {
+                      @Override
+                      public void onReceive(Context c, Intent i) {
+                          appCache = null;
+                          preloadApps(null);
+                      }
+                  }, pf);
                   applyTheme();
                   magnet = sp.getBoolean("magnet", true);
                   android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
@@ -2037,6 +2050,7 @@ jobs:
                   root.addView(editBar, ebp);
 
                   setContentView(root);
+          preloadApps(null);
                   ready = true;
                   loadBg();
                   tick();
@@ -2280,15 +2294,55 @@ jobs:
                   d.show();
               }
 
+              static class AppEntry {
+                  String pkg, label;
+                  Bitmap icon;
+              }
+
+              volatile List<AppEntry> appCache = null;
+              volatile boolean appsLoading = false;
+              Bitmap bgCache;
+
+              void preloadApps(final Runnable then) {
+                  if (appsLoading) return;
+                  appsLoading = true;
+                  new Thread(() -> {
+                      List<AppEntry> out = new ArrayList<AppEntry>();
+                      try {
+                          int sz = px(104);
+                          for (ResolveInfo ri : launchables()) {
+                              AppEntry e = new AppEntry();
+                              e.pkg = ri.activityInfo.packageName;
+                              e.label = String.valueOf(ri.loadLabel(pm));
+                              try {
+                                  android.graphics.drawable.Drawable dr = ri.loadIcon(pm);
+                                  Bitmap bm = Bitmap.createBitmap(sz, sz, Bitmap.Config.ARGB_8888);
+                                  Canvas c = new Canvas(bm);
+                                  dr.setBounds(0, 0, sz, sz);
+                                  dr.draw(c);
+                                  e.icon = bm;
+                              } catch (Throwable ignored) {
+                              }
+                              out.add(e);
+                          }
+                      } catch (Throwable ignored) {
+                      }
+                      appCache = out;
+                      appsLoading = false;
+                      if (then != null) ui.post(then);
+                  }).start();
+              }
+
               View themedBg(ScrollView sc) {
                   FrameLayout f = new FrameLayout(this);
                   f.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1 | 0xFF000000, BG2 | 0xFF000000}));
                   File bf = new File(getFilesDir(), "bg.jpg");
                   if (bf.exists()) {
                       try {
+                          if (bgCache == null) bgCache = BitmapFactory.decodeFile(bf.getAbsolutePath());
                           ImageView iv = new ImageView(this);
                           iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                          iv.setImageBitmap(BitmapFactory.decodeFile(bf.getAbsolutePath()));
+                          iv.setImageBitmap(bgCache);
                           f.addView(iv, new FrameLayout.LayoutParams(-1, -1));
                       } catch (Throwable ignored) {
                       }
@@ -2302,6 +2356,11 @@ jobs:
               }
 
               void appsDrawer() {
+                  if (appCache == null) {
+                      Toast.makeText(this, "Завантажую список програм…", Toast.LENGTH_SHORT).show();
+                      preloadApps(this::appsDrawer);
+                      return;
+                  }
                   final Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
                   ScrollView sc = new ScrollView(this);
                   sc.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1 | 0xFF000000, BG2 | 0xFF000000}));
@@ -2318,7 +2377,7 @@ jobs:
                   col.addView(head, lp(-1, -2, 0));
                   final int cols = 6;
                   LinearLayout row = null;
-                  List<ResolveInfo> l = launchables();
+                  List<AppEntry> l = appCache;
                   for (int i = 0; i < l.size(); i++) {
                       if (i % cols == 0) {
                           row = new LinearLayout(this);
@@ -2326,22 +2385,22 @@ jobs:
                           rp.setMargins(0, px(2), 0, 0);
                           col.addView(row, rp);
                       }
-                      final ResolveInfo ri = l.get(i);
+                      final AppEntry ri = l.get(i);
                       LinearLayout cell = new LinearLayout(this);
                       cell.setOrientation(LinearLayout.VERTICAL);
                       cell.setGravity(Gravity.CENTER_HORIZONTAL);
                       cell.setPadding(px(2), px(4), px(2), px(4));
                       ImageView iv = new ImageView(this);
-                      iv.setImageDrawable(ri.loadIcon(pm));
+                      iv.setImageBitmap(ri.icon);
                       cell.addView(iv, lp(104, 104, 0));
-                      TextView tv = text(String.valueOf(ri.loadLabel(pm)), 20, TXT, false);
+                      TextView tv = text(ri.label, 20, TXT, false);
                       tv.setGravity(Gravity.CENTER);
                       tv.setSingleLine(true);
                       tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
                       cell.addView(tv, lp(-1, -2, 0));
                       cell.setOnClickListener(v -> {
                           d.dismiss();
-                          launch(ri.activityInfo.packageName);
+                          launch(ri.pkg);
                       });
                       row.addView(cell, lp(0, -2, 1));
                   }
@@ -2975,7 +3034,8 @@ jobs:
                   File f = new File(getFilesDir(), "bg.jpg");
                   try {
                       if (f.exists()) {
-                          bg.setImageBitmap(BitmapFactory.decodeFile(f.getAbsolutePath()));
+                          bgCache = BitmapFactory.decodeFile(f.getAbsolutePath());
+                          bg.setImageBitmap(bgCache);
                           return;
                       }
                   } catch (Throwable ignored) {
@@ -2990,10 +3050,12 @@ jobs:
                   List<ResolveInfo> l = pm.queryIntentActivities(i, 0);
                   List<ResolveInfo> r = new ArrayList<ResolveInfo>();
                   for (ResolveInfo ri : l) if (!ri.activityInfo.packageName.equals(getPackageName())) r.add(ri);
+                  final java.util.HashMap<ResolveInfo, String> lb = new java.util.HashMap<ResolveInfo, String>();
+                  for (ResolveInfo ri : r) lb.put(ri, String.valueOf(ri.loadLabel(pm)));
                   Collections.sort(r, new Comparator<ResolveInfo>() {
                       @Override
                       public int compare(ResolveInfo a, ResolveInfo b) {
-                          return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
+                          return lb.get(a).compareToIgnoreCase(lb.get(b));
                       }
                   });
                   return r;
