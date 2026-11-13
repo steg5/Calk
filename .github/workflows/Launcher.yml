@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 27
-                  versionName "3.8"
+                  versionCode 28
+                  versionName "3.9"
               }
               signingConfigs {
                   debug {
@@ -756,7 +756,9 @@ jobs:
               LinearLayout svcCard(String title) {
                   LinearLayout c = card(LinearLayout.VERTICAL);
                   c.setPadding(px(22), px(16), px(22), px(18));
-                  c.addView(text(title, 28, ACC, true), lp(-1, -2, 0));
+                  TextView sh = text(title, 28, ACC, true);
+                  sh.setGravity(Gravity.CENTER);
+                  c.addView(sh, lp(-1, -2, 0));
                   LinearLayout.LayoutParams l = lp(-1, -2, 0);
                   l.setMargins(0, px(14), 0, 0);
                   svcCol.addView(c, l);
@@ -2766,9 +2768,10 @@ jobs:
                   box.setPadding(px(22), px(18), px(22), px(20));
                   GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1 | 0xFF000000, BG2 | 0xFF000000});
                   g.setCornerRadius(px(22));
-                  g.setStroke(px(2), ACC);
                   box.setBackground(g);
                   TextView t = text(title, 28, ACC, true);
+                  t.setGravity(Gravity.CENTER);
+                  t.setMaxWidth(px(520));
                   t.setSingleLine(true);
                   t.setEllipsize(android.text.TextUtils.TruncateAt.END);
                   LinearLayout.LayoutParams tp = lp(-1, -2, 0);
@@ -2777,14 +2780,14 @@ jobs:
                   box.addView(body, lp(-1, -2, 0));
                   dl.setContentView(box);
                   dl.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
-                  dl.getWindow().setLayout(px(width), ViewGroup.LayoutParams.WRAP_CONTENT);
+                  dl.getWindow().setLayout(width < 0 ? ViewGroup.LayoutParams.WRAP_CONTENT : px(width), ViewGroup.LayoutParams.WRAP_CONTENT);
                   return dl;
               }
 
               Button menuBtn(String s) {
                   Button b = btn(s, 26);
-                  b.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
-                  b.setPadding(px(20), 0, px(20), 0);
+                  b.setGravity(Gravity.CENTER);
+                  b.setPadding(px(30), 0, px(30), 0);
                   return b;
               }
 
@@ -2802,7 +2805,7 @@ jobs:
               void appMenu(final AppEntry e, final Runnable rebuild) {
                   final LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  final Dialog dl = themedDialog(appName(e.pkg, e.label), col, 520);
+                  final Dialog dl = themedDialog(appName(e.pkg, e.label), col, -1);
                   addMenuBtn(col, dl, "Властивості", () -> {
                       try {
                           startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + e.pkg)));
@@ -2815,7 +2818,7 @@ jobs:
                   boolean on = autoOn(e.pkg);
                   String rp = pkgFor("radio");
                   boolean noAuto = e.pkg.equals(getPackageName());
-                  if (!noAuto) addMenuBtn(col, dl, "Автозапуск: " + (on ? "увімкнено" : "вимкнено"), () -> {
+                  if (!noAuto) addMenuBtn(col, dl, "Автозапуск: " + (on ? "вкл." : "викл."), () -> {
                       StringBuilder sb = new StringBuilder();
                       for (String x : sp.getString("autoapps", "").split(",")) {
                           if (x.isEmpty() || x.equals(e.pkg)) continue;
@@ -2970,13 +2973,13 @@ jobs:
               void sortDialog(final Runnable rebuild) {
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  final Dialog dl = themedDialog("Сортувати", col, 520);
+                  final Dialog dl = themedDialog("Сортувати", col, -1);
                   String cur = sp.getString("sortmode", "name");
                   final String[] keys = {"name", "date", "freq", "manual"};
                   String[] names = {"За назвою", "За датою встановлення", "За частотою використання", "Вручну (як розставлено)"};
                   for (int i = 0; i < keys.length; i++) {
                       final String k = keys[i];
-                      addMenuBtn(col, dl, (cur.equals(k) ? "✓  " : "     ") + names[i], () -> {
+                      addMenuBtn(col, dl, (cur.equals(k) ? "✓  " : "") + names[i], () -> {
                           sp.edit().putString("sortmode", k).apply();
                           rebuild.run();
                       });
@@ -3216,7 +3219,9 @@ jobs:
                   Button close = btn("Закрити", 24);
                   close.setOnClickListener(v -> d.dismiss());
                   head.addView(close, lp(160, 56, 0));
-                  col.addView(head, lp(-1, -2, 0));
+                  LinearLayout.LayoutParams hdp2 = lp(-1, -2, 0);
+                  hdp2.setMargins(0, 0, 0, px(24));
+                  col.addView(head, hdp2);
                   grid.cb = new GridCb() {
                       @Override
                       public void click(AppEntry e) {
@@ -3251,6 +3256,20 @@ jobs:
                       String p = pkgFor(key);
                       if (p == null) return "не вибрано";
                       return String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(p, 0)));
+                  } catch (Throwable t) {
+                      return "не вибрано";
+                  }
+              }
+
+              String homeLabel() {
+                  try {
+                      Intent h = new Intent(Intent.ACTION_MAIN);
+                      h.addCategory(Intent.CATEGORY_HOME);
+                      ResolveInfo ri = pm.resolveActivity(h, PackageManager.MATCH_DEFAULT_ONLY);
+                      if (ri == null || ri.activityInfo == null) return "не вибрано";
+                      String pk = ri.activityInfo.packageName;
+                      if (pk.equals("android") || pk.equals("com.android.internal.app")) return "не вибрано";
+                      return String.valueOf(ri.loadLabel(pm));
                   } catch (Throwable t) {
                       return "не вибрано";
                   }
@@ -3556,6 +3575,7 @@ jobs:
 
               void group(String title, Object[]... items) {
                   TextView h = text(title, 26, ACC, true);
+                  h.setGravity(Gravity.CENTER);
                   LinearLayout.LayoutParams hp = lp(-1, -2, 0);
                   hp.setMargins(0, px(20), 0, 0);
                   setCol.addView(h, hp);
@@ -3571,14 +3591,19 @@ jobs:
                       final Object[] it = items[i];
                       LinearLayout tile = new LinearLayout(this);
                       tile.setOrientation(LinearLayout.VERTICAL);
-                      tile.setGravity(Gravity.CENTER_VERTICAL);
+                      tile.setGravity(Gravity.CENTER);
                       tile.setPadding(px(18), px(12), px(18), px(12));
                       tile.setBackground(blockBg(18, BTN));
                       TextView tt = text((String) it[0], 24, TXT, true);
+                      tt.setGravity(Gravity.CENTER);
                       tt.setSingleLine(true);
                       tt.setEllipsize(android.text.TextUtils.TruncateAt.END);
                       tile.addView(tt, lp(-1, -2, 0));
-                      TextView sb = text((String) it[1], 19, DIM, false);
+                      String ss = (String) it[1];
+                      if (ss.length() > 1 && Character.isUpperCase(ss.charAt(0)) && !Character.isUpperCase(ss.charAt(1)))
+                          ss = Character.toLowerCase(ss.charAt(0)) + ss.substring(1);
+                      TextView sb = text(ss, 19, DIM, false);
+                      sb.setGravity(Gravity.CENTER);
                       sb.setSingleLine(true);
                       sb.setEllipsize(android.text.TextUtils.TruncateAt.END);
                       tile.addView(sb, lp(-1, -2, 0));
@@ -3641,7 +3666,7 @@ jobs:
                           t("Нічна яскравість", String.valueOf(minB()), false, this::minDialog));
                   group("Блоки",
                           t("Розташування і розміри", "тягнути, змінювати", true, this::enterEdit),
-                          t("Скільки програм", String.valueOf(sp.getInt("napps", 5)), false, this::countMenu),
+                          t("Кількість програм", String.valueOf(sp.getInt("napps", 5)), false, this::countMenu),
                           t("Програми внизу", "вибрати значки", false, this::pickApps),
                           t("Елементи годинника", "місце і розмір", true, this::clockEdit));
                   group("Навігація",
@@ -3656,20 +3681,12 @@ jobs:
                               rebuildSettings();
                           }));
                   group("Система",
-                          t("Вибрати за замовчуванням", "лаунчер головним екраном", false, this::setDefaultHome),
+                          t("Лаунчер за замовчуванням", homeLabel(), false, this::setDefaultHome),
                           t("Програма радіо", keyLabel("radio"), false, () -> chooseApp("radio", "Радіо")),
                           t("Програма плеєра", keyLabel("aimp"), false, () -> chooseApp("aimp", "Плеєр")),
                           t("Примусовий автозапуск лаунчера", "якщо стандартний не спрацьовує: " + onOff(sp.getBoolean("autostart", false)), false, () -> {
                               sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
                               rebuildSettings();
-                          }),
-                          t("Скинути поїздку", "середня, макс.", false, this::resetTrip),
-                          t("Доступ до сповіщень", "для даних AIMP", false, () -> {
-                              try {
-                                  startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
-                              } catch (Throwable e) {
-                                  Toast.makeText(this, "" + e, Toast.LENGTH_LONG).show();
-                              }
                           }));
               }
 
@@ -3831,7 +3848,7 @@ jobs:
 
               void countMenu() {
                   final String[] n = {"3", "4", "5", "6", "7", "8"};
-                  new AlertDialog.Builder(this).setTitle("Скільки програм показувати")
+                  new AlertDialog.Builder(this).setTitle("Кількість програм")
                           .setSingleChoiceItems(n, sp.getInt("napps", 5) - 3, (d, i) -> {
                               sp.edit().putInt("napps", i + 3).apply();
                               d.dismiss();
