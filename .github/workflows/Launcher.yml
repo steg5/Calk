@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 22
-                  versionName "3.3"
+                  versionCode 23
+                  versionName "3.4"
               }
               signingConfigs {
                   debug {
@@ -2036,9 +2036,6 @@ jobs:
                   radio.setPadding(px(10), px(14), px(10), px(12));
                   radio.setClickable(true);
                   radio.setOnClickListener(v -> launchKey("radio"));
-                  TextView rl = text("РАДІО", 20, DIM, true);
-                  rl.setGravity(Gravity.CENTER);
-                  radio.addView(rl, lp(-1, -2, 0));
                   tvStation = text(sp.getString("lname", "Радіо"), 28, TXT, true);
                   tvStation.setGravity(Gravity.CENTER);
                   tvStation.setMaxLines(3);
@@ -2256,6 +2253,16 @@ jobs:
                   tuner = new Tuner(this);
                   tuner.setHost(this, MainActivity.class);
                   tuner.start();
+                  if (!autoAppsDone) {
+                      autoAppsDone = true;
+                      String[] aa = sp.getString("autoapps", "").split(",");
+                      int k = 0;
+                      for (final String ap : aa) {
+                          if (ap.isEmpty()) continue;
+                          ui.postDelayed(() -> launch(ap), 9000 + 5000L * k);
+                          k++;
+                      }
+                  }
                   if (sp.getBoolean("autoradio", false)) {
                       ui.postDelayed(() -> {
                           tuner.startRadio();
@@ -2553,6 +2560,639 @@ jobs:
                   return f;
               }
 
+              // ===== меню програм: значки, сортування, довгий тиск =====
+              static boolean autoAppsDone = false;
+              final java.util.HashMap<String, Bitmap> iconCache = new java.util.HashMap<String, Bitmap>();
+              String iconPkg;
+              Runnable iconDone;
+              static final String[] STD_NAMES = {"Музика", "Радіо", "Файли", "Навігація", "Телефон", "Камера", "Налаштування", "Браузер",
+                      "Відео", "Ігри", "Калькулятор", "Повідомлення", "Годинник", "Галерея", "Авто", "Зірка"};
+
+              String appName(String pkg, String def) {
+                  String n = sp.getString("name_" + pkg, "");
+                  return n.isEmpty() ? def : n;
+              }
+
+              Bitmap customIcon(String pkg) {
+                  String ic = sp.getString("icon_" + pkg, "");
+                  if (ic.startsWith("std:")) {
+                      try {
+                          return stdIcon(Integer.parseInt(ic.substring(4)));
+                      } catch (Throwable t) {
+                          return null;
+                      }
+                  }
+                  if (ic.equals("file")) {
+                      Bitmap b = iconCache.get("f:" + pkg);
+                      if (b == null) {
+                          b = BitmapFactory.decodeFile(new File(getFilesDir(), "ai_" + pkg + ".png").getAbsolutePath());
+                          if (b != null) iconCache.put("f:" + pkg, b);
+                      }
+                      return b;
+                  }
+                  return null;
+              }
+
+              int over(int fg, int base) {
+                  float a = android.graphics.Color.alpha(fg) / 255f;
+                  int r = Math.round(android.graphics.Color.red(fg) * a + android.graphics.Color.red(base) * (1 - a));
+                  int g = Math.round(android.graphics.Color.green(fg) * a + android.graphics.Color.green(base) * (1 - a));
+                  int b = Math.round(android.graphics.Color.blue(fg) * a + android.graphics.Color.blue(base) * (1 - a));
+                  return 0xFF000000 | (r << 16) | (g << 8) | b;
+              }
+
+              Bitmap stdIcon(int n) {
+                  String key = "std:" + n + ":" + ACC + ":" + BTN + ":" + BG1;
+                  Bitmap cached = iconCache.get(key);
+                  if (cached != null) return cached;
+                  int S = 160;
+                  Bitmap bm = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
+                  Canvas c = new Canvas(bm);
+                  c.scale(S / 100f, S / 100f);
+                  int tile = over(BTN, BG1 | 0xFF000000);
+                  int ac = ACC | 0xFF000000;
+                  Paint bgp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  bgp.setColor(tile);
+                  Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  f.setColor(ac);
+                  Paint sk = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  sk.setColor(ac);
+                  sk.setStyle(Paint.Style.STROKE);
+                  sk.setStrokeWidth(5);
+                  sk.setStrokeCap(Paint.Cap.ROUND);
+                  sk.setStrokeJoin(Paint.Join.ROUND);
+                  c.drawRoundRect(new RectF(1, 1, 99, 99), 22, 22, bgp);
+                  Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  ring.setColor(ac);
+                  ring.setAlpha(110);
+                  ring.setStyle(Paint.Style.STROKE);
+                  ring.setStrokeWidth(2);
+                  c.drawRoundRect(new RectF(1, 1, 99, 99), 22, 22, ring);
+                  Path p = new Path();
+                  switch (n) {
+                      case 0:
+                          c.drawCircle(40, 66, 9, f);
+                          c.drawCircle(68, 60, 9, f);
+                          c.drawRect(46, 32, 51, 66, f);
+                          c.drawRect(74, 26, 79, 60, f);
+                          p.moveTo(46, 30);
+                          p.lineTo(79, 24);
+                          p.lineTo(79, 34);
+                          p.lineTo(46, 40);
+                          p.close();
+                          c.drawPath(p, f);
+                          break;
+                      case 1:
+                          c.drawRoundRect(new RectF(24, 38, 76, 74), 7, 7, f);
+                          c.drawCircle(40, 56, 9, bgp);
+                          c.drawRect(54, 47, 68, 51, bgp);
+                          c.drawRect(54, 56, 68, 60, bgp);
+                          c.drawLine(58, 38, 74, 22, sk);
+                          break;
+                      case 2:
+                          c.drawRoundRect(new RectF(22, 28, 48, 42), 4, 4, f);
+                          c.drawRoundRect(new RectF(22, 34, 78, 72), 6, 6, f);
+                          break;
+                      case 3:
+                          p.moveTo(50, 20);
+                          p.lineTo(74, 78);
+                          p.lineTo(50, 64);
+                          p.lineTo(26, 78);
+                          p.close();
+                          c.drawPath(p, f);
+                          break;
+                      case 4:
+                          c.drawRoundRect(new RectF(35, 20, 65, 80), 8, 8, f);
+                          c.drawRect(40, 29, 60, 64, bgp);
+                          c.drawCircle(50, 72, 3.5f, bgp);
+                          break;
+                      case 5:
+                          c.drawRoundRect(new RectF(38, 26, 62, 40), 4, 4, f);
+                          c.drawRoundRect(new RectF(22, 34, 78, 74), 8, 8, f);
+                          c.drawCircle(50, 54, 13, bgp);
+                          c.drawCircle(50, 54, 8, f);
+                          break;
+                      case 6:
+                          for (int i = 0; i < 8; i++) {
+                              c.save();
+                              c.rotate(i * 45, 50, 50);
+                              c.drawRect(45, 20, 55, 34, f);
+                              c.restore();
+                          }
+                          c.drawCircle(50, 50, 22, f);
+                          c.drawCircle(50, 50, 9, bgp);
+                          break;
+                      case 7:
+                          c.drawCircle(50, 50, 27, sk);
+                          c.drawOval(new RectF(36, 23, 64, 77), sk);
+                          c.drawLine(23, 50, 77, 50, sk);
+                          break;
+                      case 8:
+                          c.drawRoundRect(new RectF(22, 30, 78, 70), 9, 9, f);
+                          p.moveTo(44, 40);
+                          p.lineTo(44, 60);
+                          p.lineTo(60, 50);
+                          p.close();
+                          c.drawPath(p, bgp);
+                          break;
+                      case 9:
+                          c.drawRoundRect(new RectF(18, 36, 82, 68), 15, 15, f);
+                          c.drawRect(28, 50, 42, 54, bgp);
+                          c.drawRect(33, 45, 37, 59, bgp);
+                          c.drawCircle(62, 50, 3.5f, bgp);
+                          c.drawCircle(71, 56, 3.5f, bgp);
+                          break;
+                      case 10:
+                          c.drawRoundRect(new RectF(29, 20, 71, 80), 7, 7, f);
+                          c.drawRect(35, 27, 65, 40, bgp);
+                          for (int r = 0; r < 3; r++)
+                              for (int q = 0; q < 3; q++) c.drawCircle(39 + q * 11, 51 + r * 10, 3.2f, bgp);
+                          break;
+                      case 11:
+                          c.drawRoundRect(new RectF(21, 26, 79, 64), 11, 11, f);
+                          p.moveTo(33, 60);
+                          p.lineTo(33, 78);
+                          p.lineTo(52, 60);
+                          p.close();
+                          c.drawPath(p, f);
+                          c.drawCircle(37, 45, 3.5f, bgp);
+                          c.drawCircle(50, 45, 3.5f, bgp);
+                          c.drawCircle(63, 45, 3.5f, bgp);
+                          break;
+                      case 12:
+                          c.drawCircle(50, 50, 28, sk);
+                          c.drawLine(50, 50, 50, 32, sk);
+                          c.drawLine(50, 50, 63, 57, sk);
+                          break;
+                      case 13:
+                          c.drawRoundRect(new RectF(23, 27, 77, 73), 7, 7, sk);
+                          p.moveTo(29, 67);
+                          p.lineTo(45, 45);
+                          p.lineTo(57, 59);
+                          p.lineTo(64, 51);
+                          p.lineTo(72, 67);
+                          p.close();
+                          c.drawPath(p, f);
+                          c.drawCircle(63, 38, 5, f);
+                          break;
+                      case 14:
+                          p.moveTo(30, 54);
+                          p.lineTo(39, 36);
+                          p.lineTo(61, 36);
+                          p.lineTo(70, 54);
+                          p.close();
+                          c.drawPath(p, f);
+                          c.drawRoundRect(new RectF(20, 50, 80, 68), 7, 7, f);
+                          c.drawCircle(35, 70, 10, bgp);
+                          c.drawCircle(65, 70, 10, bgp);
+                          c.drawCircle(35, 70, 6.5f, f);
+                          c.drawCircle(65, 70, 6.5f, f);
+                          break;
+                      default:
+                          for (int i = 0; i < 10; i++) {
+                              float rr = i % 2 == 0 ? 30 : 13;
+                              double an = Math.toRadians(-90 + i * 36);
+                              float px_ = 50 + (float) Math.cos(an) * rr, py_ = 52 + (float) Math.sin(an) * rr;
+                              if (i == 0) p.moveTo(px_, py_);
+                              else p.lineTo(px_, py_);
+                          }
+                          p.close();
+                          c.drawPath(p, f);
+                          break;
+                  }
+                  iconCache.put(key, bm);
+                  return bm;
+              }
+
+              Dialog themedDialog(String title, View body, int width) {
+                  final Dialog dl = new Dialog(this);
+                  dl.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setPadding(px(22), px(18), px(22), px(20));
+                  GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1 | 0xFF000000, BG2 | 0xFF000000});
+                  g.setCornerRadius(px(22));
+                  g.setStroke(px(2), ACC);
+                  box.setBackground(g);
+                  TextView t = text(title, 28, ACC, true);
+                  t.setSingleLine(true);
+                  t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                  LinearLayout.LayoutParams tp = lp(-1, -2, 0);
+                  tp.setMargins(0, 0, 0, px(12));
+                  box.addView(t, tp);
+                  box.addView(body, lp(-1, -2, 0));
+                  dl.setContentView(box);
+                  dl.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                  dl.getWindow().setLayout(px(width), ViewGroup.LayoutParams.WRAP_CONTENT);
+                  return dl;
+              }
+
+              Button menuBtn(String s) {
+                  Button b = btn(s, 26);
+                  b.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
+                  b.setPadding(px(20), 0, px(20), 0);
+                  return b;
+              }
+
+              void addMenuBtn(LinearLayout col, Dialog dl, String s, final Runnable r) {
+                  Button b = menuBtn(s);
+                  b.setOnClickListener(v -> {
+                      dl.dismiss();
+                      r.run();
+                  });
+                  LinearLayout.LayoutParams p = lp(-1, 62, 0);
+                  p.setMargins(0, px(4), 0, px(4));
+                  col.addView(b, p);
+              }
+
+              void appMenu(final AppEntry e, final Runnable rebuild) {
+                  final LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  final Dialog dl = themedDialog(appName(e.pkg, e.label), col, 520);
+                  addMenuBtn(col, dl, "Властивості", () -> {
+                      try {
+                          startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + e.pkg)));
+                      } catch (Throwable t) {
+                          Toast.makeText(this, "" + t, Toast.LENGTH_LONG).show();
+                      }
+                  });
+                  addMenuBtn(col, dl, "Перейменувати", () -> renameApp(e, rebuild));
+                  addMenuBtn(col, dl, "Значок", () -> iconDialog(e, rebuild));
+                  boolean on = autoOn(e.pkg);
+                  addMenuBtn(col, dl, "Автозапуск: " + (on ? "увімкнено" : "вимкнено"), () -> {
+                      StringBuilder sb = new StringBuilder();
+                      for (String x : sp.getString("autoapps", "").split(",")) {
+                          if (x.isEmpty() || x.equals(e.pkg)) continue;
+                          if (sb.length() > 0) sb.append(',');
+                          sb.append(x);
+                      }
+                      if (!autoOn(e.pkg)) {
+                          if (sb.length() > 0) sb.append(',');
+                          sb.append(e.pkg);
+                      }
+                      sp.edit().putString("autoapps", sb.toString()).apply();
+                      Toast.makeText(this, autoOn(e.pkg) ? "Автозапуск увімкнено" : "Автозапуск вимкнено", Toast.LENGTH_SHORT).show();
+                  });
+                  addMenuBtn(col, dl, "Видалити", () -> {
+                      try {
+                          startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + e.pkg)));
+                      } catch (Throwable t) {
+                          Toast.makeText(this, "" + t, Toast.LENGTH_LONG).show();
+                      }
+                  });
+                  dl.show();
+              }
+
+              boolean autoOn(String pkg) {
+                  for (String x : sp.getString("autoapps", "").split(",")) if (x.equals(pkg)) return true;
+                  return false;
+              }
+
+              void renameApp(final AppEntry e, final Runnable rebuild) {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  final EditText et = new EditText(this);
+                  et.setText(appName(e.pkg, e.label));
+                  et.setTextColor(TXT);
+                  et.setSingleLine(true);
+                  et.setTextSize(TypedValue.COMPLEX_UNIT_PX, 26 * u);
+                  et.setBackground(rounded(BTN, 12));
+                  et.setPadding(px(14), px(8), px(14), px(8));
+                  col.addView(et, lp(-1, 66, 0));
+                  LinearLayout row = new LinearLayout(this);
+                  final Dialog dl = themedDialog("Перейменувати", col, 620);
+                  Button ok = btn("Зберегти", 24);
+                  ok.setOnClickListener(v -> {
+                      String n = et.getText().toString().trim();
+                      sp.edit().putString("name_" + e.pkg, n.equals(e.label) ? "" : n).apply();
+                      dl.dismiss();
+                      rebuild.run();
+                  });
+                  Button rs = btn("Скинути", 24);
+                  rs.setOnClickListener(v -> {
+                      sp.edit().remove("name_" + e.pkg).apply();
+                      dl.dismiss();
+                      rebuild.run();
+                  });
+                  Button cn = btn("Скасувати", 24);
+                  cn.setOnClickListener(v -> dl.dismiss());
+                  LinearLayout.LayoutParams bp = lp(0, 58, 1);
+                  bp.setMargins(px(4), px(14), px(4), 0);
+                  row.addView(ok, bp);
+                  row.addView(rs, bp);
+                  row.addView(cn, bp);
+                  col.addView(row, lp(-1, -2, 0));
+                  dl.show();
+                  dl.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
+              }
+
+              void iconDialog(final AppEntry e, final Runnable rebuild) {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  final Dialog dl = themedDialog("Значок: " + appName(e.pkg, e.label), col, 860);
+                  for (int r = 0; r < 2; r++) {
+                      LinearLayout row = new LinearLayout(this);
+                      row.setGravity(Gravity.CENTER);
+                      for (int q = 0; q < 8; q++) {
+                          final int n = r * 8 + q;
+                          ImageView iv = new ImageView(this);
+                          iv.setImageBitmap(stdIcon(n));
+                          iv.setOnClickListener(v -> {
+                              sp.edit().putString("icon_" + e.pkg, "std:" + n).apply();
+                              dl.dismiss();
+                              refreshApps();
+                              rebuild.run();
+                          });
+                          LinearLayout.LayoutParams ip = lp(92, 92, 0);
+                          ip.setMargins(px(5), px(5), px(5), px(5));
+                          row.addView(iv, ip);
+                      }
+                      col.addView(row, lp(-1, -2, 0));
+                  }
+                  LinearLayout row = new LinearLayout(this);
+                  Button own = btn("Свій файл", 24);
+                  own.setOnClickListener(v -> {
+                      dl.dismiss();
+                      iconPkg = e.pkg;
+                      iconDone = rebuild;
+                      pickImage(8);
+                  });
+                  Button orig = btn("Оригінальний", 24);
+                  orig.setOnClickListener(v -> {
+                      sp.edit().remove("icon_" + e.pkg).apply();
+                      dl.dismiss();
+                      refreshApps();
+                      rebuild.run();
+                  });
+                  Button cn = btn("Скасувати", 24);
+                  cn.setOnClickListener(v -> dl.dismiss());
+                  LinearLayout.LayoutParams bp = lp(0, 58, 1);
+                  bp.setMargins(px(4), px(14), px(4), 0);
+                  row.addView(own, bp);
+                  row.addView(orig, bp);
+                  row.addView(cn, bp);
+                  col.addView(row, lp(-1, -2, 0));
+                  dl.show();
+              }
+
+              List<AppEntry> sortedApps() {
+                  List<AppEntry> l = new ArrayList<AppEntry>(appCache);
+                  final String mode = sp.getString("sortmode", "name");
+                  final java.util.HashMap<String, Long> dt = new java.util.HashMap<String, Long>();
+                  final java.util.HashMap<String, Integer> ord = new java.util.HashMap<String, Integer>();
+                  if (mode.equals("date")) {
+                      for (AppEntry e : l) {
+                          long t = 0;
+                          try {
+                              t = pm.getPackageInfo(e.pkg, 0).firstInstallTime;
+                          } catch (Throwable ignored) {
+                          }
+                          dt.put(e.pkg, t);
+                      }
+                  }
+                  if (mode.equals("manual")) {
+                      String[] o = sp.getString("order", "").split(",");
+                      for (int i = 0; i < o.length; i++) ord.put(o[i], i);
+                  }
+                  Collections.sort(l, new Comparator<AppEntry>() {
+                      @Override
+                      public int compare(AppEntry a, AppEntry b) {
+                          int r = 0;
+                          if (mode.equals("date")) r = Long.compare(dt.get(b.pkg), dt.get(a.pkg));
+                          else if (mode.equals("freq")) r = Integer.compare(sp.getInt("cnt_" + b.pkg, 0), sp.getInt("cnt_" + a.pkg, 0));
+                          else if (mode.equals("manual")) {
+                              Integer ia = ord.get(a.pkg), ib = ord.get(b.pkg);
+                              r = Integer.compare(ia == null ? 100000 : ia, ib == null ? 100000 : ib);
+                          }
+                          if (r != 0) return r;
+                          return appName(a.pkg, a.label).compareToIgnoreCase(appName(b.pkg, b.label));
+                      }
+                  });
+                  return l;
+              }
+
+              void sortDialog(final Runnable rebuild) {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  final Dialog dl = themedDialog("Сортувати", col, 520);
+                  String cur = sp.getString("sortmode", "name");
+                  final String[] keys = {"name", "date", "freq", "manual"};
+                  String[] names = {"За назвою", "За датою встановлення", "За частотою використання", "Вручну (як розставлено)"};
+                  for (int i = 0; i < keys.length; i++) {
+                      final String k = keys[i];
+                      addMenuBtn(col, dl, (cur.equals(k) ? "✓  " : "     ") + names[i], () -> {
+                          sp.edit().putString("sortmode", k).apply();
+                          rebuild.run();
+                      });
+                  }
+                  dl.show();
+              }
+
+              interface GridCb {
+                  void click(AppEntry e);
+
+                  void menu(AppEntry e);
+
+                  void reorder(List<AppEntry> l);
+              }
+
+              class AppGrid extends ViewGroup {
+                  final int cols = 6;
+                  List<AppEntry> items = new ArrayList<AppEntry>();
+                  GridCb cb;
+                  ScrollView scroll;
+                  final int cellH = px(150);
+                  final int slop = px(14);
+                  int downIdx = -1, tgt = -1;
+                  float dx0, dy0, rawX, rawY;
+                  boolean armed, dragging;
+
+                  AppGrid(Context c) {
+                      super(c);
+                      setChildrenDrawingOrderEnabled(true);
+                      setClipChildren(false);
+                  }
+
+                  void setItems(List<AppEntry> l) {
+                      items = l;
+                      removeAllViews();
+                      for (AppEntry e : l) {
+                          LinearLayout cell = new LinearLayout(getContext());
+                          cell.setOrientation(LinearLayout.VERTICAL);
+                          cell.setGravity(Gravity.CENTER_HORIZONTAL);
+                          cell.setPadding(px(2), px(8), px(2), px(4));
+                          ImageView iv = new ImageView(getContext());
+                          Bitmap cu = customIcon(e.pkg);
+                          iv.setImageBitmap(cu != null ? cu : e.icon);
+                          cell.addView(iv, lp(104, 104, 0));
+                          TextView tv = text(appName(e.pkg, e.label), 20, TXT, false);
+                          tv.setGravity(Gravity.CENTER);
+                          tv.setSingleLine(true);
+                          tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                          cell.addView(tv, lp(-1, -2, 0));
+                          addView(cell);
+                      }
+                      requestLayout();
+                  }
+
+                  @Override
+                  protected void onMeasure(int ws, int hs) {
+                      int w = MeasureSpec.getSize(ws);
+                      int n = getChildCount();
+                      int rows = Math.max(1, (n + cols - 1) / cols);
+                      int cw = w / cols;
+                      for (int i = 0; i < n; i++)
+                          getChildAt(i).measure(MeasureSpec.makeMeasureSpec(cw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(cellH, MeasureSpec.EXACTLY));
+                      setMeasuredDimension(w, rows * cellH);
+                  }
+
+                  @Override
+                  protected void onLayout(boolean ch, int l, int t, int r, int b) {
+                      int cw = (r - l) / cols;
+                      for (int i = 0; i < getChildCount(); i++) {
+                          int rr = i / cols, cc = i % cols;
+                          getChildAt(i).layout(cc * cw, rr * cellH, (cc + 1) * cw, (rr + 1) * cellH);
+                      }
+                  }
+
+                  @Override
+                  protected int getChildDrawingOrder(int count, int i) {
+                      if (dragging && downIdx >= 0 && downIdx < count) {
+                          if (i == count - 1) return downIdx;
+                          return i >= downIdx ? i + 1 : i;
+                      }
+                      return i;
+                  }
+
+                  int indexAt(float x, float y) {
+                      int n = items.size();
+                      if (n == 0) return -1;
+                      int cw = Math.max(1, getWidth() / cols);
+                      int c = Math.max(0, Math.min(cols - 1, (int) (x / cw)));
+                      int r = Math.max(0, (int) (y / cellH));
+                      return Math.min(n - 1, r * cols + c);
+                  }
+
+                  final Runnable arm = new Runnable() {
+                      @Override
+                      public void run() {
+                          if (downIdx < 0 || downIdx >= getChildCount()) return;
+                          armed = true;
+                          performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                          if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                          View c = getChildAt(downIdx);
+                          c.setScaleX(1.08f);
+                          c.setScaleY(1.08f);
+                      }
+                  };
+
+                  final Runnable auto = new Runnable() {
+                      @Override
+                      public void run() {
+                          if (!dragging) return;
+                          if (scroll != null) {
+                              int[] sl = new int[2];
+                              scroll.getLocationOnScreen(sl);
+                              if (rawY < sl[1] + px(90)) scroll.scrollBy(0, -px(16));
+                              else if (rawY > sl[1] + scroll.getHeight() - px(90)) scroll.scrollBy(0, px(16));
+                          }
+                          updateDrag();
+                          postDelayed(this, 16);
+                      }
+                  };
+
+                  void updateDrag() {
+                      if (downIdx < 0 || downIdx >= getChildCount()) return;
+                      int[] loc = new int[2];
+                      getLocationOnScreen(loc);
+                      float lx = rawX - loc[0], ly = rawY - loc[1];
+                      View c = getChildAt(downIdx);
+                      c.setTranslationX(lx - (c.getLeft() + c.getWidth() / 2f));
+                      c.setTranslationY(ly - (c.getTop() + c.getHeight() / 2f));
+                      int t = indexAt(lx, ly);
+                      if (t != tgt) {
+                          if (tgt >= 0 && tgt < getChildCount()) getChildAt(tgt).setBackground(null);
+                          tgt = t;
+                          if (tgt >= 0 && tgt != downIdx) getChildAt(tgt).setBackground(rounded((ACC & 0x00FFFFFF) | 0x55000000, 16));
+                      }
+                  }
+
+                  void resetDrag() {
+                      removeCallbacks(arm);
+                      removeCallbacks(auto);
+                      for (int i = 0; i < getChildCount(); i++) {
+                          View c = getChildAt(i);
+                          c.setScaleX(1f);
+                          c.setScaleY(1f);
+                          c.setTranslationX(0);
+                          c.setTranslationY(0);
+                          c.setBackground(null);
+                      }
+                      armed = false;
+                      dragging = false;
+                      downIdx = -1;
+                      tgt = -1;
+                      invalidate();
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(MotionEvent e) {
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              downIdx = indexAt(e.getX(), e.getY());
+                              if (downIdx < 0) return false;
+                              dx0 = e.getX();
+                              dy0 = e.getY();
+                              rawX = e.getRawX();
+                              rawY = e.getRawY();
+                              armed = false;
+                              dragging = false;
+                              postDelayed(arm, 420);
+                              return true;
+                          case MotionEvent.ACTION_MOVE:
+                              rawX = e.getRawX();
+                              rawY = e.getRawY();
+                              float mv = Math.max(Math.abs(e.getX() - dx0), Math.abs(e.getY() - dy0));
+                              if (!armed) {
+                                  if (mv > slop) {
+                                      removeCallbacks(arm);
+                                      downIdx = -1;
+                                  }
+                                  return true;
+                              }
+                              if (!dragging && mv > slop) {
+                                  dragging = true;
+                                  invalidate();
+                                  post(auto);
+                              }
+                              if (dragging) updateDrag();
+                              return true;
+                          case MotionEvent.ACTION_UP:
+                              removeCallbacks(arm);
+                              removeCallbacks(auto);
+                              final int di = downIdx, ti = tgt;
+                              final boolean wasArmed = armed, wasDrag = dragging;
+                              resetDrag();
+                              if (di < 0 || di >= items.size()) return true;
+                              if (wasArmed) {
+                                  if (wasDrag) {
+                                      if (ti >= 0 && ti != di) {
+                                          List<AppEntry> nl = new ArrayList<AppEntry>(items);
+                                          AppEntry mvd = nl.remove(di);
+                                          nl.add(Math.min(ti, nl.size()), mvd);
+                                          if (cb != null) cb.reorder(nl);
+                                      }
+                                  } else if (cb != null) cb.menu(items.get(di));
+                              } else if (cb != null) cb.click(items.get(di));
+                              return true;
+                          case MotionEvent.ACTION_CANCEL:
+                              resetDrag();
+                              return true;
+                      }
+                      return true;
+                  }
+              }
+
               void appsDrawer() {
                   if (appCache == null) {
                       Toast.makeText(this, "Завантажую список програм…", Toast.LENGTH_SHORT).show();
@@ -2566,45 +3206,62 @@ jobs:
                   col.setOrientation(LinearLayout.VERTICAL);
                   col.setPadding(px(24), px(16), px(24), px(24));
                   sc.addView(col, new FrameLayout.LayoutParams(-1, -2));
+                  final AppGrid grid = new AppGrid(this);
+                  grid.scroll = sc;
+                  final Runnable rebuild = () -> grid.setItems(sortedApps());
                   LinearLayout head = new LinearLayout(this);
                   head.setGravity(Gravity.CENTER_VERTICAL);
                   head.addView(text("Усі програми", 34, TXT, true), lp(0, -2, 1));
+                  Button sortB = btn("Сортувати", 24);
+                  sortB.setOnClickListener(v -> sortDialog(rebuild));
+                  LinearLayout.LayoutParams sbp = lp(190, 56, 0);
+                  sbp.setMargins(0, 0, px(12), 0);
+                  head.addView(sortB, sbp);
                   Button close = btn("Закрити", 24);
                   close.setOnClickListener(v -> d.dismiss());
                   head.addView(close, lp(160, 56, 0));
                   col.addView(head, lp(-1, -2, 0));
-                  final int cols = 6;
-                  LinearLayout row = null;
-                  List<AppEntry> l = appCache;
-                  for (int i = 0; i < l.size(); i++) {
-                      if (i % cols == 0) {
-                          row = new LinearLayout(this);
-                          LinearLayout.LayoutParams rp = lp(-1, -2, 0);
-                          rp.setMargins(0, px(2), 0, 0);
-                          col.addView(row, rp);
-                      }
-                      final AppEntry ri = l.get(i);
-                      LinearLayout cell = new LinearLayout(this);
-                      cell.setOrientation(LinearLayout.VERTICAL);
-                      cell.setGravity(Gravity.CENTER_HORIZONTAL);
-                      cell.setPadding(px(2), px(4), px(2), px(4));
-                      ImageView iv = new ImageView(this);
-                      iv.setImageBitmap(ri.icon);
-                      cell.addView(iv, lp(104, 104, 0));
-                      TextView tv = text(ri.label, 20, TXT, false);
-                      tv.setGravity(Gravity.CENTER);
-                      tv.setSingleLine(true);
-                      tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                      cell.addView(tv, lp(-1, -2, 0));
-                      cell.setOnClickListener(v -> {
+                  grid.cb = new GridCb() {
+                      @Override
+                      public void click(AppEntry e) {
                           d.dismiss();
-                          launch(ri.pkg);
-                      });
-                      row.addView(cell, lp(0, -2, 1));
-                  }
-                  if (row != null) for (int k = l.size() % cols; k != 0 && k < cols; k++) row.addView(new View(this), lp(0, 1, 1));
+                          launch(e.pkg);
+                      }
+
+                      @Override
+                      public void menu(AppEntry e) {
+                          appMenu(e, rebuild);
+                      }
+
+                      @Override
+                      public void reorder(List<AppEntry> l) {
+                          StringBuilder sb = new StringBuilder();
+                          for (AppEntry e : l) {
+                              if (sb.length() > 0) sb.append(',');
+                              sb.append(e.pkg);
+                          }
+                          sp.edit().putString("order", sb.toString()).putString("sortmode", "manual").apply();
+                          rebuild.run();
+                      }
+                  };
+                  rebuild.run();
+                  col.addView(grid, lp(-1, -2, 0));
                   d.setContentView(themedBg(sc));
                   d.show();
+              }
+
+              void setDefaultHome() {
+                  try {
+                      startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
+                  } catch (Throwable t) {
+                      try {
+                          Intent h = new Intent(Intent.ACTION_MAIN);
+                          h.addCategory(Intent.CATEGORY_HOME);
+                          startActivity(h);
+                      } catch (Throwable t2) {
+                          Toast.makeText(this, "" + t2, Toast.LENGTH_LONG).show();
+                      }
+                  }
               }
 
               void resetTrip() {
@@ -2993,6 +3650,7 @@ jobs:
                               rebuildSettings();
                           }));
                   group("Система",
+                          t("Вибрати за замовчуванням", "лаунчер головним екраном", false, this::setDefaultHome),
                           t("Автозапуск лаунчера", onOff(sp.getBoolean("autostart", false)), false, () -> {
                               sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
                               rebuildSettings();
@@ -3203,6 +3861,30 @@ jobs:
                       }
                       return;
                   }
+                  if (req == 8 && res == RESULT_OK && data != null && data.getData() != null && iconPkg != null) {
+                      try {
+                          InputStream in = getContentResolver().openInputStream(data.getData());
+                          Bitmap src = BitmapFactory.decodeStream(in);
+                          in.close();
+                          int side = 192;
+                          float k = Math.min(side / (float) src.getWidth(), side / (float) src.getHeight());
+                          int w = Math.max(1, Math.round(src.getWidth() * k)), h = Math.max(1, Math.round(src.getHeight() * k));
+                          Bitmap out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888);
+                          Canvas cv = new Canvas(out);
+                          cv.drawBitmap(Bitmap.createScaledBitmap(src, w, h, true), (side - w) / 2f, (side - h) / 2f, null);
+                          FileOutputStream fo = new FileOutputStream(new File(getFilesDir(), "ai_" + iconPkg + ".png"));
+                          out.compress(Bitmap.CompressFormat.PNG, 100, fo);
+                          fo.close();
+                          iconCache.remove("f:" + iconPkg);
+                          sp.edit().putString("icon_" + iconPkg, "file").apply();
+                          refreshApps();
+                          if (iconDone != null) iconDone.run();
+                          Toast.makeText(this, "Значок збережено", Toast.LENGTH_SHORT).show();
+                      } catch (Throwable t) {
+                          Toast.makeText(this, "Не вдалось: " + t, Toast.LENGTH_LONG).show();
+                      }
+                      return;
+                  }
                   if (req != 5 || res != RESULT_OK || data == null || data.getData() == null) return;
                   final Uri uri = data.getData();
                   new Thread(() -> {
@@ -3286,6 +3968,7 @@ jobs:
               void launch(String pkg) {
                   try {
                       Intent in = pm.getLaunchIntentForPackage(pkg);
+                      sp.edit().putInt("cnt_" + pkg, sp.getInt("cnt_" + pkg, 0) + 1).apply();
                       if (in != null) startActivity(in);
                   } catch (Throwable t) {
                       Toast.makeText(this, "Не вдалось запустити: " + t, Toast.LENGTH_SHORT).show();
@@ -3323,9 +4006,13 @@ jobs:
                       iv.setPadding(px(6), px(6), px(6), px(6));
                       if (i < l.size()) {
                           final String p = l.get(i);
-                          try {
-                              iv.setImageDrawable(pm.getApplicationIcon(p));
-                          } catch (Throwable ignored) {
+                          Bitmap cu = customIcon(p);
+                          if (cu != null) iv.setImageBitmap(cu);
+                          else {
+                              try {
+                                  iv.setImageDrawable(pm.getApplicationIcon(p));
+                              } catch (Throwable ignored) {
+                              }
                           }
                           iv.setOnClickListener(v -> launch(p));
                       } else {
