@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.fileshare"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "1.4"
+                  versionCode 6
+                  versionName "1.5"
               }
               signingConfigs {
                   debug {
@@ -185,7 +185,19 @@ jobs:
                   b.setAllCaps(false);
                   b.setTextColor(Color.WHITE);
                   b.setTextSize(19);
+                  b.setSingleLine(true);
+                  b.setPadding(dp(6), 0, dp(6), 0);
                   b.setTypeface(Typeface.DEFAULT_BOLD);
+                  b.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or2, ob) -> {
+                      Button x = (Button) v;
+                      int w = r - l - x.getPaddingLeft() - x.getPaddingRight();
+                      if (w <= 0) return;
+                      float sz = x.getTextSize();
+                      android.graphics.Paint pp = new android.graphics.Paint(x.getPaint());
+                      pp.setTextSize(sz);
+                      if (pp.measureText(x.getText().toString()) > w && sz > dp(11))
+                          x.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sz - 1);
+                  });
                   GradientDrawable g = new GradientDrawable();
                   g.setColor(color);
                   g.setCornerRadius(dp(16));
@@ -223,10 +235,17 @@ jobs:
                   title.setTextColor(TXT);
                   title.setTypeface(Typeface.DEFAULT_BOLD);
                   root.addView(title);
+                  LinearLayout myRow = new LinearLayout(this);
+                  myRow.setGravity(Gravity.CENTER_VERTICAL);
                   tvMy = new TextView(this);
                   tvMy.setTextColor(ACC);
                   tvMy.setTextSize(15);
-                  root.addView(tvMy);
+                  myRow.addView(tvMy, new LinearLayout.LayoutParams(0, -2, 1));
+                  Button chg = btn("Змінити", 0xFF475569);
+                  chg.setTextSize(16);
+                  chg.setOnClickListener(v -> folderPicker(dir()));
+                  myRow.addView(chg, new LinearLayout.LayoutParams(dp(130), dp(44)));
+                  root.addView(myRow);
 
                   LinearLayout row = new LinearLayout(this);
                   etIp = field("Адреса іншого пристрою", sp.getString("ip", "192.168.11.215"));
@@ -284,7 +303,7 @@ jobs:
                   root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
                   setContentView(root);
 
-                  tvMy.setText("Ця адреса: " + myIps() + ":" + PORT + "   |   Папка: Download/Transfer");
+                  showMy();
                   server = new FileServer(this);
                   server.start(PORT);
                   log("Готово. Встанови цю програму на обидва пристрої й тримай її відкритою там, куди відправляєш.");
@@ -317,9 +336,43 @@ jobs:
               }
 
               // ---- Host ----
+              void showMy() {
+                  String p = dir().getAbsolutePath().replace("/storage/emulated/0/", "").replace("/sdcard/", "");
+                  tvMy.setText("Ця адреса: " + myIps() + ":" + PORT + "   |   Папка: " + p);
+              }
+
+              void folderPicker(final File cur) {
+                  File[] fs = cur.listFiles();
+                  final List<File> ds = new ArrayList<File>();
+                  if (fs != null) for (File f : fs) if (f.isDirectory() && !f.getName().startsWith(".")) ds.add(f);
+                  Collections.sort(ds, (a, b2) -> a.getName().compareToIgnoreCase(b2.getName()));
+                  final File up = cur.getParentFile();
+                  final List<String> names = new ArrayList<String>();
+                  if (up != null) names.add("⬆  ..");
+                  for (File f : ds) names.add("📁  " + f.getName());
+                  new AlertDialog.Builder(this).setTitle(cur.getAbsolutePath())
+                          .setItems(names.toArray(new String[0]), (d, i) -> {
+                              if (up != null && i == 0) folderPicker(up);
+                              else folderPicker(ds.get(up != null ? i - 1 : i));
+                          })
+                          .setPositiveButton("Вибрати цю папку", (d, w) -> {
+                              if (cur.canWrite()) {
+                                  sp.edit().putString("dir", cur.getAbsolutePath()).apply();
+                                  showMy();
+                                  log("Папка: " + cur.getAbsolutePath());
+                              } else log("У цю папку не можна писати");
+                          })
+                          .setNeutralButton("Стандартна", (d, w) -> {
+                              sp.edit().remove("dir").apply();
+                              showMy();
+                          })
+                          .setNegativeButton("Скасувати", null).show();
+              }
+
               @Override
               public File dir() {
-                  File d = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Transfer");
+                  String cd = sp.getString("dir", "");
+                  File d = cd.isEmpty() ? new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Transfer") : new File(cd);
                   d.mkdirs();
                   if (!d.isDirectory() || !d.canWrite()) {
                       File alt = getExternalFilesDir(null);
@@ -383,8 +436,9 @@ jobs:
                           us.add(data.getData());
                       }
                       if (us.isEmpty()) return;
+                      cancelAll = false;
                       new Thread(() -> {
-                          for (int k = 0; k < us.size(); k++) upload(us.get(k), us.size() > 1 ? "Файл " + (k + 1) + " з " + us.size() + ". " : "");
+                          for (int k = 0; k < us.size() && !cancelAll; k++) upload(us.get(k), us.size() > 1 ? "Файл " + (k + 1) + " з " + us.size() + ". " : "");
                           if (us.size() > 1) log("Відправлено файлів: " + us.size());
                       }).start();
                   }
@@ -491,6 +545,9 @@ jobs:
 
               void upload(Uri u, String pre) {
                   final String key = "up" + System.nanoTime();
+                  cancelled = false;
+                  paused = false;
+                  HttpURLConnection c2 = null;
                   String ttl = "Відправлення";
                   long size = -1;
                   try {
@@ -521,7 +578,7 @@ jobs:
                       }
                       log("Відправляю " + name + " (" + size / 1024 + " КБ)…");
                       progress(key, ttl, 0, size, false, null);
-                      HttpURLConnection c2 = (HttpURLConnection) new URL(base() + "/upload?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
+                      c2 = (HttpURLConnection) new URL(base() + "/upload?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
                       c2.setConnectTimeout(6000);
                       c2.setReadTimeout(30000);
                       c2.setRequestMethod("POST");
@@ -532,6 +589,7 @@ jobs:
                       int n;
                       long sent = 0;
                       while ((n = in.read(buf)) > 0) {
+                          waitPause();
                           o.write(buf, 0, n);
                           sent += n;
                           progress(key, ttl, sent, size, false, null);
@@ -543,16 +601,37 @@ jobs:
                       log(code == 200 ? "Відправлено ✓ " + name : "Помилка " + code + " " + readAll(code == 200 ? c2.getInputStream() : c2.getErrorStream()));
                       if (tmp != null) tmp.delete();
                   } catch (Throwable t) {
-                      progress(key, ttl, 0, Math.max(1, size), true, "Не вдалось: " + t);
-                      log("Не вдалось відправити: " + t);
+                      try {
+                          if (c2 != null) c2.disconnect();
+                      } catch (Throwable ignored) {
+                      }
+                      if (cancelled) {
+                          progress(key, ttl, 0, Math.max(1, size), true, "Скасовано");
+                          log("Скасовано: " + ttl);
+                      } else {
+                          progress(key, ttl, 0, Math.max(1, size), true, "Не вдалось: " + t);
+                          log("Не вдалось відправити: " + t);
+                      }
                   }
+              }
+
+              volatile boolean cancelled, paused, cancelAll;
+
+              void waitPause() throws java.io.IOException {
+                  while (paused && !cancelled) {
+                      try {
+                          Thread.sleep(100);
+                      } catch (InterruptedException ignored) {
+                      }
+                  }
+                  if (cancelled) throw new java.io.IOException("Скасовано");
               }
 
               // ---- вікно прогресу ----
               Dialog pDlg;
               TextView pTitle, pPct, pInfo;
               ProgressBar pBar;
-              Button pBtn;
+              Button pBtn, pPause, pCancel;
               String pKey = "";
               long pT0, pLast;
 
@@ -584,6 +663,8 @@ jobs:
                       pPct.setText(end ? msg : pct + " %");
                       pInfo.setText(end && !(msg != null && msg.contains("✓")) ? "" : info);
                       if (end) {
+                          pPause.setVisibility(View.GONE);
+                          pCancel.setVisibility(View.GONE);
                           pBtn.setText("Закрити");
                           if (msg != null && msg.contains("✓")) ui.postDelayed(() -> {
                               try {
@@ -622,14 +703,31 @@ jobs:
                   pInfo.setTextSize(18);
                   pInfo.setPadding(0, dp(10), 0, dp(10));
                   col.addView(pInfo);
+                  LinearLayout br = new LinearLayout(this);
                   pBtn = btn("Сховати", 0xFF2563EB);
                   pBtn.setOnClickListener(v -> pDlg.dismiss());
-                  col.addView(pBtn, new LinearLayout.LayoutParams(-1, dp(56)));
+                  pPause = btn("Пауза", 0xFFD97706);
+                  pPause.setOnClickListener(v -> {
+                      paused = !paused;
+                      pPause.setText(paused ? "Продовжити" : "Пауза");
+                  });
+                  pCancel = btn("Скасувати", 0xFFDC2626);
+                  pCancel.setOnClickListener(v -> {
+                      cancelled = true;
+                      cancelAll = true;
+                      paused = false;
+                  });
+                  LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, dp(56), 1);
+                  bl.setMargins(dp(3), 0, dp(3), 0);
+                  br.addView(pBtn, bl);
+                  br.addView(pPause, bl);
+                  br.addView(pCancel, bl);
+                  col.addView(br, new LinearLayout.LayoutParams(-1, -2));
                   Dialog d = new Dialog(this);
                   d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
                   d.setContentView(col);
                   d.getWindow().getDecorView().setTag(key);
-                  d.getWindow().setLayout((int) (getResources().getDisplayMetrics().widthPixels * 0.6f), -2);
+                  d.getWindow().setLayout((int) (getResources().getDisplayMetrics().widthPixels * 0.75f), -2);
                   pDlg = d;
                   d.show();
               }
@@ -687,9 +785,14 @@ jobs:
               void download(String name) {
                   final String key = "dn" + System.nanoTime(), ttl = "Приймання: " + name;
                   long tot = 0;
+                  cancelled = false;
+                  paused = false;
+                  cancelAll = false;
+                  File f = null;
+                  HttpURLConnection c = null;
                   try {
                       log("Приймаю " + name + "…");
-                      HttpURLConnection c = (HttpURLConnection) new URL(base() + "/get?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
+                      c = (HttpURLConnection) new URL(base() + "/get?name=" + q(name) + "&pin=" + q(etPin.getText().toString().trim())).openConnection();
                       c.setConnectTimeout(6000);
                       c.setReadTimeout(30000);
                       if (c.getResponseCode() != 200) {
@@ -698,7 +801,7 @@ jobs:
                           return;
                       }
                       tot = c.getContentLength();
-                      File f = new File(dir(), name);
+                      f = new File(dir(), name);
                       InputStream in = c.getInputStream();
                       FileOutputStream fo = new FileOutputStream(f);
                       byte[] buf = new byte[65536];
@@ -706,6 +809,7 @@ jobs:
                       long total = 0;
                       progress(key, ttl, 0, tot, false, null);
                       while ((n = in.read(buf)) > 0) {
+                          waitPause();
                           fo.write(buf, 0, n);
                           total += n;
                           progress(key, ttl, total, tot, false, null);
@@ -716,8 +820,18 @@ jobs:
                       log("Прийнято ✓ " + name + " (" + total / 1024 + " КБ) → " + f.getParent());
                       received(f);
                   } catch (Throwable t) {
-                      progress(key, ttl, 0, Math.max(1, tot), true, "Не вдалось: " + t);
-                      log("Не вдалось прийняти: " + t);
+                      try {
+                          if (c != null) c.disconnect();
+                      } catch (Throwable ignored) {
+                      }
+                      if (cancelled) {
+                          if (f != null) f.delete();
+                          progress(key, ttl, 0, Math.max(1, tot), true, "Скасовано");
+                          log("Скасовано: " + ttl);
+                      } else {
+                          progress(key, ttl, 0, Math.max(1, tot), true, "Не вдалось: " + t);
+                          log("Не вдалось прийняти: " + t);
+                      }
                   }
               }
 
@@ -859,7 +973,7 @@ jobs:
 
               private void handle(Socket s) {
                   try {
-                      s.setSoTimeout(20000);
+                      s.setSoTimeout(900000);
                       InputStream in = s.getInputStream();
                       OutputStream out = new BufferedOutputStream(s.getOutputStream());
                       String line = readLine(in);
