@@ -2593,7 +2593,7 @@ jobs:
                   return null;
               }
 
-              int over(int fg, int base) {
+              int blendOver(int fg, int base) {
                   float a = android.graphics.Color.alpha(fg) / 255f;
                   int r = Math.round(android.graphics.Color.red(fg) * a + android.graphics.Color.red(base) * (1 - a));
                   int g = Math.round(android.graphics.Color.green(fg) * a + android.graphics.Color.green(base) * (1 - a));
@@ -2609,7 +2609,7 @@ jobs:
                   Bitmap bm = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
                   Canvas c = new Canvas(bm);
                   c.scale(S / 100f, S / 100f);
-                  int tile = over(BTN, BG1 | 0xFF000000);
+                  int tile = blendOver(BTN, BG1 | 0xFF000000);
                   int ac = ACC | 0xFF000000;
                   Paint bgp = new Paint(Paint.ANTI_ALIAS_FLAG);
                   bgp.setColor(tile);
