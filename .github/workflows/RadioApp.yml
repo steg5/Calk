@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 7
-                  versionName "1.6"
+                  versionCode 9
+                  versionName "1.8"
               }
               signingConfigs {
                   debug {
@@ -662,7 +662,7 @@ jobs:
                   if (btnPause != null) btnPause.set(tuner.paused ? 3 : 8, tuner.paused ? "Грати" : "Пауза", false);
                   if (tuner.paused) tvSub.setText("Пауза");
                   else if (seekWait || scanning) tvSub.setText("Шукаю станцію…");
-                  else if (tuner.busy()) tvSub.setText("Налаштування… зараз " + Station.fmt(tuner.freq));
+                  else if (tuner.busy()) tvSub.setText("Налаштування… зараз " + Station.fmt(tuner.freq) + "  →  " + Station.fmt(cur));
                   else if (!tuner.ps.isEmpty() && cur == tuner.freq) tvSub.setText("RDS: " + tuner.ps);
                   else tvSub.setText("FM · МГц");
                   if (shownLogoFreq != cur) {
@@ -1085,7 +1085,7 @@ jobs:
                   void onState();
               }
 
-              static final int[] IDS = {0x401, 0x402, 0x404, 0x405, 0x406, 0x9e00, 0x9e11};
+              static final int[] IDS = {0x10a, 0x201, 0x301, 0x401, 0x402, 0x404, 0x405, 0x406, 0x9e00, 0x9e11};
 
               private Object util;
               private Class<?> cls;
@@ -1113,7 +1113,7 @@ jobs:
 
               void resetProbe() {
                   dv = -2;
-                  if (tp != null) tp.edit().remove("dv").apply();
+                  if (tp != null) tp.edit().remove("dv2").apply();
                   log("підбір скинуто");
               }
 
@@ -1145,7 +1145,11 @@ jobs:
               boolean start() {
                   try {
                       cls = Class.forName("android.tw.john.TWUtil");
-                      util = cls.getConstructor().newInstance();
+                      try {
+                          util = cls.getConstructor(int.class).newInstance(1);
+                      } catch (Throwable e1) {
+                          util = cls.getConstructor().newInstance();
+                      }
                       short[] ids = new short[IDS.length];
                       for (int i = 0; i < ids.length; i++) ids[i] = (short) IDS[i];
                       Object r = cls.getMethod("open", short[].class).invoke(util, (Object) ids);
@@ -1255,7 +1259,7 @@ jobs:
                   front = f;
                   if (tp == null) {
                       tp = c.getSharedPreferences("tuner", Context.MODE_PRIVATE);
-                      dv = tp.getInt("dv", -2);
+                      dv = tp.getInt("dv2", -2);
                   }
               }
 
@@ -1314,7 +1318,6 @@ jobs:
               void stepDown() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 1); } }); }
 
               private int probeIdx, probeTries, directStart;
-              private long okDeadline;
 
               private void sendVariant(int v, int f) {
                   switch (v) {
@@ -1327,8 +1330,16 @@ jobs:
                   }
               }
 
+              private int lastChk;
+              private long lastProgress, sendT;
+              private boolean slewing;
+
               private void sendProbe() {
                   directStart = freq;
+                  lastChk = freq;
+                  sendT = System.currentTimeMillis();
+                  lastProgress = sendT;
+                  slewing = false;
                   log("налаштування на " + tgt + ", варіант " + probeIdx);
                   sendVariant(probeIdx, tgt);
                   h.postDelayed(directCheck, 900);
@@ -1340,25 +1351,37 @@ jobs:
                       if (!directPending) return;
                       long now = System.currentTimeMillis();
                       boolean arrived = Math.abs(tgt - freq) <= 2;
+                      boolean changed = freq != lastChk;
+                      lastChk = freq;
                       boolean closer = Math.abs(tgt - directStart) - Math.abs(tgt - freq) >= 5;
-                      if (arrived || closer) {
+                      if (closer) {
+                          slewing = true;
                           if (dv != probeIdx) {
                               dv = probeIdx;
-                              if (tp != null) tp.edit().putInt("dv", dv).apply();
+                              if (tp != null) tp.edit().putInt("dv2", dv).apply();
                               log("РОБОЧИЙ ВАРІАНТ: " + dv);
                           }
-                          if (arrived) {
-                              directPending = false;
-                              notifyState();
+                      }
+                      if (changed) lastProgress = now;
+                      if (arrived) {
+                          directPending = false;
+                          log("досягнуто " + freq);
+                          notifyState();
+                          return;
+                      }
+                      if (slewing) {
+                          // тюнер сам їде до частоти (≈0.5 МГц/с): чекаємо, поки не зупиниться
+                          if (now - lastProgress < 2500 && now - sendT < 120000) {
+                              h.postDelayed(directCheck, 500);
                               return;
                           }
-                          if (okDeadline == 0) okDeadline = now + 4000;
-                          if (now < okDeadline) {
-                              h.postDelayed(directCheck, 400);
+                          if (++probeTries < 2) {
+                              log("зупинився на " + freq + ", повторюю команду");
+                              sendProbe();
                               return;
                           }
                           directPending = false;
-                          startStepping();
+                          notifyState();
                           return;
                       }
                       if (dv >= 0) {
@@ -1367,7 +1390,8 @@ jobs:
                               return;
                           }
                           directPending = false;
-                          startStepping();
+                          if (dv != 3) startStepping();
+                          else notifyState();
                           return;
                       }
                       if (++probeIdx <= 4) {
@@ -1375,7 +1399,7 @@ jobs:
                           return;
                       }
                       dv = 99;
-                      if (tp != null) tp.edit().putInt("dv", 99).apply();
+                      if (tp != null) tp.edit().putInt("dv2", 99).apply();
                       log("жоден варіант не спрацював, лишаються кроки");
                       directPending = false;
                       startStepping();
@@ -1427,7 +1451,6 @@ jobs:
                               directPending = true;
                               probeIdx = dv >= 0 ? dv : 0;
                               probeTries = 0;
-                              okDeadline = 0;
                               sendProbe();
                           }
                       }
