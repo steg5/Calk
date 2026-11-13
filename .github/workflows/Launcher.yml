@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 28
-                  versionName "3.9"
+                  versionCode 29
+                  versionName "3.10"
               }
               signingConfigs {
                   debug {
@@ -756,9 +756,7 @@ jobs:
               LinearLayout svcCard(String title) {
                   LinearLayout c = card(LinearLayout.VERTICAL);
                   c.setPadding(px(22), px(16), px(22), px(18));
-                  TextView sh = text(title, 28, ACC, true);
-                  sh.setGravity(Gravity.CENTER);
-                  c.addView(sh, lp(-1, -2, 0));
+                  c.addView(text(title, 28, ACC, true), lp(-1, -2, 0));
                   LinearLayout.LayoutParams l = lp(-1, -2, 0);
                   l.setMargins(0, px(14), 0, 0);
                   svcCol.addView(c, l);
@@ -3575,7 +3573,6 @@ jobs:
 
               void group(String title, Object[]... items) {
                   TextView h = text(title, 26, ACC, true);
-                  h.setGravity(Gravity.CENTER);
                   LinearLayout.LayoutParams hp = lp(-1, -2, 0);
                   hp.setMargins(0, px(20), 0, 0);
                   setCol.addView(h, hp);
@@ -3684,7 +3681,7 @@ jobs:
                           t("Лаунчер за замовчуванням", homeLabel(), false, this::setDefaultHome),
                           t("Програма радіо", keyLabel("radio"), false, () -> chooseApp("radio", "Радіо")),
                           t("Програма плеєра", keyLabel("aimp"), false, () -> chooseApp("aimp", "Плеєр")),
-                          t("Примусовий автозапуск лаунчера", "якщо стандартний не спрацьовує: " + onOff(sp.getBoolean("autostart", false)), false, () -> {
+                          t("Автозапуск лаунчера (примусово)", onOff(sp.getBoolean("autostart", false)), false, () -> {
                               sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
                               rebuildSettings();
                           }));
