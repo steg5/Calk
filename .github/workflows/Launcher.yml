@@ -64,7 +64,7 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 23
+                  versionCode 25
                   versionName "3.4"
               }
               signingConfigs {
@@ -2366,7 +2366,8 @@ jobs:
                   @Override
                   public void onLocationChanged(Location l) {
                       long now = System.currentTimeMillis();
-                      if (map != null) map.setMyLocation(l.getLatitude(), l.getLongitude(), l.hasBearing() ? l.getBearing() : -1f, l.hasSpeed() ? l.getSpeed() : 0f);
+                      boolean bad = l.hasSpeed() && l.getSpeed() * 3.6f > 190f;
+                      if (map != null && !bad) map.setMyLocation(l.getLatitude(), l.getLongitude(), l.hasBearing() ? l.getBearing() : -1f, l.hasSpeed() ? l.getSpeed() : 0f);
                       float v = 0f;
                       if (l.hasSpeed()) {
                           v = l.getSpeed() * 3.6f;
@@ -2375,7 +2376,7 @@ jobs:
                           if (dt > 0.3f && dt < 10f) v = prevLoc.distanceTo(l) / dt * 3.6f;
                       }
                       prevLoc = l;
-                      if (v < 2f) v = 0f;
+                      if (v < 2f || v > 190f) v = 0f;
                       if (lastLoc > 0 && v > 0) {
                           float dt = Math.min(3f, (now - lastLoc) / 1000f);
                           distKm += v * dt / 3600f;
@@ -2819,7 +2820,9 @@ jobs:
                   addMenuBtn(col, dl, "Перейменувати", () -> renameApp(e, rebuild));
                   addMenuBtn(col, dl, "Значок", () -> iconDialog(e, rebuild));
                   boolean on = autoOn(e.pkg);
-                  addMenuBtn(col, dl, "Автозапуск: " + (on ? "увімкнено" : "вимкнено"), () -> {
+                  String rp = pkgFor("radio");
+                  boolean noAuto = e.pkg.equals(getPackageName()) || (rp != null && rp.equals(e.pkg)) || e.pkg.equals("com.example.radioapp");
+                  if (!noAuto) addMenuBtn(col, dl, "Автозапуск: " + (on ? "увімкнено" : "вимкнено"), () -> {
                       StringBuilder sb = new StringBuilder();
                       for (String x : sp.getString("autoapps", "").split(",")) {
                           if (x.isEmpty() || x.equals(e.pkg)) continue;
@@ -3250,6 +3253,16 @@ jobs:
                   d.show();
               }
 
+              String keyLabel(String key) {
+                  try {
+                      String p = pkgFor(key);
+                      if (p == null) return "не вибрано";
+                      return String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(p, 0)));
+                  } catch (Throwable t) {
+                      return "не вибрано";
+                  }
+              }
+
               void setDefaultHome() {
                   try {
                       startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
@@ -3651,6 +3664,8 @@ jobs:
                           }));
                   group("Система",
                           t("Вибрати за замовчуванням", "лаунчер головним екраном", false, this::setDefaultHome),
+                          t("Програма радіо", keyLabel("radio"), false, () -> chooseApp("radio", "Радіо")),
+                          t("Програма плеєра", keyLabel("aimp"), false, () -> chooseApp("aimp", "Плеєр")),
                           t("Автозапуск лаунчера", onOff(sp.getBoolean("autostart", false)), false, () -> {
                               sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
                               rebuildSettings();
