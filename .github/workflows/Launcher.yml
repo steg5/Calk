@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 25
-                  versionName "3.4"
+                  versionCode 26
+                  versionName "3.7"
               }
               signingConfigs {
                   debug {
@@ -2263,13 +2263,6 @@ jobs:
                           k++;
                       }
                   }
-                  if (sp.getBoolean("autoradio", false)) {
-                      ui.postDelayed(() -> {
-                          tuner.startRadio();
-                          radioOn = true;
-                          rPlay.setText("■");
-                      }, 2500);
-                  }
               }
 
               View navHintView;
@@ -2821,7 +2814,7 @@ jobs:
                   addMenuBtn(col, dl, "Значок", () -> iconDialog(e, rebuild));
                   boolean on = autoOn(e.pkg);
                   String rp = pkgFor("radio");
-                  boolean noAuto = e.pkg.equals(getPackageName()) || (rp != null && rp.equals(e.pkg)) || e.pkg.equals("com.example.radioapp");
+                  boolean noAuto = e.pkg.equals(getPackageName());
                   if (!noAuto) addMenuBtn(col, dl, "Автозапуск: " + (on ? "увімкнено" : "вимкнено"), () -> {
                       StringBuilder sb = new StringBuilder();
                       for (String x : sp.getString("autoapps", "").split(",")) {
@@ -3668,10 +3661,6 @@ jobs:
                           t("Програма плеєра", keyLabel("aimp"), false, () -> chooseApp("aimp", "Плеєр")),
                           t("Автозапуск лаунчера", onOff(sp.getBoolean("autostart", false)), false, () -> {
                               sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
-                              rebuildSettings();
-                          }),
-                          t("Автозапуск радіо", onOff(sp.getBoolean("autoradio", false)), false, () -> {
-                              sp.edit().putBoolean("autoradio", !sp.getBoolean("autoradio", false)).apply();
                               rebuildSettings();
                           }),
                           t("Скинути поїздку", "середня, макс.", false, this::resetTrip),
