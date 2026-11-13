@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.fileshare"
                   minSdk 23
                   targetSdk 26
-                  versionCode 6
-                  versionName "1.5"
+                  versionCode 7
+                  versionName "1.6"
               }
               signingConfigs {
                   debug {
@@ -165,7 +165,43 @@ jobs:
 
           public class MainActivity extends Activity implements FileServer.Host {
               static final int PORT = 8080;
-              static final int BG = 0xFF0B0F17, CARD = 0xFF172033, TXT = 0xFFF1F5F9, DIM = 0xFF8A99B3, ACC = 0xFF22D3EE;
+              int BG1, BG2, ACC, CARD, BTN, TXT, DIM, OV;
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний", "Вишнева", "Рубін", "Бордо"};
+              static final int[][] TH = {
+                      {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC, 0x55000000},
+                      {0xFF2B2F36, 0xFF111316, 0xFFB0BEC5, 0xB3181A1E, 0xFF343942, 0xFFF1F5F9, 0xFFA9B0B8, 0x55000000},
+                      {0xFF0F3D33, 0xFF071A16, 0xFF4DD6A8, 0xB30D211C, 0xFF1F4A3F, 0xFFF1F5F9, 0xFF9CBFB4, 0x55000000},
+                      {0xFF4A3010, 0xFF1A1006, 0xFFFFB74D, 0xB3231708, 0xFF4F3A1B, 0xFFF8F1E7, 0xFFC4B29A, 0x55000000},
+                      {0xFF3A1F5C, 0xFF150B26, 0xFFCE93D8, 0xB31F1030, 0xFF40295E, 0xFFF4EEF8, 0xFFB7A6C9, 0x55000000},
+                      {0xFF3A0508, 0xFF120203, 0xFFFF1E1E, 0xB3200709, 0xFF5A0F12, 0xFFFFECEC, 0xFFFF9A9A, 0x55000000},
+                      {0xFF0B4F6C, 0xFF05202B, 0xFF4DD0E1, 0xB30A2A38, 0xFF16627F, 0xFFEFF9FC, 0xFF9CC4D0, 0x55000000},
+                      {0xFF2E4A1E, 0xFF111C0B, 0xFFAED581, 0xB3172410, 0xFF3A5A2A, 0xFFF3F8EE, 0xFFB0C4A0, 0x55000000},
+                      {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075, 0x00000000},
+                      {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A, 0x00000000},
+                      {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663, 0x55000000},
+                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B, 0x00000000},
+                      {0xFF4A0E22, 0xFF16040B, 0xFFFF4D79, 0xB3260813, 0xFF5E1830, 0xFFFFE9EF, 0xFFE39AB0, 0x55000000},
+                      {0xFF5C0A14, 0xFF1F0307, 0xFFFF2D4A, 0xB3290509, 0xFF7A1220, 0xFFFFEAEC, 0xFFFF9AA6, 0x55000000},
+                      {0xFF3B0A1E, 0xFF12030A, 0xFFD94A6B, 0xB31F0712, 0xFF521A33, 0xFFF3DCE3, 0xFFB98494, 0x55000000}};
+
+              void applyTheme() {
+                  int[] t = TH[Math.min(TH.length - 1, Math.max(0, sp.getInt("theme", 0)))];
+                  BG1 = t[0];
+                  BG2 = t[1];
+                  ACC = t[2];
+                  CARD = t[3];
+                  BTN = t[4];
+                  TXT = t[5];
+                  DIM = t[6];
+                  OV = t[7];
+              }
+
+              int solid(int c) {
+                  float a = Color.alpha(c) / 255f;
+                  return Color.rgb(Math.round(Color.red(c) * a + Color.red(BG2) * (1 - a)),
+                          Math.round(Color.green(c) * a + Color.green(BG2) * (1 - a)),
+                          Math.round(Color.blue(c) * a + Color.blue(BG2) * (1 - a)));
+              }
 
               final Handler ui = new Handler(Looper.getMainLooper());
               SharedPreferences sp;
@@ -183,23 +219,27 @@ jobs:
                   Button b = new Button(this);
                   b.setText(s);
                   b.setAllCaps(false);
-                  b.setTextColor(Color.WHITE);
+                  b.setTextColor(TXT);
                   b.setTextSize(19);
                   b.setSingleLine(true);
-                  b.setPadding(dp(6), 0, dp(6), 0);
+                  b.setPadding(dp(8), 0, dp(8), 0);
                   b.setTypeface(Typeface.DEFAULT_BOLD);
                   b.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or2, ob) -> {
                       Button x = (Button) v;
                       int w = r - l - x.getPaddingLeft() - x.getPaddingRight();
                       if (w <= 0) return;
-                      float sz = x.getTextSize();
+                      float cur = x.getTextSize(), sz = cur;
                       android.graphics.Paint pp = new android.graphics.Paint(x.getPaint());
-                      pp.setTextSize(sz);
-                      if (pp.measureText(x.getText().toString()) > w && sz > dp(11))
-                          x.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sz - 1);
+                      String tx = x.getText().toString();
+                      while (sz > dp(11)) {
+                          pp.setTextSize(sz);
+                          if (pp.measureText(tx) * 1.12f <= w) break;
+                          sz -= 1;
+                      }
+                      if (Math.abs(sz - cur) > 0.5f) x.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sz);
                   });
                   GradientDrawable g = new GradientDrawable();
-                  g.setColor(color);
+                  g.setColor(BTN);
                   g.setCornerRadius(dp(16));
                   b.setBackground(g);
                   return b;
@@ -212,6 +252,11 @@ jobs:
                   e.setTextColor(TXT);
                   e.setHintTextColor(DIM);
                   e.setSingleLine(true);
+                  GradientDrawable eg = new GradientDrawable();
+                  eg.setColor(BTN);
+                  eg.setCornerRadius(dp(12));
+                  e.setBackground(eg);
+                  e.setPadding(dp(12), dp(6), dp(12), dp(6));
                   return e;
               }
 
@@ -224,24 +269,44 @@ jobs:
                       requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
                   }
 
+                  applyTheme();
+                  buildUi();
+
+                  server = new FileServer(this);
+                  server.start(PORT);
+                  log("Готово. Встанови цю програму на обидва пристрої й тримай її відкритою там, куди відправляєш.");
+              }
+
+
+              StringBuilder logBuf = new StringBuilder();
+
+              void buildUi() {
+                  if (etIp != null) save();
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setBackgroundColor(BG);
                   root.setPadding(dp(14), dp(10), dp(14), dp(10));
 
+                  LinearLayout hr = new LinearLayout(this);
+                  hr.setGravity(Gravity.CENTER_VERTICAL);
                   TextView title = new TextView(this);
                   title.setText("Передача файлів");
                   title.setTextSize(24);
                   title.setTextColor(TXT);
                   title.setTypeface(Typeface.DEFAULT_BOLD);
-                  root.addView(title);
+                  hr.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+                  Button thB = btn("Тема", 0);
+                  thB.setTextSize(16);
+                  thB.setOnClickListener(v -> themeDialog());
+                  hr.addView(thB, new LinearLayout.LayoutParams(dp(130), dp(44)));
+                  root.addView(hr);
+
                   LinearLayout myRow = new LinearLayout(this);
                   myRow.setGravity(Gravity.CENTER_VERTICAL);
                   tvMy = new TextView(this);
                   tvMy.setTextColor(ACC);
                   tvMy.setTextSize(15);
                   myRow.addView(tvMy, new LinearLayout.LayoutParams(0, -2, 1));
-                  Button chg = btn("Змінити", 0xFF475569);
+                  Button chg = btn("Змінити", 0);
                   chg.setTextSize(16);
                   chg.setOnClickListener(v -> folderPicker(dir()));
                   myRow.addView(chg, new LinearLayout.LayoutParams(dp(130), dp(44)));
@@ -250,13 +315,16 @@ jobs:
                   LinearLayout row = new LinearLayout(this);
                   etIp = field("Адреса іншого пристрою", sp.getString("ip", "192.168.11.215"));
                   etPin = field("PIN", sp.getString("pin", "1234"));
-                  row.addView(etIp, new LinearLayout.LayoutParams(0, -2, 2));
-                  row.addView(etPin, new LinearLayout.LayoutParams(0, -2, 1));
+                  LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(0, -2, 1);
+                  ep.setMargins(dp(4), dp(8), dp(4), dp(4));
+                  row.addView(etIp, new LinearLayout.LayoutParams(ep));
+                  row.addView(etPin, new LinearLayout.LayoutParams(ep));
+                  ((LinearLayout.LayoutParams) etIp.getLayoutParams()).weight = 2;
                   root.addView(row);
 
                   LinearLayout r1 = new LinearLayout(this);
-                  Button send = btn("⬆  Відправити", 0xFF2563EB);
-                  Button recv = btn("⬇  Прийняти", 0xFF16A34A);
+                  Button send = btn("⬆  Відправити файли", 0);
+                  Button recv = btn("⬇  Прийняти файли", 0);
                   send.setOnClickListener(v -> {
                       save();
                       pick();
@@ -265,15 +333,15 @@ jobs:
                       save();
                       listRemote();
                   });
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(78), 1);
-                  lp.setMargins(dp(4), dp(8), dp(4), dp(4));
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(70), 1);
+                  lp.setMargins(dp(4), dp(6), dp(4), dp(4));
                   r1.addView(send, lp);
                   r1.addView(recv, lp);
                   root.addView(r1);
 
                   LinearLayout r2 = new LinearLayout(this);
-                  Button csend = btn("📋  Передати буфер", 0xFF0EA5E9);
-                  Button crecv = btn("📋  Прийняти буфер", 0xFF14B8A6);
+                  Button csend = btn("📋  Передати буфер", 0);
+                  Button crecv = btn("📋  Прийняти буфер", 0);
                   csend.setOnClickListener(v -> {
                       save();
                       clipSend();
@@ -282,13 +350,11 @@ jobs:
                       save();
                       clipRecv();
                   });
-                  LinearLayout.LayoutParams lpc = new LinearLayout.LayoutParams(0, dp(64), 1);
-                  lpc.setMargins(dp(4), dp(4), dp(4), dp(4));
-                  r2.addView(csend, lpc);
-                  r2.addView(crecv, lpc);
+                  r2.addView(csend, lp);
+                  r2.addView(crecv, lp);
                   root.addView(r2);
 
-                  Button inst = btn("📦  Встановити APK з цього пристрою", 0xFF7C3AED);
+                  Button inst = btn("📦  Встановити APK з цього пристрою", 0);
                   inst.setOnClickListener(v -> listLocalApk());
                   LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(-1, dp(64));
                   lp2.setMargins(dp(4), dp(4), dp(4), dp(8));
@@ -299,14 +365,169 @@ jobs:
                   tvLog.setTextColor(DIM);
                   tvLog.setTextSize(14);
                   tvLog.setTextIsSelectable(true);
+                  tvLog.setText(logBuf.toString());
                   logScroll.addView(tvLog);
                   root.addView(logScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-                  setContentView(root);
 
+                  android.widget.FrameLayout frame = new android.widget.FrameLayout(this);
+                  if (sp.getInt("bgstyle", 0) == 1) frame.setBackgroundColor(BG1);
+                  else frame.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1, BG2}));
+                  File bf = new File(getFilesDir(), "bg.jpg");
+                  if (bf.exists()) {
+                      try {
+                          android.widget.ImageView iv = new android.widget.ImageView(this);
+                          iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+                          iv.setImageBitmap(android.graphics.BitmapFactory.decodeFile(bf.getAbsolutePath()));
+                          frame.addView(iv, new android.widget.FrameLayout.LayoutParams(-1, -1));
+                      } catch (Throwable ignored) {
+                      }
+                  }
+                  View dim = new View(this);
+                  dim.setBackgroundColor(OV);
+                  frame.addView(dim, new android.widget.FrameLayout.LayoutParams(-1, -1));
+                  frame.addView(root, new android.widget.FrameLayout.LayoutParams(-1, -1));
+                  setContentView(frame);
                   showMy();
-                  server = new FileServer(this);
-                  server.start(PORT);
-                  log("Готово. Встанови цю програму на обидва пристрої й тримай її відкритою там, куди відправляєш.");
+              }
+
+              void themeDialog() {
+                  String[] it = {"Тема кольорів", "Фон: " + (sp.getInt("bgstyle", 0) == 0 ? "градієнт (змінити на однотонний)" : "однотонний (змінити на градієнт)"), "Фон з галереї", "Прибрати фон"};
+                  new AlertDialog.Builder(this).setTitle("Тема").setItems(it, (d, i) -> {
+                      if (i == 0) {
+                          new AlertDialog.Builder(this).setTitle("Тема кольорів")
+                                  .setSingleChoiceItems(THN, sp.getInt("theme", 0), (d2, j) -> {
+                                      sp.edit().putInt("theme", j).apply();
+                                      applyTheme();
+                                      d2.dismiss();
+                                      buildUi();
+                                  }).setNegativeButton("Скасувати", null).show();
+                      } else if (i == 1) {
+                          sp.edit().putInt("bgstyle", sp.getInt("bgstyle", 0) == 0 ? 1 : 0).apply();
+                          buildUi();
+                      } else if (i == 2) {
+                          imageBrowser(Environment.getExternalStorageDirectory());
+                      } else {
+                          new File(getFilesDir(), "bg.jpg").delete();
+                          buildUi();
+                      }
+                  }).setNegativeButton("Закрити", null).show();
+              }
+
+              void imageBrowser(final File cur) {
+                  File[] fs = cur.listFiles();
+                  final List<File> ds = new ArrayList<File>(), im = new ArrayList<File>();
+                  if (fs != null) {
+                      for (File f : fs) {
+                          String n = f.getName().toLowerCase();
+                          if (n.startsWith(".")) continue;
+                          if (f.isDirectory()) ds.add(f);
+                          else if (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp")) im.add(f);
+                      }
+                  }
+                  Collections.sort(ds, (a, b2) -> a.getName().compareToIgnoreCase(b2.getName()));
+                  Collections.sort(im, (a, b2) -> a.getName().compareToIgnoreCase(b2.getName()));
+                  final File up = cur.getParentFile();
+                  final List<File> ent = new ArrayList<File>();
+                  List<String> names = new ArrayList<String>();
+                  if (up != null) {
+                      ent.add(null);
+                      names.add("⬆  ..");
+                  }
+                  for (File f : ds) {
+                      ent.add(f);
+                      names.add("📁  " + f.getName());
+                  }
+                  for (File f : im) {
+                      ent.add(f);
+                      names.add(f.getName());
+                  }
+                  new AlertDialog.Builder(this).setTitle(cur.getAbsolutePath())
+                          .setItems(names.toArray(new String[0]), (d, i) -> {
+                              File f = ent.get(i);
+                              if (f == null) imageBrowser(up);
+                              else if (f.isDirectory()) imageBrowser(f);
+                              else setBg(f);
+                          }).setNegativeButton("Скасувати", null).show();
+              }
+
+              void setBg(File f) {
+                  try {
+                      android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                      o.inJustDecodeBounds = true;
+                      android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+                      int ss = 1;
+                      while (o.outWidth / ss > 2000) ss *= 2;
+                      android.graphics.BitmapFactory.Options o2 = new android.graphics.BitmapFactory.Options();
+                      o2.inSampleSize = ss;
+                      android.graphics.Bitmap bm = android.graphics.BitmapFactory.decodeFile(f.getAbsolutePath(), o2);
+                      FileOutputStream fo = new FileOutputStream(new File(getFilesDir(), "bg.jpg"));
+                      bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, fo);
+                      fo.close();
+                      buildUi();
+                  } catch (Throwable t) {
+                      log("Не вдалось: " + t);
+                  }
+              }
+
+              final java.util.LinkedHashSet<File> picked = new java.util.LinkedHashSet<File>();
+
+              void fileBrowser(final File cur) {
+                  File[] fs = cur.listFiles();
+                  final List<File> ds = new ArrayList<File>(), files = new ArrayList<File>();
+                  if (fs != null) {
+                      for (File f : fs) {
+                          if (f.getName().startsWith(".")) continue;
+                          if (f.isDirectory()) ds.add(f);
+                          else files.add(f);
+                      }
+                  }
+                  Collections.sort(ds, (a, b2) -> a.getName().compareToIgnoreCase(b2.getName()));
+                  Collections.sort(files, (a, b2) -> a.getName().compareToIgnoreCase(b2.getName()));
+                  final File up = cur.getParentFile();
+                  final List<File> ent = new ArrayList<File>();
+                  List<String> names = new ArrayList<String>();
+                  if (up != null) {
+                      ent.add(null);
+                      names.add("⬆  ..");
+                  }
+                  for (File f : ds) {
+                      ent.add(f);
+                      names.add("📁  " + f.getName());
+                  }
+                  for (File f : files) {
+                      ent.add(f);
+                      names.add(f.getName() + "  (" + fmtSize(f.length()) + ")");
+                  }
+                  boolean[] chk = new boolean[ent.size()];
+                  for (int i = 0; i < chk.length; i++) chk[i] = ent.get(i) != null && picked.contains(ent.get(i));
+                  new AlertDialog.Builder(this).setTitle(cur.getAbsolutePath())
+                          .setMultiChoiceItems(names.toArray(new String[0]), chk, (d, i, c) -> {
+                              File f = ent.get(i);
+                              if (f == null) {
+                                  d.dismiss();
+                                  fileBrowser(up);
+                              } else if (f.isDirectory()) {
+                                  d.dismiss();
+                                  fileBrowser(f);
+                              } else if (c) picked.add(f);
+                              else picked.remove(f);
+                          })
+                          .setPositiveButton("Відправити", (d, w) -> {
+                              List<Uri> us = new ArrayList<Uri>();
+                              for (File f : picked) us.add(Uri.fromFile(f));
+                              picked.clear();
+                              sendUris(us);
+                          })
+                          .setNegativeButton("Скасувати", (d, w) -> picked.clear()).show();
+              }
+
+              void sendUris(final List<Uri> us) {
+                  if (us.isEmpty()) return;
+                  cancelAll = false;
+                  new Thread(() -> {
+                      for (int k = 0; k < us.size() && !cancelAll; k++) upload(us.get(k), us.size() > 1 ? "Файл " + (k + 1) + " з " + us.size() + ". " : "");
+                      if (us.size() > 1) log("Відправлено файлів: " + us.size());
+                  }).start();
               }
 
               @Override
@@ -403,26 +624,40 @@ jobs:
               @Override
               public void log(final String s) {
                   ui.post(() -> {
-                      tvLog.append(tf.format(new Date()) + "  " + s + "\n");
+                      String ln = tf.format(new Date()) + "  " + s + "\n";
+                      logBuf.append(ln);
+                      tvLog.append(ln);
                       logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
                   });
               }
 
               // ---- відправлення ----
               void pick() {
-                  Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                  i.addCategory(Intent.CATEGORY_OPENABLE);
-                  i.setType("*/*");
-                  i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                  boolean ok = false;
                   try {
-                      if (Build.VERSION.SDK_INT >= 26) {
-                          dir();
-                          i.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
-                                  Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload%2FTransfer"));
+                      Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                      i.addCategory(Intent.CATEGORY_OPENABLE);
+                      i.setType("*/*");
+                      i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                      if (i.resolveActivity(getPackageManager()) != null) {
+                          try {
+                              if (Build.VERSION.SDK_INT >= 26) {
+                                  dir();
+                                  i.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+                                          Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload%2FTransfer"));
+                              }
+                          } catch (Throwable ignored) {
+                          }
+                          startActivityForResult(i, 10);
+                          ok = true;
                       }
-                  } catch (Throwable ignored) {
+                  } catch (Throwable t) {
+                      ok = false;
                   }
-                  startActivityForResult(i, 10);
+                  if (!ok) {
+                      picked.clear();
+                      fileBrowser(Environment.getExternalStorageDirectory());
+                  }
               }
 
               @Override
@@ -562,6 +797,11 @@ jobs:
                           }
                           c.close();
                       }
+                      if ("file".equals(u.getScheme()) && u.getPath() != null) {
+                          File uf = new File(u.getPath());
+                          name = uf.getName();
+                          size = uf.length();
+                      }
                       ttl = pre + "Відправлення: " + name;
                       InputStream in = getContentResolver().openInputStream(u);
                       File tmp = null;
@@ -684,7 +924,7 @@ jobs:
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   col.setPadding(dp(24), dp(20), dp(24), dp(16));
-                  col.setBackgroundColor(CARD);
+                  col.setBackgroundColor(solid(CARD));
                   pTitle = new TextView(this);
                   pTitle.setTextColor(TXT);
                   pTitle.setTextSize(20);
