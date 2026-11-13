@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 26
-                  versionName "3.7"
+                  versionCode 27
+                  versionName "3.8"
               }
               signingConfigs {
                   debug {
@@ -3659,7 +3659,7 @@ jobs:
                           t("Вибрати за замовчуванням", "лаунчер головним екраном", false, this::setDefaultHome),
                           t("Програма радіо", keyLabel("radio"), false, () -> chooseApp("radio", "Радіо")),
                           t("Програма плеєра", keyLabel("aimp"), false, () -> chooseApp("aimp", "Плеєр")),
-                          t("Автозапуск лаунчера", onOff(sp.getBoolean("autostart", false)), false, () -> {
+                          t("Примусовий автозапуск лаунчера", "якщо стандартний не спрацьовує: " + onOff(sp.getBoolean("autostart", false)), false, () -> {
                               sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
                               rebuildSettings();
                           }),
