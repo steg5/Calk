@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 11
-                  versionName "2.0"
+                  versionCode 12
+                  versionName "2.1"
               }
               signingConfigs {
                   debug {
@@ -140,7 +140,7 @@ jobs:
           import android.widget.Toast;
 
           public class MainActivity extends Activity {
-              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний"};
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний", "Світло-червона (підсвітка)"};
               // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст
               static final int[][] TH = {
                       {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC},
@@ -154,7 +154,8 @@ jobs:
                       {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075},
                       {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A},
                       {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663},
-                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B}};
+                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B},
+                      {0xFF1A0605, 0xFF000000, 0xFFFF5A48, 0xCC140403, 0xFF2E0B09, 0xFFFF4636, 0xFFD8392C}};
               int BG1, BG2, ACC, CARD, BTN, TXT, DIM;
               static final int FMIN = 8750, FMAX = 10800;
 
@@ -334,6 +335,8 @@ jobs:
               // ---------- повзунок частоти ----------
               class FreqSlider extends View {
                   int f = FMIN;
+                  int liveV = -1;
+                  long liveT = 0;
                   final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
 
                   FreqSlider() {
@@ -391,6 +394,12 @@ jobs:
                           int v = FMIN + Math.round(fr * (FMAX - FMIN) / 10f) * 10;
                           setF(v);
                           tvFreq.setText(Station.fmt(v));
+                          long nw = System.currentTimeMillis();
+                          if (a == MotionEvent.ACTION_MOVE && v != liveV && nw - liveT >= 120) {
+                              liveV = v;
+                              liveT = nw;
+                              tuner.tune(MainActivity.this, v, MainActivity.class);
+                          }
                           if (a == MotionEvent.ACTION_UP) {
                               dragging = false;
                               tuneTo(v);
@@ -1197,6 +1206,27 @@ jobs:
               }
 
               private void onMsg(Message m) {
+                  if (m.what == 0x401 && !(m.obj instanceof byte[])) {
+                      if (m.arg1 == 0) {
+                          flags = m.arg2;
+                          seeking = (flags & 0x40) != 0;
+                      } else if (m.arg1 == 2 && m.arg2 > 0) {
+                          if (m.arg2 != lastLogF) {
+                              lastLogF = m.arg2;
+                              log("RX freq=" + m.arg2 + " ps=" + m.obj);
+                          }
+                          freq = m.arg2;
+                          if (m.obj instanceof String) {
+                              String s = ((String) m.obj).trim();
+                              ps = s.length() > 2 && s.endsWith("FM") && s.length() > 6 ? s.substring(0, s.length() - 2).trim() : s;
+                          }
+                          if (!haveState && tp != null) tp.edit().putInt("tmode", tmode).apply();
+                          haveState = true;
+                          lastMsg = System.currentTimeMillis();
+                          if (listener != null) listener.onState();
+                      }
+                      return;
+                  }
                   if (m.what != 0x401 || !(m.obj instanceof byte[])) {
                       log("RX 0x" + Integer.toHexString(m.what) + " a1=" + m.arg1 + " a2=" + m.arg2 + " " + (m.obj instanceof byte[] ? hex((byte[]) m.obj) : String.valueOf(m.obj)));
                       return;
@@ -1407,59 +1437,19 @@ jobs:
                   @Override
                   public void run() {
                       if (!directPending) return;
-                      long now = System.currentTimeMillis();
-                      boolean arrived = Math.abs(tgt - freq) <= 2;
-                      boolean changed = freq != lastChk;
-                      lastChk = freq;
-                      boolean closer = Math.abs(tgt - directStart) - Math.abs(tgt - freq) >= 5;
-                      if (closer) {
-                          slewing = true;
-                          if (dv != probeIdx) {
-                              dv = probeIdx;
-                              if (tp != null) tp.edit().putInt("dv", dv).apply();
-                              log("РОБОЧИЙ ВАРІАНТ: " + dv);
-                          }
-                      }
-                      if (changed) lastProgress = now;
-                      if (arrived) {
+                      if (Math.abs(tgt - freq) <= 1) {
                           directPending = false;
                           log("досягнуто " + freq);
                           notifyState();
                           return;
                       }
-                      if (slewing) {
-                          // тюнер сам їде до частоти (≈0.5 МГц/с): чекаємо, поки не зупиниться
-                          if (now - lastProgress < 2500 && now - sendT < 120000) {
-                              h.postDelayed(directCheck, 500);
-                              return;
-                          }
-                          if (++probeTries < 2) {
-                              log("зупинився на " + freq + ", повторюю команду");
-                              sendProbe();
-                              return;
-                          }
-                          directPending = false;
-                          notifyState();
+                      if (++probeTries < 3) {
+                          write(0x402, 255, tgt);
+                          h.postDelayed(directCheck, 700);
                           return;
                       }
-                      if (dv >= 0) {
-                          if (++probeTries < 2) {
-                              sendProbe();
-                              return;
-                          }
-                          directPending = false;
-                          if (dv != 3) startStepping();
-                          else notifyState();
-                          return;
-                      }
-                      if (++probeIdx <= 4) {
-                          sendProbe();
-                          return;
-                      }
-                      dv = 99;
-                      if (tp != null) tp.edit().putInt("dv", 99).apply();
-                      log("жоден варіант не спрацював, лишаються кроки");
                       directPending = false;
+                      log("пряма команда не спрацювала, їду кроками");
                       startStepping();
                   }
               };
@@ -1504,14 +1494,10 @@ jobs:
                           cancelTune();
                           paused = false;
                           tgt = f10k;
-                          if (dv == 99 || Math.abs(tgt - freq) <= 5) {
-                              startStepping();
-                          } else {
-                              directPending = true;
-                              probeIdx = dv >= 0 ? dv : 0;
-                              probeTries = 0;
-                              sendProbe();
-                          }
+                          directPending = true;
+                          probeTries = 0;
+                          write(0x402, 255, tgt);
+                          h.postDelayed(directCheck, 700);
                       }
                   });
               }
