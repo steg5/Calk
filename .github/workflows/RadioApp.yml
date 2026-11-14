@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 14
-                  versionName "2.3"
+                  versionCode 15
+                  versionName "2.4"
               }
               signingConfigs {
                   debug {
@@ -420,10 +420,10 @@ jobs:
                       float[] tx = {uisp.getFloat("cH", 4), uisp.getFloat("cS", 0.95f), uisp.getFloat("cV", 0.95f)};
                       float[] bl = {uisp.getFloat("bH", 4), uisp.getFloat("bS", 0.9f), uisp.getFloat("bV", 0.25f)};
                       t = new int[]{
-                              Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.35f}), 0xFF000000,
-                              Color.HSVToColor(tx), 0xCC000000 | (Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.6f}) & 0xFFFFFF),
-                              Color.HSVToColor(bl), Color.HSVToColor(tx),
-                              Color.HSVToColor(new float[]{tx[0], tx[1], tx[2] * 0.75f})};
+                              android.graphics.Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.35f}), 0xFF000000,
+                              android.graphics.Color.HSVToColor(tx), 0xCC000000 | (android.graphics.Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.6f}) & 0xFFFFFF),
+                              android.graphics.Color.HSVToColor(bl), android.graphics.Color.HSVToColor(tx),
+                              android.graphics.Color.HSVToColor(new float[]{tx[0], tx[1], tx[2] * 0.75f})};
                   }
                   BG1 = t[0];
                   BG2 = t[1];
@@ -536,8 +536,8 @@ jobs:
                   final Runnable upd = new Runnable() {
                       @Override
                       public void run() {
-                          prev.setBackgroundColor(Color.HSVToColor(c[1]));
-                          prev.setTextColor(Color.HSVToColor(c[0]));
+                          prev.setBackgroundColor(android.graphics.Color.HSVToColor(c[1]));
+                          prev.setTextColor(android.graphics.Color.HSVToColor(c[0]));
                       }
                   };
                   for (int k = 0; k < 3; k++) {
