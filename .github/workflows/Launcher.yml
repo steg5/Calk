@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 31
-                  versionName "3.12"
+                  versionCode 32
+                  versionName "3.13"
               }
               signingConfigs {
                   debug {
@@ -92,6 +92,7 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
               <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
               <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
               <application
                   android:label="Лаунчер"
@@ -219,35 +220,89 @@ jobs:
 
           public class MainActivity extends Activity implements Tuner.Listener {
               int ACC, TXT, DIM, CARD, BTN, BG1, BG2, OV;
-              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний", "Вишнева", "Рубін", "Бордо"};
-              // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст, затемнення фону
-              static final int[][] TH = {
-                      {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC, 0x55000000},
-                      {0xFF2B2F36, 0xFF111316, 0xFFB0BEC5, 0xB3181A1E, 0xFF343942, 0xFFF1F5F9, 0xFFA9B0B8, 0x55000000},
-                      {0xFF0F3D33, 0xFF071A16, 0xFF4DD6A8, 0xB30D211C, 0xFF1F4A3F, 0xFFF1F5F9, 0xFF9CBFB4, 0x55000000},
-                      {0xFF4A3010, 0xFF1A1006, 0xFFFFB74D, 0xB3231708, 0xFF4F3A1B, 0xFFF8F1E7, 0xFFC4B29A, 0x55000000},
-                      {0xFF3A1F5C, 0xFF150B26, 0xFFCE93D8, 0xB31F1030, 0xFF40295E, 0xFFF4EEF8, 0xFFB7A6C9, 0x55000000},
-                      {0xFF3A0508, 0xFF120203, 0xFFFF1E1E, 0xB3200709, 0xFF5A0F12, 0xFFFFECEC, 0xFFFF9A9A, 0x55000000},
-                      {0xFF0B4F6C, 0xFF05202B, 0xFF4DD0E1, 0xB30A2A38, 0xFF16627F, 0xFFEFF9FC, 0xFF9CC4D0, 0x55000000},
-                      {0xFF2E4A1E, 0xFF111C0B, 0xFFAED581, 0xB3172410, 0xFF3A5A2A, 0xFFF3F8EE, 0xFFB0C4A0, 0x55000000},
-                      {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075, 0x00000000},
-                      {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A, 0x00000000},
-                      {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663, 0x55000000},
-                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B, 0x00000000},
-                      {0xFF4A0E22, 0xFF16040B, 0xFFFF4D79, 0xB3260813, 0xFF5E1830, 0xFFFFE9EF, 0xFFE39AB0, 0x55000000},
-                      {0xFF5C0A14, 0xFF1F0307, 0xFFFF2D4A, 0xB3290509, 0xFF7A1220, 0xFFFFEAEC, 0xFFFF9AA6, 0x55000000},
-                      {0xFF3B0A1E, 0xFF12030A, 0xFFD94A6B, 0xB31F0712, 0xFF521A33, 0xFFF3DCE3, 0xFFB98494, 0x55000000}};
+              float glowR = 0;
+
+              int dp(float v) {
+                  return px(v);
+              }
+
+              /** Відтінок < 0 дає чорний, > 360 дає білий. */
+              int hsvc(float[] c) {
+                  if (c[0] < 0) return 0xFF000000;
+                  if (c[0] > 360) return 0xFFFFFFFF;
+                  return android.graphics.Color.HSVToColor(c);
+              }
+
+              int dimc(int col, float k) {
+                  return 0xFF000000 | (Math.round(((col >> 16) & 255) * k) << 16) | (Math.round(((col >> 8) & 255) * k) << 8) | Math.round((col & 255) * k);
+              }
+
+              java.io.File syncFile() {
+                  return new java.io.File(android.os.Environment.getExternalStorageDirectory(), "fordtheme.cfg");
+              }
+
+              static final String[] SYNC_F = {"cH", "cS", "cV", "bH", "bS", "bV"};
+              static final float[] SYNC_FD = {4, 0.95f, 0.95f, 4, 0.9f, 0.25f};
+
+              /** Читає спільний файл теми, якщо він новіший за збережену тему. */
+              boolean syncIn() {
+                  if (!sp.getBoolean("sync", true)) return false;
+                  try {
+                      java.io.File f = syncFile();
+                      if (!f.exists()) return false;
+                      java.util.Properties p = new java.util.Properties();
+                      java.io.FileInputStream in = new java.io.FileInputStream(f);
+                      p.load(in);
+                      in.close();
+                      long ts = Long.parseLong(p.getProperty("ts", "0"));
+                      if (ts <= sp.getLong("ts", 0)) return false;
+                      SharedPreferences.Editor e = sp.edit();
+                      for (int i = 0; i < SYNC_F.length; i++) e.putFloat(SYNC_F[i], Float.parseFloat(p.getProperty(SYNC_F[i], "" + SYNC_FD[i])));
+                      e.putInt("bstyle", Integer.parseInt(p.getProperty("bstyle", "0")));
+                      e.putInt("glow", Integer.parseInt(p.getProperty("glow", "0")));
+                      e.putBoolean("bDark", p.getProperty("bDark", "1").equals("1"));
+                      e.putBoolean("tDark", p.getProperty("tDark", "1").equals("1"));
+                      e.putLong("ts", ts).apply();
+                      return true;
+                  } catch (Throwable x) {
+                      return false;
+                  }
+              }
+
+              void syncOut() {
+                  if (!sp.getBoolean("sync", true)) return;
+                  try {
+                      long ts = System.currentTimeMillis();
+                      java.util.Properties p = new java.util.Properties();
+                      for (int i = 0; i < SYNC_F.length; i++) p.setProperty(SYNC_F[i], "" + sp.getFloat(SYNC_F[i], SYNC_FD[i]));
+                      p.setProperty("bstyle", "" + sp.getInt("bstyle", 0));
+                      p.setProperty("glow", "" + sp.getInt("glow", 0));
+                      p.setProperty("bDark", sp.getBoolean("bDark", true) ? "1" : "0");
+                      p.setProperty("tDark", sp.getBoolean("tDark", true) ? "1" : "0");
+                      p.setProperty("ts", "" + ts);
+                      java.io.FileOutputStream o = new java.io.FileOutputStream(syncFile());
+                      p.store(o, "FordTheme");
+                      o.close();
+                      sp.edit().putLong("ts", ts).apply();
+                  } catch (Throwable x) {
+                      Toast.makeText(this, "Не вдалось записати спільну тему: " + x, Toast.LENGTH_LONG).show();
+                  }
+              }
 
               void applyTheme() {
-                  int[] t = TH[Math.min(TH.length - 1, Math.max(0, sp.getInt("theme", 0)))];
-                  BG1 = t[0];
-                  BG2 = t[1];
-                  ACC = t[2];
-                  CARD = t[3];
-                  BTN = t[4];
-                  TXT = t[5];
-                  DIM = t[6];
-                  OV = t[7];
+                  float[] tx = {sp.getFloat("cH", 4), sp.getFloat("cS", 0.95f), sp.getFloat("cV", 0.95f)};
+                  float[] bl = {sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)};
+                  boolean bd = sp.getBoolean("bDark", true), td = sp.getBoolean("tDark", true);
+                  int tc = hsvc(tx), bc = hsvc(bl);
+                  BG1 = bd ? dimc(bc, 0.35f) : bc;
+                  BG2 = bd ? 0xFF000000 : bc;
+                  ACC = tc;
+                  CARD = 0xB3000000 | ((bd ? dimc(bc, 0.6f) : bc) & 0xFFFFFF);
+                  BTN = bc;
+                  TXT = tc;
+                  DIM = td ? dimc(tc, 0.75f) : tc;
+                  OV = new File(getFilesDir(), "bg.jpg").exists() ? 0x44000000 : 0x00000000;
+                  glowR = sp.getInt("glow", 0) / 100f * 14 * getResources().getDisplayMetrics().density;
                   if (sp.contains("cardalpha")) CARD = (sp.getInt("cardalpha", 179) << 24) | (CARD & 0xFFFFFF);
               }
 
@@ -1193,6 +1248,7 @@ jobs:
                   t.setTextColor(color);
                   t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
                   t.setTypeface(tf(bold));
+                  if (glowR > 0) t.setShadowLayer(glowR, 0, 0, color);
                   return t;
               }
 
@@ -1210,7 +1266,8 @@ jobs:
                   b.setTypeface(tf(false));
                   b.setTextColor(TXT);
                   b.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
-                  b.setBackground(rounded(BTN, 16));
+                  b.setBackground(blockBg(16, BTN));
+                  if (glowR > 0) b.setShadowLayer(glowR, 0, 0, TXT);
                   b.setPadding(0, 0, 0, 0);
                   b.setMinWidth(0);
                   b.setMinimumWidth(0);
@@ -1865,6 +1922,10 @@ jobs:
                           preloadApps(null);
                       }
                   }, pf);
+                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 8);
+                  }
+                  syncIn();
                   applyTheme();
                   magnet = sp.getBoolean("magnet", true);
                   android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
@@ -2282,6 +2343,10 @@ jobs:
               protected void onResume() {
                   super.onResume();
                   if (!ready) return;
+                  if (syncIn()) {
+                      recreate();
+                      return;
+                  }
                   refreshApps();
                   updateBright();
                   refreshMedia();
@@ -3650,9 +3715,8 @@ jobs:
                   String fp = sp.getString("fontfile", "");
                   String fname = fp.isEmpty() ? "Стандартний" : new File(fp).getName().replaceAll("\\.[^.]*$", "");
                   group("Вигляд",
-                          t("Тема кольорів", THN[Math.min(THN.length - 1, sp.getInt("theme", 0))], false, this::themeMenu),
+                          t("Кольори і стиль", "повзунки, світіння, синхронізація", false, this::themeMenu),
                           t("Шрифт", fname, false, this::fontMenu),
-                          t("Стиль блоків", BSN[Math.min(BSN.length - 1, sp.getInt("bstyle", 0))], false, this::blockStyleMenu),
                           t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", false, this::alphaDialog),
                           t("Фон з галереї", "вибрати картинку", false, () -> pickImage(5)),
                           t("Прибрати фон", "повернути градієнт", false, () -> {
@@ -3908,12 +3972,188 @@ jobs:
               }
 
               void themeMenu() {
-                  new AlertDialog.Builder(this).setTitle("Тема кольорів")
-                          .setSingleChoiceItems(THN, sp.getInt("theme", 0), (d, i) -> {
-                              sp.edit().putInt("theme", i).apply();
-                              d.dismiss();
+                  customDialog();
+              }
+
+              void customDialog() {
+                  final float[][] c = {
+                          {sp.getFloat("cH", 4), sp.getFloat("cS", 0.95f), sp.getFloat("cV", 0.95f)},
+                          {sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)}};
+                  final int[] sel = {0};
+                  final boolean[] busy = {false};
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setPadding(dp(18), dp(8), dp(18), dp(4));
+                  final TextView prev = new TextView(this);
+                  prev.setText("Люкс FM  104.7");
+                  prev.setTextSize(24);
+                  prev.setGravity(Gravity.CENTER);
+                  prev.setPadding(dp(10), dp(16), dp(10), dp(16));
+                  box.addView(prev, new LinearLayout.LayoutParams(-1, -2));
+                  final android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
+                  rg.setOrientation(LinearLayout.HORIZONTAL);
+                  final android.widget.RadioButton r0 = new android.widget.RadioButton(this);
+                  r0.setText("Колір тексту");
+                  r0.setId(101);
+                  final android.widget.RadioButton r1 = new android.widget.RadioButton(this);
+                  r1.setText("Колір блоків");
+                  r1.setId(102);
+                  final android.widget.RadioButton r2 = new android.widget.RadioButton(this);
+                  r2.setText("Червоні");
+                  r2.setId(103);
+                  rg.addView(r0);
+                  rg.addView(r1);
+                  rg.addView(r2);
+                  final java.util.List<View> slv = new java.util.ArrayList<View>();
+                  box.addView(rg);
+                  final String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
+                  final android.widget.SeekBar[] sb = new android.widget.SeekBar[3];
+                  final int[] mx = {380, 100, 100};
+                  final Runnable upd = new Runnable() {
+                      @Override
+                      public void run() {
+                          prev.setBackgroundColor(hsvc(c[1]));
+                          prev.setTextColor(hsvc(c[0]));
+                      }
+                  };
+                  for (int k = 0; k < 3; k++) {
+                      final int kk = k;
+                      TextView lb = new TextView(this);
+                      lb.setText(nm[k]);
+                      box.addView(lb);
+                      slv.add(lb);
+                      sb[k] = new android.widget.SeekBar(this);
+                      sb[k].setMax(mx[k]);
+                      if (k == 0) {
+                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFF000000, 0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000, 0xFFFFFFFF});
+                          hg.setCornerRadius(dp(6));
+                          sb[k].setBackground(hg);
+                      }
+                      sb[k].setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                          @Override
+                          public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                              if (!user || busy[0]) return;
+                              c[sel[0]][kk] = kk == 0 ? (p < 10 ? -1 : p > 370 ? 361 : p - 10) : p / 100f;
+                              upd.run();
+                          }
+
+                          @Override
+                          public void onStartTrackingTouch(android.widget.SeekBar s) {
+                          }
+
+                          @Override
+                          public void onStopTrackingTouch(android.widget.SeekBar s) {
+                          }
+                      });
+                      box.addView(sb[k], new LinearLayout.LayoutParams(-1, dp(40)));
+                      slv.add(sb[k]);
+                  }
+                  final LinearLayout pal = new LinearLayout(this);
+                  pal.setOrientation(LinearLayout.VERTICAL);
+                  pal.setVisibility(View.GONE);
+                  final float[] ph = {344, 349, 354, 358, 0, 3, 6};
+                  final float[] pvT = {1f, 0.88f, 0.75f};
+                  final float[] pvB = {0.42f, 0.28f, 0.16f};
+                  for (int tgt = 0; tgt < 2; tgt++) {
+                      final int tg = tgt;
+                      TextView pl = new TextView(this);
+                      pl.setText(tg == 0 ? "Текст: яскраво-червоні" : "Блоки: темно-червоні");
+                      pl.setPadding(0, dp(8), 0, dp(2));
+                      pal.addView(pl);
+                      float[] pv = tg == 0 ? pvT : pvB;
+                      for (final float vv : pv) {
+                          LinearLayout rw = new LinearLayout(this);
+                          for (final float hh : ph) {
+                              View sw = new View(this);
+                              GradientDrawable sgd = new GradientDrawable();
+                              sgd.setColor(android.graphics.Color.HSVToColor(new float[]{hh, 1f, vv}));
+                              sgd.setCornerRadius(dp(8));
+                              sgd.setStroke(dp(1), 0x66FFFFFF);
+                              sw.setBackground(sgd);
+                              sw.setOnClickListener(x -> {
+                                  c[tg][0] = hh;
+                                  c[tg][1] = 1f;
+                                  c[tg][2] = vv;
+                                  upd.run();
+                              });
+                              LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(40), 1);
+                              swp.setMargins(dp(2), dp(2), dp(2), dp(2));
+                              rw.addView(sw, swp);
+                          }
+                          pal.addView(rw);
+                      }
+                  }
+                  box.addView(pal);
+                  final android.widget.CheckBox cb1 = new android.widget.CheckBox(this);
+                  cb1.setText("Затемнювати фон і плитки");
+                  cb1.setChecked(sp.getBoolean("bDark", true));
+                  final android.widget.CheckBox cb2 = new android.widget.CheckBox(this);
+                  cb2.setText("Затемнювати другорядний текст");
+                  cb2.setChecked(sp.getBoolean("tDark", true));
+                  box.addView(cb1);
+                  box.addView(cb2);
+                  TextView stl = new TextView(this);
+                  stl.setText("Стиль блоків");
+                  box.addView(stl);
+                  final android.widget.Spinner spn = new android.widget.Spinner(this);
+                  spn.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, BSN));
+                  spn.setSelection(Math.min(BSN.length - 1, sp.getInt("bstyle", 0)));
+                  box.addView(spn);
+                  TextView gl = new TextView(this);
+                  gl.setText("Світіння тексту");
+                  box.addView(gl);
+                  final android.widget.SeekBar gsb = new android.widget.SeekBar(this);
+                  gsb.setMax(100);
+                  gsb.setProgress(sp.getInt("glow", 0));
+                  gsb.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                          prev.setShadowLayer(p / 100f * dp(14), 0, 0, hsvc(c[0]));
+                      }
+
+                      @Override
+                      public void onStartTrackingTouch(android.widget.SeekBar s) {
+                      }
+
+                      @Override
+                      public void onStopTrackingTouch(android.widget.SeekBar s) {
+                      }
+                  });
+                  box.addView(gsb, new LinearLayout.LayoutParams(-1, dp(40)));
+                  final android.widget.CheckBox cb3 = new android.widget.CheckBox(this);
+                  cb3.setText("Синхронізувати кольори з програмою Радіо і Передача");
+                  cb3.setChecked(sp.getBoolean("sync", true));
+                  box.addView(cb3);
+                  final Runnable load = new Runnable() {
+                      @Override
+                      public void run() {
+                          busy[0] = true;
+                          sb[0].setProgress(c[sel[0]][0] < 0 ? 0 : c[sel[0]][0] > 360 ? 380 : Math.round(c[sel[0]][0]) + 10);
+                          sb[1].setProgress(Math.round(c[sel[0]][1] * 100));
+                          sb[2].setProgress(Math.round(c[sel[0]][2] * 100));
+                          busy[0] = false;
+                      }
+                  };
+                  rg.setOnCheckedChangeListener((g, id) -> {
+                      boolean isPal = id == 103;
+                      if (!isPal) sel[0] = id == 102 ? 1 : 0;
+                      for (View sv2 : slv) sv2.setVisibility(isPal ? View.GONE : View.VISIBLE);
+                      pal.setVisibility(isPal ? View.VISIBLE : View.GONE);
+                      if (!isPal) load.run();
+                  });
+                  r0.setChecked(true);
+                  load.run();
+                  upd.run();
+                  android.widget.ScrollView svx = new android.widget.ScrollView(this);
+                  svx.addView(box);
+                  new AlertDialog.Builder(this).setTitle("Свій колір").setView(svx)
+                          .setPositiveButton("Застосувати", (d, w) -> {
+                              sp.edit().putInt("glow", gsb.getProgress()).putBoolean("sync", cb3.isChecked()).putInt("bstyle", spn.getSelectedItemPosition()).putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
+                                      .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
+                                      .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
+                              syncOut();
                               recreate();
-                          }).show();
+                          }).setNegativeButton("Скасувати", null).show();
               }
 
               void countMenu() {
