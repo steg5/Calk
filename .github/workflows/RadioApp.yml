@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 15
-                  versionName "2.4"
+                  versionCode 17
+                  versionName "2.6"
               }
               signingConfigs {
                   debug {
@@ -413,17 +413,29 @@ jobs:
                   }
               }
 
+              /** Відтінок < 0 дає чорний, > 360 дає білий. */
+              int hsvc(float[] c) {
+                  if (c[0] < 0) return 0xFF000000;
+                  if (c[0] > 360) return 0xFFFFFFFF;
+                  return android.graphics.Color.HSVToColor(c);
+              }
+
+              int dimc(int col, float k) {
+                  return 0xFF000000 | (Math.round(((col >> 16) & 255) * k) << 16) | (Math.round(((col >> 8) & 255) * k) << 8) | Math.round((col & 255) * k);
+              }
+
               void applyTheme() {
                   int ti = Math.min(TH.length - 1, Math.max(0, uisp.getInt("theme", 0)));
                   int[] t = TH[ti];
-                  if (ti == TH.length - 1) {
+                  if (true) {
                       float[] tx = {uisp.getFloat("cH", 4), uisp.getFloat("cS", 0.95f), uisp.getFloat("cV", 0.95f)};
                       float[] bl = {uisp.getFloat("bH", 4), uisp.getFloat("bS", 0.9f), uisp.getFloat("bV", 0.25f)};
+                      boolean bd = uisp.getBoolean("bDark", true), td = uisp.getBoolean("tDark", true);
+                      int tc = hsvc(tx), bc = hsvc(bl);
                       t = new int[]{
-                              android.graphics.Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.35f}), 0xFF000000,
-                              android.graphics.Color.HSVToColor(tx), 0xCC000000 | (android.graphics.Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.6f}) & 0xFFFFFF),
-                              android.graphics.Color.HSVToColor(bl), android.graphics.Color.HSVToColor(tx),
-                              android.graphics.Color.HSVToColor(new float[]{tx[0], tx[1], tx[2] * 0.75f})};
+                              bd ? dimc(bc, 0.35f) : bc, bd ? 0xFF000000 : bc,
+                              tc, 0xCC000000 | ((bd ? dimc(bc, 0.6f) : bc) & 0xFFFFFF),
+                              bc, tc, td ? dimc(tc, 0.75f) : tc};
                   }
                   BG1 = t[0];
                   BG2 = t[1];
@@ -492,16 +504,7 @@ jobs:
               }
 
               void themeDialog() {
-                  new AlertDialog.Builder(this).setTitle("Колірна тема")
-                          .setSingleChoiceItems(THN, uisp.getInt("theme", 0), (d, i) -> {
-                              d.dismiss();
-                              if (i == THN.length - 1) {
-                                  customDialog();
-                              } else {
-                                  uisp.edit().putInt("theme", i).apply();
-                                  recreate();
-                              }
-                          }).setNegativeButton("Скасувати", null).show();
+                  customDialog();
               }
 
               void customDialog() {
@@ -532,12 +535,12 @@ jobs:
                   box.addView(rg);
                   final String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
                   final android.widget.SeekBar[] sb = new android.widget.SeekBar[3];
-                  final int[] mx = {360, 100, 100};
+                  final int[] mx = {380, 100, 100};
                   final Runnable upd = new Runnable() {
                       @Override
                       public void run() {
-                          prev.setBackgroundColor(android.graphics.Color.HSVToColor(c[1]));
-                          prev.setTextColor(android.graphics.Color.HSVToColor(c[0]));
+                          prev.setBackgroundColor(hsvc(c[1]));
+                          prev.setTextColor(hsvc(c[0]));
                       }
                   };
                   for (int k = 0; k < 3; k++) {
@@ -548,7 +551,7 @@ jobs:
                       sb[k] = new android.widget.SeekBar(this);
                       sb[k].setMax(mx[k]);
                       if (k == 0) {
-                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000});
+                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFF000000, 0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000, 0xFFFFFFFF});
                           hg.setCornerRadius(dp(6));
                           sb[k].setBackground(hg);
                       }
@@ -556,7 +559,7 @@ jobs:
                           @Override
                           public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
                               if (!user || busy[0]) return;
-                              c[sel[0]][kk] = kk == 0 ? p : p / 100f;
+                              c[sel[0]][kk] = kk == 0 ? (p < 10 ? -1 : p > 370 ? 361 : p - 10) : p / 100f;
                               upd.run();
                           }
 
@@ -570,11 +573,19 @@ jobs:
                       });
                       box.addView(sb[k], new LinearLayout.LayoutParams(-1, dp(40)));
                   }
+                  final android.widget.CheckBox cb1 = new android.widget.CheckBox(this);
+                  cb1.setText("Затемнювати фон і плитки");
+                  cb1.setChecked(uisp.getBoolean("bDark", true));
+                  final android.widget.CheckBox cb2 = new android.widget.CheckBox(this);
+                  cb2.setText("Затемнювати другорядний текст");
+                  cb2.setChecked(uisp.getBoolean("tDark", true));
+                  box.addView(cb1);
+                  box.addView(cb2);
                   final Runnable load = new Runnable() {
                       @Override
                       public void run() {
                           busy[0] = true;
-                          sb[0].setProgress(Math.round(c[sel[0]][0]));
+                          sb[0].setProgress(c[sel[0]][0] < 0 ? 0 : c[sel[0]][0] > 360 ? 380 : Math.round(c[sel[0]][0]) + 10);
                           sb[1].setProgress(Math.round(c[sel[0]][1] * 100));
                           sb[2].setProgress(Math.round(c[sel[0]][2] * 100));
                           busy[0] = false;
@@ -591,7 +602,7 @@ jobs:
                   svx.addView(box);
                   new AlertDialog.Builder(this).setTitle("Свій колір").setView(svx)
                           .setPositiveButton("Застосувати", (d, w) -> {
-                              uisp.edit().putInt("theme", THN.length - 1)
+                              uisp.edit().putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
                                       .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
                                       .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
                               recreate();
