@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 29
-                  versionName "3.10"
+                  versionCode 30
+                  versionName "3.11"
               }
               signingConfigs {
                   debug {
@@ -2125,6 +2125,10 @@ jobs:
                   applyMark();
                   map.autoMax = sp.getFloat("azmax", 15f);
                   map.zoomLimit = sp.getFloat("zlim", 15f);
+                  map.citySpeed = sp.getInt("zcity", 65);
+                  map.subSpeed = sp.getInt("zsub", 100);
+                  map.labelMul = LBL_MUL[Math.max(0, Math.min(2, sp.getInt("lblsz", 1)))];
+                  map.markMul = MK_MUL[Math.max(0, Math.min(2, sp.getInt("mksz", 0)))];
                   nav.addView(map, new FrameLayout.LayoutParams(-1, -1));
                   final int bs = px(56), gap = px(10);
                   View[] mb = new View[6];
@@ -2172,7 +2176,7 @@ jobs:
                   if (sp.contains("clat")) {
                       map.lat = sp.getFloat("clat", 49.84f);
                       map.lon = sp.getFloat("clon", 24.03f);
-                      map.zoom = Math.min(17f, sp.getFloat("czoom", 14f));
+                      map.zoom = Math.min(20f, sp.getFloat("czoom", 14f));
                   }
                   if (sp.contains("mlat")) {
                       map.markLat = (double) sp.getFloat("mlat", 0);
@@ -3672,6 +3676,10 @@ jobs:
                           t("Макс. ручний масштаб", String.valueOf(Math.round(sp.getFloat("zlim", 15f))), false, this::zlimMenu),
                           t("Автомасштаб: мін", String.valueOf(Math.round(sp.getFloat("azmin", 13f))), false, () -> zoomMenu(true)),
                           t("Автомасштаб: макс", String.valueOf(Math.round(sp.getFloat("azmax", 15f))), false, () -> zoomMenu(false)),
+                          t("Швидкість: місто", "до " + sp.getInt("zcity", 65) + " км/год", false, () -> speedMenu(true)),
+                          t("Швидкість: приміська", "до " + sp.getInt("zsub", 100) + " км/год", false, () -> speedMenu(false)),
+                          t("Розмір написів", LSZN[Math.max(0, Math.min(2, sp.getInt("lblsz", 1)))], false, () -> sizeMenu(true)),
+                          t("Розмір значка", SZN[Math.max(0, Math.min(2, sp.getInt("mksz", 0)))], false, () -> sizeMenu(false)),
                           t("Авто день / ніч", onOff(sp.getBoolean("autonav", true)), false, () -> {
                               sp.edit().putBoolean("autonav", !sp.getBoolean("autonav", true)).apply();
                               updateBright();
@@ -3781,11 +3789,11 @@ jobs:
               }
 
               void zoomMenu(final boolean isMin) {
-                  final String[] n = {"9", "10", "11", "12", "13", "14", "15", "16", "17"};
+                  final String[] n = {"9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"};
                   float cur = sp.getFloat(isMin ? "azmin" : "azmax", isMin ? 13f : 15f);
                   new AlertDialog.Builder(this)
                           .setTitle(isMin ? "Мінімальний масштаб (траса)" : "Максимальний масштаб (місто)")
-                          .setSingleChoiceItems(n, Math.max(0, Math.min(8, Math.round(cur) - 9)), (dd, i) -> {
+                          .setSingleChoiceItems(n, Math.max(0, Math.min(11, Math.round(cur) - 9)), (dd, i) -> {
                               float val = 9 + i;
                               float mn = sp.getFloat("azmin", 13f), mx = sp.getFloat("azmax", 15f);
                               if (isMin) {
@@ -3802,11 +3810,60 @@ jobs:
                           }).setNegativeButton("Скасувати", null).show();
               }
 
+              static final float[] LBL_MUL = {0.85f, 1f, 1.25f};
+              static final float[] MK_MUL = {1.6f, 2f, 2.5f};
+              static final String[] SZN = {"середній", "великий", "дуже великий"};
+              static final String[] LSZN = {"малий", "середній", "великий"};
+
+              void speedMenu(final boolean city) {
+                  int from = city ? 30 : 60, to = city ? 80 : 130;
+                  final List<Integer> vals = new ArrayList<Integer>();
+                  for (int v = from; v <= to; v += 5) vals.add(v);
+                  String[] n = new String[vals.size()];
+                  int cur = sp.getInt(city ? "zcity" : "zsub", city ? 65 : 100), sel = 0;
+                  for (int i = 0; i < n.length; i++) {
+                      n[i] = "до " + vals.get(i) + " км/год";
+                      if (vals.get(i) == cur) sel = i;
+                  }
+                  new AlertDialog.Builder(this)
+                          .setTitle(city ? "Місто: масштаб «макс» до швидкості" : "Приміська: до швидкості (далі траса)")
+                          .setSingleChoiceItems(n, sel, (dd, i) -> {
+                              int v = vals.get(i);
+                              int c = sp.getInt("zcity", 65), s2 = sp.getInt("zsub", 100);
+                              if (city) {
+                                  c = v;
+                                  if (s2 < c + 5) s2 = c + 5;
+                              } else {
+                                  s2 = v;
+                                  if (c > s2 - 5) c = s2 - 5;
+                              }
+                              sp.edit().putInt("zcity", c).putInt("zsub", s2).apply();
+                              map.citySpeed = c;
+                              map.subSpeed = s2;
+                              dd.dismiss();
+                              rebuildSettings();
+                          }).setNegativeButton("Скасувати", null).show();
+              }
+
+              void sizeMenu(final boolean labels) {
+                  String[] n = labels ? LSZN : SZN;
+                  int cur = sp.getInt(labels ? "lblsz" : "mksz", labels ? 1 : 0);
+                  new AlertDialog.Builder(this).setTitle(labels ? "Розмір написів вулиць" : "Розмір значка на карті")
+                          .setSingleChoiceItems(n, Math.max(0, Math.min(2, cur)), (dd, i) -> {
+                              sp.edit().putInt(labels ? "lblsz" : "mksz", i).apply();
+                              if (labels) map.labelMul = LBL_MUL[i];
+                              else map.markMul = MK_MUL[i];
+                              map.invalidate();
+                              dd.dismiss();
+                              rebuildSettings();
+                          }).setNegativeButton("Скасувати", null).show();
+              }
+
               void zlimMenu() {
-                  final String[] n = {"13", "14", "15", "16", "17"};
+                  final String[] n = {"13", "14", "15", "16", "17", "18", "19", "20"};
                   float cur = sp.getFloat("zlim", 15f);
                   new AlertDialog.Builder(this).setTitle("Максимальний ручний масштаб")
-                          .setSingleChoiceItems(n, Math.max(0, Math.min(4, Math.round(cur) - 13)), (dd, i) -> {
+                          .setSingleChoiceItems(n, Math.max(0, Math.min(7, Math.round(cur) - 13)), (dd, i) -> {
                               float val = 13 + i;
                               sp.edit().putFloat("zlim", val).apply();
                               map.zoomLimit = val;
@@ -4562,6 +4619,12 @@ jobs:
               public int markStyle = 0, markColor = 0xFF1E88E5;
               public Bitmap markBmp = null;
               public double autoMin = 13, autoMax = 15, zoomLimit = 15;
+              public double citySpeed = 65, subSpeed = 100;
+              public float labelMul = 1f, markMul = 1.6f;
+              double avgKmh = 0;
+              int lvl = 0, pendLvl = -1;
+              long pendT = 0;
+              boolean lvlInit = false;
               float pivY = -1;
               public boolean follow = true, night = false, hasFix = false, headingUp = true;
               long manualUntil = 0;
@@ -4721,7 +4784,7 @@ jobs:
                           mc.close();
                       } catch (Throwable ignored) {
                       }
-                      zoom = Math.max(minZ, Math.min(vector ? Math.max(maxZ, 17) : maxZ, zoom));
+                      zoom = Math.max(minZ, Math.min(vector ? Math.max(maxZ, 20) : maxZ, zoom));
                       return true;
                   } catch (Throwable t) {
                       error = String.valueOf(t);
@@ -4778,6 +4841,7 @@ jobs:
               /** Нове положення з GPS. speed у м/с, bearing у градусах (або -1). */
               public void setMyLocation(double la, double lo, float bearing, float speed) {
                   boolean first = !hasFix;
+                  if (first) lvlInit = false;
                   myLat = la;
                   myLon = lo;
                   fixLat = la;
@@ -4841,9 +4905,30 @@ jobs:
                       rot += angDiff(tRot, rot) * (1 - Math.exp(-dt / 0.7));
                       rot = (rot % 360 + 360) % 360;
                       if (now > manualUntil) {
-                          double t0 = Math.max(0, Math.min(1, (17.2 - speedZoom(fixSpeed * 3.6)) / 3.0));
-                          double tz = Math.max(minZ, Math.min(zoomLimit, autoMax - t0 * (autoMax - autoMin)));
-                          zoom += (tz - zoom) * (1 - Math.exp(-dt / 1.2));
+                          double kmh = fixSpeed * 3.6;
+                          if (!lvlInit) {
+                              avgKmh = kmh;
+                              lvl = avgKmh > subSpeed ? 2 : avgKmh > citySpeed ? 1 : 0;
+                              lvlInit = true;
+                          }
+                          avgKmh += (kmh - avgKmh) * (1 - Math.exp(-dt / 15.0));
+                          int w = lvl;
+                          if (w == 0 && avgKmh > citySpeed + 4) w = 1;
+                          if (w == 1 && avgKmh > subSpeed + 4) w = 2;
+                          if (w == 2 && avgKmh < subSpeed - 4) w = 1;
+                          if (w == 1 && avgKmh < citySpeed - 4) w = 0;
+                          if (w != lvl) {
+                              if (pendLvl != w) {
+                                  pendLvl = w;
+                                  pendT = now;
+                              } else if (now - pendT > 12_000_000_000L) {
+                                  lvl = w;
+                                  pendLvl = -1;
+                              }
+                          } else pendLvl = -1;
+                          double zt = lvl == 0 ? autoMax : lvl == 2 ? autoMin : (autoMin + autoMax) / 2.0;
+                          double tz = Math.max(minZ, Math.min(zoomLimit, zt));
+                          zoom += (tz - zoom) * (1 - Math.exp(-dt / 3.0));
                       }
                   }
               }
@@ -4933,7 +5018,8 @@ jobs:
                   }
                   tpn.setTypeface(Typeface.DEFAULT);
                   // 2) вулиці
-                  tpn.setTextSize(13 * density);
+                  final float stSz = (zoom < 15 ? 14f : (float) Math.min(24.0, 17.0 + (zoom - 15) * 2.3)) * labelMul;
+                  tpn.setTextSize(stSz * density);
                   for (Object[] v : vis) {
                       VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
                       float l = (Float) v[1], t = (Float) v[2], ts = (Float) v[3];
@@ -4973,17 +5059,17 @@ jobs:
                           pm.getSegment(off, off + tw, seg, true);
                           RectF rc = new RectF();
                           seg.computeBounds(rc, true);
-                          rc.inset(-7 * density, -9 * density);
+                          rc.inset(-7 * density, -stSz * 0.7f * density);
                           if (hits(placed, rc)) continue;
                           placed.add(rc);
                           tpn.setTextAlign(Paint.Align.LEFT);
                           tpn.setStyle(Paint.Style.STROKE);
-                          tpn.setStrokeWidth(3.5f * density);
+                          tpn.setStrokeWidth(3.5f * density * stSz / 13f);
                           tpn.setColor(night ? 0xFF111111 : 0xFFFFFFFF);
-                          cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
+                          cv.drawTextOnPath(r.name, pa, off, stSz * 0.3f * density, tpn);
                           tpn.setStyle(Paint.Style.FILL);
                           tpn.setColor(night ? 0xFFEEEEEE : 0xFF444444);
-                          cv.drawTextOnPath(r.name, pa, off, 4 * density, tpn);
+                          cv.drawTextOnPath(r.name, pa, off, stSz * 0.3f * density, tpn);
                       }
                   }
                   // 3) заклади й номери будинків
@@ -5038,7 +5124,7 @@ jobs:
                       cv.drawText(error == null ? "Немає файлу карти" : "Помилка карти", W / 2, H / 2, p);
                       return;
                   }
-                  int tz = (int) Math.max(minZ, Math.min(vector ? Math.max(maxZ, 17) : maxZ, Math.floor(zoom)));
+                  int tz = (int) Math.max(minZ, Math.min(vector ? Math.max(maxZ, 20) : maxZ, Math.floor(zoom)));
                   double scale = Math.pow(2, zoom - tz);
                   float ts = (float) (256.0 * density * scale);
                   double n = Math.pow(2, tz);
@@ -5097,12 +5183,23 @@ jobs:
                       cv.save();
                       cv.translate(me[0], me[1]);
                       cv.rotate(fixBearing - rot);
+                      if (zoom < 16.5) {
+                          float hr = 26 * density * markMul;
+                          p.setStyle(Paint.Style.FILL);
+                          p.setColor((markColor & 0x00FFFFFF) | 0x33000000);
+                          cv.drawCircle(0, 0, hr, p);
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setStrokeWidth(2 * density);
+                          p.setColor(0x99FFFFFF);
+                          cv.drawCircle(0, 0, hr, p);
+                          p.setStyle(Paint.Style.FILL);
+                      }
                       if (markStyle >= 5 && markBmp != null) {
-                          float s2 = 26 * density;
+                          float s2 = 26 * density * markMul;
                           Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
                           cv.drawBitmap(markBmp, null, new RectF(-s2, -s2, s2, s2), bp);
                       } else {
-                          drawMarker(cv, p, markStyle, 18 * density, markColor, density);
+                          drawMarker(cv, p, markStyle, 18 * density * markMul, markColor, density);
                       }
                       cv.restore();
                   }
