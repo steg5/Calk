@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 18
-                  versionName "2.7"
+                  versionCode 19
+                  versionName "2.8"
               }
               signingConfigs {
                   debug {
@@ -584,8 +584,13 @@ jobs:
                   final android.widget.RadioButton r1 = new android.widget.RadioButton(this);
                   r1.setText("Колір блоків");
                   r1.setId(102);
+                  final android.widget.RadioButton r2 = new android.widget.RadioButton(this);
+                  r2.setText("Червоні");
+                  r2.setId(103);
                   rg.addView(r0);
                   rg.addView(r1);
+                  rg.addView(r2);
+                  final java.util.List<View> slv = new java.util.ArrayList<View>();
                   box.addView(rg);
                   final String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
                   final android.widget.SeekBar[] sb = new android.widget.SeekBar[3];
@@ -602,6 +607,7 @@ jobs:
                       TextView lb = new TextView(this);
                       lb.setText(nm[k]);
                       box.addView(lb);
+                      slv.add(lb);
                       sb[k] = new android.widget.SeekBar(this);
                       sb[k].setMax(mx[k]);
                       if (k == 0) {
@@ -626,7 +632,44 @@ jobs:
                           }
                       });
                       box.addView(sb[k], new LinearLayout.LayoutParams(-1, dp(40)));
+                      slv.add(sb[k]);
                   }
+                  final LinearLayout pal = new LinearLayout(this);
+                  pal.setOrientation(LinearLayout.VERTICAL);
+                  pal.setVisibility(View.GONE);
+                  final float[] ph = {350, 355, 0, 4, 8, 12, 16};
+                  final float[] pvT = {1f, 0.88f, 0.75f};
+                  final float[] pvB = {0.42f, 0.28f, 0.16f};
+                  for (int tgt = 0; tgt < 2; tgt++) {
+                      final int tg = tgt;
+                      TextView pl = new TextView(this);
+                      pl.setText(tg == 0 ? "Текст: яскраво-червоні" : "Блоки: темно-червоні");
+                      pl.setPadding(0, dp(8), 0, dp(2));
+                      pal.addView(pl);
+                      float[] pv = tg == 0 ? pvT : pvB;
+                      for (final float vv : pv) {
+                          LinearLayout rw = new LinearLayout(this);
+                          for (final float hh : ph) {
+                              View sw = new View(this);
+                              GradientDrawable sgd = new GradientDrawable();
+                              sgd.setColor(android.graphics.Color.HSVToColor(new float[]{hh, 1f, vv}));
+                              sgd.setCornerRadius(dp(8));
+                              sgd.setStroke(dp(1), 0x66FFFFFF);
+                              sw.setBackground(sgd);
+                              sw.setOnClickListener(x -> {
+                                  c[tg][0] = hh;
+                                  c[tg][1] = 1f;
+                                  c[tg][2] = vv;
+                                  upd.run();
+                              });
+                              LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(40), 1);
+                              swp.setMargins(dp(2), dp(2), dp(2), dp(2));
+                              rw.addView(sw, swp);
+                          }
+                          pal.addView(rw);
+                      }
+                  }
+                  box.addView(pal);
                   final android.widget.CheckBox cb1 = new android.widget.CheckBox(this);
                   cb1.setText("Затемнювати фон і плитки");
                   cb1.setChecked(uisp.getBoolean("bDark", true));
@@ -653,8 +696,11 @@ jobs:
                       }
                   };
                   rg.setOnCheckedChangeListener((g, id) -> {
-                      sel[0] = id == 102 ? 1 : 0;
-                      load.run();
+                      boolean isPal = id == 103;
+                      if (!isPal) sel[0] = id == 102 ? 1 : 0;
+                      for (View sv2 : slv) sv2.setVisibility(isPal ? View.GONE : View.VISIBLE);
+                      pal.setVisibility(isPal ? View.VISIBLE : View.GONE);
+                      if (!isPal) load.run();
                   });
                   r0.setChecked(true);
                   load.run();
