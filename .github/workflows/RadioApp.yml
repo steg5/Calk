@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 13
-                  versionName "2.2"
+                  versionCode 14
+                  versionName "2.3"
               }
               signingConfigs {
                   debug {
@@ -140,7 +140,7 @@ jobs:
           import android.widget.Toast;
 
           public class MainActivity extends Activity {
-              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний", "Світло-червона (підсвітка)"};
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний", "Свій колір (повзунки)"};
               // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст
               static final int[][] TH = {
                       {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC},
@@ -155,7 +155,7 @@ jobs:
                       {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A},
                       {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663},
                       {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B},
-                      {0xFF1A0605, 0xFF000000, 0xFFFF5A48, 0xCC140403, 0xFF2E0B09, 0xFFFF4636, 0xFFD8392C}};
+                      {0xFF000000, 0xFF000000, 0xFFF2200F, 0xCC140403, 0xFF3A0805, 0xFFF2200F, 0xFFC4180B}};
               int BG1, BG2, ACC, CARD, BTN, TXT, DIM;
               static final int FMIN = 8750, FMAX = 10800;
 
@@ -414,7 +414,17 @@ jobs:
               }
 
               void applyTheme() {
-                  int[] t = TH[Math.min(TH.length - 1, Math.max(0, uisp.getInt("theme", 0)))];
+                  int ti = Math.min(TH.length - 1, Math.max(0, uisp.getInt("theme", 0)));
+                  int[] t = TH[ti];
+                  if (ti == TH.length - 1) {
+                      float[] tx = {uisp.getFloat("cH", 4), uisp.getFloat("cS", 0.95f), uisp.getFloat("cV", 0.95f)};
+                      float[] bl = {uisp.getFloat("bH", 4), uisp.getFloat("bS", 0.9f), uisp.getFloat("bV", 0.25f)};
+                      t = new int[]{
+                              Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.35f}), 0xFF000000,
+                              Color.HSVToColor(tx), 0xCC000000 | (Color.HSVToColor(new float[]{bl[0], bl[1], bl[2] * 0.6f}) & 0xFFFFFF),
+                              Color.HSVToColor(bl), Color.HSVToColor(tx),
+                              Color.HSVToColor(new float[]{tx[0], tx[1], tx[2] * 0.75f})};
+                  }
                   BG1 = t[0];
                   BG2 = t[1];
                   ACC = t[2];
@@ -484,8 +494,106 @@ jobs:
               void themeDialog() {
                   new AlertDialog.Builder(this).setTitle("Колірна тема")
                           .setSingleChoiceItems(THN, uisp.getInt("theme", 0), (d, i) -> {
-                              uisp.edit().putInt("theme", i).apply();
                               d.dismiss();
+                              if (i == THN.length - 1) {
+                                  customDialog();
+                              } else {
+                                  uisp.edit().putInt("theme", i).apply();
+                                  recreate();
+                              }
+                          }).setNegativeButton("Скасувати", null).show();
+              }
+
+              void customDialog() {
+                  final float[][] c = {
+                          {uisp.getFloat("cH", 4), uisp.getFloat("cS", 0.95f), uisp.getFloat("cV", 0.95f)},
+                          {uisp.getFloat("bH", 4), uisp.getFloat("bS", 0.9f), uisp.getFloat("bV", 0.25f)}};
+                  final int[] sel = {0};
+                  final boolean[] busy = {false};
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setPadding(dp(18), dp(8), dp(18), dp(4));
+                  final TextView prev = new TextView(this);
+                  prev.setText("Люкс FM  104.7");
+                  prev.setTextSize(24);
+                  prev.setGravity(Gravity.CENTER);
+                  prev.setPadding(dp(10), dp(16), dp(10), dp(16));
+                  box.addView(prev, new LinearLayout.LayoutParams(-1, -2));
+                  final android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
+                  rg.setOrientation(LinearLayout.HORIZONTAL);
+                  final android.widget.RadioButton r0 = new android.widget.RadioButton(this);
+                  r0.setText("Колір тексту");
+                  r0.setId(101);
+                  final android.widget.RadioButton r1 = new android.widget.RadioButton(this);
+                  r1.setText("Колір блоків");
+                  r1.setId(102);
+                  rg.addView(r0);
+                  rg.addView(r1);
+                  box.addView(rg);
+                  final String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
+                  final android.widget.SeekBar[] sb = new android.widget.SeekBar[3];
+                  final int[] mx = {360, 100, 100};
+                  final Runnable upd = new Runnable() {
+                      @Override
+                      public void run() {
+                          prev.setBackgroundColor(Color.HSVToColor(c[1]));
+                          prev.setTextColor(Color.HSVToColor(c[0]));
+                      }
+                  };
+                  for (int k = 0; k < 3; k++) {
+                      final int kk = k;
+                      TextView lb = new TextView(this);
+                      lb.setText(nm[k]);
+                      box.addView(lb);
+                      sb[k] = new android.widget.SeekBar(this);
+                      sb[k].setMax(mx[k]);
+                      if (k == 0) {
+                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000});
+                          hg.setCornerRadius(dp(6));
+                          sb[k].setBackground(hg);
+                      }
+                      sb[k].setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                          @Override
+                          public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                              if (!user || busy[0]) return;
+                              c[sel[0]][kk] = kk == 0 ? p : p / 100f;
+                              upd.run();
+                          }
+
+                          @Override
+                          public void onStartTrackingTouch(android.widget.SeekBar s) {
+                          }
+
+                          @Override
+                          public void onStopTrackingTouch(android.widget.SeekBar s) {
+                          }
+                      });
+                      box.addView(sb[k], new LinearLayout.LayoutParams(-1, dp(40)));
+                  }
+                  final Runnable load = new Runnable() {
+                      @Override
+                      public void run() {
+                          busy[0] = true;
+                          sb[0].setProgress(Math.round(c[sel[0]][0]));
+                          sb[1].setProgress(Math.round(c[sel[0]][1] * 100));
+                          sb[2].setProgress(Math.round(c[sel[0]][2] * 100));
+                          busy[0] = false;
+                      }
+                  };
+                  rg.setOnCheckedChangeListener((g, id) -> {
+                      sel[0] = id == 102 ? 1 : 0;
+                      load.run();
+                  });
+                  r0.setChecked(true);
+                  load.run();
+                  upd.run();
+                  android.widget.ScrollView svx = new android.widget.ScrollView(this);
+                  svx.addView(box);
+                  new AlertDialog.Builder(this).setTitle("Свій колір").setView(svx)
+                          .setPositiveButton("Застосувати", (d, w) -> {
+                              uisp.edit().putInt("theme", THN.length - 1)
+                                      .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
+                                      .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
                               recreate();
                           }).setNegativeButton("Скасувати", null).show();
               }
