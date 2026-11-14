@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 23
-                  versionName "3.2"
+                  versionCode 24
+                  versionName "3.3"
               }
               signingConfigs {
                   debug {
@@ -729,7 +729,7 @@ jobs:
                   final LinearLayout pal = new LinearLayout(this);
                   pal.setOrientation(LinearLayout.VERTICAL);
                   pal.setVisibility(View.GONE);
-                  final float[] ph = {350, 355, 0, 4, 8, 12, 16};
+                  final float[] ph = {344, 349, 354, 358, 0, 3, 6};
                   final float[] pvT = {1f, 0.88f, 0.75f};
                   final float[] pvB = {0.42f, 0.28f, 0.16f};
                   for (int tgt = 0; tgt < 2; tgt++) {
@@ -899,7 +899,7 @@ jobs:
                       r4.addView(g4, p4);
                   }
                   right.addView(r4, new LinearLayout.LayoutParams(-1, 0, 1));
-                  btnScan = new Glyph(6, "Знайти станції", 19);
+                  btnScan = new Glyph(6, "Знайти", 19);
                   right.addView(row2(new Glyph(-1, "Станції", 19), btnScan, () -> showTab(2), this::startScan));
                   right.addView(row2(new Glyph(-1, "Обрані", 19), new Glyph(-1, "Тема", 19), () -> showTab(1), this::themeDialog));
 
@@ -1322,7 +1322,7 @@ jobs:
                           scanning = false;
                           final int total = found;
                           runOnUiThread(() -> {
-                              btnScan.set(6, "Знайти станції", false);
+                              btnScan.set(6, "Знайти", false);
                               tvScan.setText("Готово. Знайдено станцій: " + total);
                               if (tuner.freq >= FMIN && tuner.freq <= FMAX) cur = tuner.freq;
                               refreshLists();
