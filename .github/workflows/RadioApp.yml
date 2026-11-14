@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 19
-                  versionName "2.8"
+                  versionCode 20
+                  versionName "2.9"
               }
               signingConfigs {
                   debug {
@@ -90,6 +90,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
               <application
                   android:label="Радіо"
@@ -251,8 +252,11 @@ jobs:
                   t.setTextSize(sp);
                   t.setTextColor(color);
                   if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  if (glowR > 0) t.setShadowLayer(glowR, 0, 0, color);
                   return t;
               }
+
+              float glowR = 0;
 
               // ---------- власні кнопки з намальованими значками ----------
               class Glyph extends View {
@@ -268,6 +272,7 @@ jobs:
                       this.label = label;
                       this.sp = sp;
                       setClickable(true);
+                      if (glowR > 0) setLayerType(View.LAYER_TYPE_SOFTWARE, null);
                   }
 
                   void set(int kind, String label, boolean sel) {
@@ -301,6 +306,8 @@ jobs:
                       p.setColor((ACC & 0xFFFFFF) | (sel ? 0xDD000000 : 0x77000000));
                       cv.drawRoundRect(r, dp(16), dp(16), p);
                       p.setStyle(Paint.Style.FILL);
+                      if (glowR > 0) p.setShadowLayer(glowR, 0, 0, TXT);
+                      else p.clearShadowLayer();
                       float ts = sp * getResources().getDisplayMetrics().scaledDensity;
                       p.setTextSize(ts);
                       p.setTypeface(Typeface.DEFAULT_BOLD);
@@ -478,6 +485,68 @@ jobs:
                   return 0xFF000000 | (Math.round(((col >> 16) & 255) * k) << 16) | (Math.round(((col >> 8) & 255) * k) << 8) | Math.round((col & 255) * k);
               }
 
+              java.io.File syncFile() {
+                  return new java.io.File(android.os.Environment.getExternalStorageDirectory(), "fordtheme.cfg");
+              }
+
+              static final String[] SYNC_F = {"cH", "cS", "cV", "bH", "bS", "bV"};
+              static final float[] SYNC_FD = {4, 0.95f, 0.95f, 4, 0.9f, 0.25f};
+
+              /** Читає спільний файл теми, якщо він новіший за збережену тему. */
+              boolean syncIn() {
+                  if (!uisp.getBoolean("sync", true)) return false;
+                  try {
+                      java.io.File f = syncFile();
+                      if (!f.exists()) return false;
+                      java.util.Properties p = new java.util.Properties();
+                      java.io.FileInputStream in = new java.io.FileInputStream(f);
+                      p.load(in);
+                      in.close();
+                      long ts = Long.parseLong(p.getProperty("ts", "0"));
+                      if (ts <= uisp.getLong("ts", 0)) return false;
+                      SharedPreferences.Editor e = uisp.edit();
+                      for (int i = 0; i < SYNC_F.length; i++) e.putFloat(SYNC_F[i], Float.parseFloat(p.getProperty(SYNC_F[i], "" + SYNC_FD[i])));
+                      e.putInt("bstyle", Integer.parseInt(p.getProperty("bstyle", "0")));
+                      e.putInt("glow", Integer.parseInt(p.getProperty("glow", "0")));
+                      e.putBoolean("bDark", p.getProperty("bDark", "1").equals("1"));
+                      e.putBoolean("tDark", p.getProperty("tDark", "1").equals("1"));
+                      e.putLong("ts", ts).apply();
+                      return true;
+                  } catch (Throwable x) {
+                      return false;
+                  }
+              }
+
+              void syncOut() {
+                  if (!uisp.getBoolean("sync", true)) return;
+                  try {
+                      long ts = System.currentTimeMillis();
+                      java.util.Properties p = new java.util.Properties();
+                      for (int i = 0; i < SYNC_F.length; i++) p.setProperty(SYNC_F[i], "" + uisp.getFloat(SYNC_F[i], SYNC_FD[i]));
+                      p.setProperty("bstyle", "" + uisp.getInt("bstyle", 0));
+                      p.setProperty("glow", "" + uisp.getInt("glow", 0));
+                      p.setProperty("bDark", uisp.getBoolean("bDark", true) ? "1" : "0");
+                      p.setProperty("tDark", uisp.getBoolean("tDark", true) ? "1" : "0");
+                      p.setProperty("ts", "" + ts);
+                      java.io.FileOutputStream o = new java.io.FileOutputStream(syncFile());
+                      p.store(o, "FordTheme");
+                      o.close();
+                      uisp.edit().putLong("ts", ts).apply();
+                  } catch (Throwable x) {
+                      toastMsg("Не вдалось записати спільну тему: " + x);
+                  }
+              }
+
+              void toastMsg(String s) {
+                  android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_LONG).show();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (uisp != null && syncIn()) recreate();
+              }
+
               void applyTheme() {
                   int ti = Math.min(TH.length - 1, Math.max(0, uisp.getInt("theme", 0)));
                   int[] t = TH[ti];
@@ -491,6 +560,7 @@ jobs:
                               tc, 0xCC000000 | ((bd ? dimc(bc, 0.6f) : bc) & 0xFFFFFF),
                               bc, tc, td ? dimc(tc, 0.75f) : tc};
                   }
+                  glowR = uisp.getInt("glow", 0) / 100f * dp(14);
                   BG1 = t[0];
                   BG2 = t[1];
                   ACC = t[2];
@@ -510,6 +580,10 @@ jobs:
                       return;
                   }
                   uisp = getSharedPreferences("ui", MODE_PRIVATE);
+                  if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{"android.permission.WRITE_EXTERNAL_STORAGE"}, 7);
+                  }
+                  syncIn();
                   applyTheme();
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                   store = new Store(this);
@@ -685,6 +759,31 @@ jobs:
                   spn.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, BSN));
                   spn.setSelection(Math.min(BSN.length - 1, uisp.getInt("bstyle", 0)));
                   box.addView(spn);
+                  TextView gl = new TextView(this);
+                  gl.setText("Світіння тексту");
+                  box.addView(gl);
+                  final android.widget.SeekBar gsb = new android.widget.SeekBar(this);
+                  gsb.setMax(100);
+                  gsb.setProgress(uisp.getInt("glow", 0));
+                  gsb.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                          prev.setShadowLayer(p / 100f * dp(14), 0, 0, hsvc(c[0]));
+                      }
+
+                      @Override
+                      public void onStartTrackingTouch(android.widget.SeekBar s) {
+                      }
+
+                      @Override
+                      public void onStopTrackingTouch(android.widget.SeekBar s) {
+                      }
+                  });
+                  box.addView(gsb, new LinearLayout.LayoutParams(-1, dp(40)));
+                  final android.widget.CheckBox cb3 = new android.widget.CheckBox(this);
+                  cb3.setText("Синхронізувати кольори з Лаунчером і Передачею");
+                  cb3.setChecked(uisp.getBoolean("sync", true));
+                  box.addView(cb3);
                   final Runnable load = new Runnable() {
                       @Override
                       public void run() {
@@ -709,9 +808,10 @@ jobs:
                   svx.addView(box);
                   new AlertDialog.Builder(this).setTitle("Свій колір").setView(svx)
                           .setPositiveButton("Застосувати", (d, w) -> {
-                              uisp.edit().putInt("bstyle", spn.getSelectedItemPosition()).putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
+                              uisp.edit().putInt("glow", gsb.getProgress()).putBoolean("sync", cb3.isChecked()).putInt("bstyle", spn.getSelectedItemPosition()).putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
                                       .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
                                       .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
+                              syncOut();
                               recreate();
                           }).setNegativeButton("Скасувати", null).show();
               }
