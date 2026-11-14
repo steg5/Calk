@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 21
-                  versionName "3.0"
+                  versionCode 22
+                  versionName "3.1"
               }
               signingConfigs {
                   debug {
@@ -177,7 +177,11 @@ jobs:
               TextView tvFreq, tvName, tvSub, tvScan;
               ImageView ivLogo;
               FreqSlider seek;
-              Glyph btnFav, btnScan, btnPause;
+              Glyph btnScan;
+              TextView tvStar;
+              LinearLayout backBar;
+              int curTab;
+              boolean wasPaused;
               LinearLayout favList, allList;
 
               int dp(int v) {
@@ -595,21 +599,14 @@ jobs:
                   root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1, BG2}));
                   root.setPadding(dp(10), dp(8), dp(10), dp(8));
 
-                  LinearLayout bar = new LinearLayout(this);
-                  String[] names = {"Радіо", "Обрані", "Станції", "Тема"};
-                  for (int i = 0; i < 4; i++) {
-                      final int idx = i;
-                      Glyph t = new Glyph(-1, names[i], 19);
-                      t.setOnClickListener(v -> {
-                          if (idx == 3) themeDialog();
-                          else showTab(idx);
-                      });
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(58), i == 3 ? 0.6f : 1);
-                      lp.setMargins(dp(4), 0, dp(4), dp(8));
-                      bar.addView(t, lp);
-                      tabBtns[i] = t;
-                  }
-                  root.addView(bar);
+                  backBar = new LinearLayout(this);
+                  Glyph bk = new Glyph(2, "Назад", 19);
+                  bk.setOnClickListener(v -> showTab(0));
+                  LinearLayout.LayoutParams bkp = new LinearLayout.LayoutParams(dp(220), dp(58));
+                  bkp.setMargins(dp(4), 0, dp(4), dp(8));
+                  backBar.addView(bk, bkp);
+                  backBar.setVisibility(View.GONE);
+                  root.addView(backBar);
 
                   FrameLayout content = new FrameLayout(this);
                   root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -617,6 +614,21 @@ jobs:
                   tabs[1] = buildFavTab();
                   tabs[2] = buildAllTab();
                   for (View v : tabs) content.addView(v, new FrameLayout.LayoutParams(-1, -1));
+                  LinearLayout bar = new LinearLayout(this);
+                  String[] names = {"Обрані", "Станції", "Тема"};
+                  for (int i = 0; i < 3; i++) {
+                      final int idx = i + 1;
+                      Glyph tb = new Glyph(-1, names[i], 19);
+                      tb.setOnClickListener(v -> {
+                          if (idx == 3) themeDialog();
+                          else showTab(idx);
+                      });
+                      LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, dp(58), 1);
+                      blp.setMargins(dp(4), dp(8), dp(4), 0);
+                      bar.addView(tb, blp);
+                      tabBtns[idx] = tb;
+                  }
+                  root.addView(bar);
                   setContentView(root);
                   showTab(0);
 
@@ -633,6 +645,27 @@ jobs:
 
               void themeDialog() {
                   customDialog();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (curTab != 0) showTab(0);
+                  else super.onBackPressed();
+              }
+
+              android.graphics.Bitmap pauseBmp() {
+                  int s = 256;
+                  android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+                  Canvas cv = new Canvas(b);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  p.setColor(ACC);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(10);
+                  cv.drawCircle(s / 2f, s / 2f, s / 2f - 12, p);
+                  p.setStyle(Paint.Style.FILL);
+                  cv.drawRoundRect(new RectF(80, 66, 112, 190), 8, 8, p);
+                  cv.drawRoundRect(new RectF(144, 66, 176, 190), 8, 8, p);
+                  return b;
               }
 
               void customDialog() {
@@ -831,7 +864,6 @@ jobs:
                   LinearLayout left = new LinearLayout(this);
                   left.setOrientation(LinearLayout.VERTICAL);
                   left.setGravity(Gravity.CENTER);
-                  left.setBackground(card(24));
                   left.setPadding(dp(12), dp(10), dp(12), dp(10));
                   ivLogo = new ImageView(this);
                   ivLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -848,7 +880,17 @@ jobs:
                   left.addView(tvSub);
                   LinearLayout.LayoutParams lpL = land ? new LinearLayout.LayoutParams(0, -1, 1) : new LinearLayout.LayoutParams(-1, 0, 1);
                   lpL.setMargins(dp(4), dp(4), dp(4), dp(4));
-                  main.addView(left, lpL);
+                  FrameLayout leftBox = new FrameLayout(this);
+                  leftBox.setBackground(card(24));
+                  leftBox.addView(left, new FrameLayout.LayoutParams(-1, -1));
+                  leftBox.setOnClickListener(v -> doPause());
+                  tvStar = tv("☆", 34, DIM, false);
+                  tvStar.setGravity(Gravity.CENTER);
+                  tvStar.setOnClickListener(v -> toggleFav());
+                  FrameLayout.LayoutParams stp = new FrameLayout.LayoutParams(dp(60), dp(60), Gravity.TOP | Gravity.END);
+                  stp.setMargins(0, dp(6), dp(6), 0);
+                  leftBox.addView(tvStar, stp);
+                  main.addView(leftBox, lpL);
 
                   LinearLayout right = new LinearLayout(this);
                   right.setOrientation(LinearLayout.VERTICAL);
@@ -864,11 +906,11 @@ jobs:
                           this::doPrev, this::doNext));
                   right.addView(row2(new Glyph(2, "Крок назад", 19), new Glyph(3, "Крок вперед", 19),
                           () -> tuner.stepDown(), () -> tuner.stepUp()));
-                  btnFav = new Glyph(4, "В обрані", 19);
                   btnScan = new Glyph(6, "Знайти станції", 19);
-                  right.addView(row2(btnFav, btnScan, this::toggleFav, this::startScan));
-                  btnPause = new Glyph(8, "Пауза", 19);
-                  right.addView(row2(btnPause, new Glyph(-1, "Журнал", 19), this::doPause, this::diagDialog));
+                  btnScan.setOnClickListener(v -> startScan());
+                  LinearLayout.LayoutParams scp = new LinearLayout.LayoutParams(-1, 0, 1);
+                  scp.setMargins(dp(4), dp(4), dp(4), dp(4));
+                  right.addView(btnScan, scp);
 
                   LinearLayout.LayoutParams lpR = land ? new LinearLayout.LayoutParams(0, -1, 1.15f) : new LinearLayout.LayoutParams(-1, 0, 1.3f);
                   main.addView(right, lpR);
@@ -885,24 +927,6 @@ jobs:
                       ui.postDelayed(() -> tuner.tune(this, cur, MainActivity.class), 1500);
                   }
                   updateUi();
-              }
-
-              void diagDialog() {
-                  final String txt = "Метод налаштування: " + tuner.method() + "\n\n" + tuner.getLog();
-                  ScrollView sv = new ScrollView(this);
-                  TextView t = new TextView(this);
-                  t.setTypeface(Typeface.MONOSPACE);
-                  t.setTextSize(12);
-                  t.setText(txt);
-                  t.setPadding(dp(12), dp(8), dp(12), dp(8));
-                  sv.addView(t);
-                  new AlertDialog.Builder(this).setTitle("Журнал тюнера").setView(sv)
-                          .setPositiveButton("Закрити", null)
-                          .setNeutralButton("Скинути підбір", (d, w) -> tuner.resetProbe())
-                          .setNegativeButton("Копіювати", (d, w) -> {
-                              ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("log", txt));
-                              Toast.makeText(this, "Скопійовано", Toast.LENGTH_SHORT).show();
-                          }).show();
               }
 
               void doNext() {
@@ -994,20 +1018,30 @@ jobs:
                   }
                   String name = nameFor(cur);
                   tvName.setText(name);
-                  if (btnPause != null) btnPause.set(tuner.paused ? 3 : 8, tuner.paused ? "Грати" : "Пауза", false);
+                  if (tuner.paused) {
+                      if (!wasPaused) {
+                          wasPaused = true;
+                          ivLogo.setTag("pause");
+                          ivLogo.setImageBitmap(pauseBmp());
+                      }
+                  } else if (wasPaused) {
+                      wasPaused = false;
+                      shownLogoFreq = -1;
+                  }
                   if (tuner.paused) tvSub.setText("Пауза");
                   else if (seekWait || scanning) tvSub.setText("Шукаю станцію…");
                   else if (tuner.busy()) tvSub.setText("Налаштування… зараз " + Station.fmt(tuner.freq) + "  →  " + Station.fmt(cur));
                   else if (!tuner.ps.isEmpty() && cur == tuner.freq) tvSub.setText("RDS: " + tuner.ps);
                   else tvSub.setText("FM · МГц");
-                  if (shownLogoFreq != cur) {
+                  if (shownLogoFreq != cur && !tuner.paused) {
                       shownLogoFreq = cur;
                       Station s = store.get(cur);
                       Logos.load(this, "m" + cur, name, aliasFor(cur), s != null ? s.logo : "", ivLogo);
                   }
                   Station s = store.get(cur);
                   boolean fav = s != null && s.fav;
-                  btnFav.set(fav ? 5 : 4, fav ? "В обраних" : "В обрані", false);
+                  tvStar.setText(fav ? "★" : "☆");
+                  tvStar.setTextColor(fav ? ACC : DIM);
               }
 
               void tuneTo(int f) {
@@ -1069,11 +1103,15 @@ jobs:
               }
 
               void showTab(int i) {
+                  curTab = i;
                   for (int k = 0; k < 3; k++) {
                       tabs[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
-                      tabBtns[k].sel = k == i;
-                      tabBtns[k].invalidate();
+                      if (tabBtns[k] != null) {
+                          tabBtns[k].sel = k == i;
+                          tabBtns[k].invalidate();
+                      }
                   }
+                  if (backBar != null) backBar.setVisibility(i == 0 ? View.GONE : View.VISIBLE);
                   refreshLists();
               }
 
