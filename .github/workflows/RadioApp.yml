@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 12
-                  versionName "2.1"
+                  versionCode 13
+                  versionName "2.2"
               }
               signingConfigs {
                   debug {
@@ -1098,7 +1098,7 @@ jobs:
               /** Режим зв'язку як у NavRadio: TWUtil(1) і 12 повідомлень. Режим 1 - старий (без номера модуля). */
               static final int[] IDS12 = {0x109, 0x10a, 0x201, 0x203, 0x301, 0x302, 0x401, 0x402, 0x404, 0x405, 0x406, 0x9e00};
               int tmode = 0;
-              private boolean modeTried;
+              private boolean modeTried = true;
               private String hname = "radio";
 
               private Object util;
@@ -1332,7 +1332,8 @@ jobs:
                   if (tp == null) {
                       tp = c.getSharedPreferences("tuner", Context.MODE_PRIVATE);
                       dv = tp.getInt("dv", -2);
-                      tmode = tp.getInt("tmode", 0);
+                      tmode = 0;
+                      tp.edit().remove("tmode").remove("dv").apply();
                   }
               }
 
@@ -1449,8 +1450,9 @@ jobs:
                           return;
                       }
                       directPending = false;
-                      log("пряма команда не спрацювала, їду кроками");
-                      startStepping();
+                      log("пряма команда не спрацювала");
+                      notifyState();
+                      toast("Помилка: тюнер не прийняв команду зміни частоти (0x402 255 " + tgt + ").");
                   }
               };
 
