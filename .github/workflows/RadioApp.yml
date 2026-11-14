@@ -1,0 +1,1836 @@
+name: RadioApp
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/RadioApp.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/radioapp
+          echo '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' | base64 -d > debug.keystore
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'RadioApp'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.radioapp'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.radioapp"
+                  minSdk 23
+                  targetSdk 26
+                  versionCode 11
+                  versionName "2.0"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <application
+                  android:label="Радіо"
+                  android:icon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+
+          cat > app/src/main/java/com/example/radioapp/MainActivity.java <<'EOF'
+          package com.example.radioapp;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.SharedPreferences;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.Gravity;
+          import android.view.MotionEvent;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.EditText;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          public class MainActivity extends Activity {
+              static final String[] THN = {"Синя ніч", "Графіт", "Смарагд", "Бурштин", "Пурпур", "Червона яскрава", "Океан", "Ліс", "Світла", "Чорна", "Червона тьмяна", "Чорна + червоний"};
+              // bg1, bg2, акцент, плитка, кнопка, текст, дим. текст
+              static final int[][] TH = {
+                      {0xFF12335C, 0xFF0A1424, 0xFF4FC3F7, 0xB3101A28, 0xFF2A3A52, 0xFFF1F5F9, 0xFFA9B8CC},
+                      {0xFF2B2F36, 0xFF111316, 0xFFB0BEC5, 0xB3181A1E, 0xFF343942, 0xFFF1F5F9, 0xFFA9B0B8},
+                      {0xFF0F3D33, 0xFF071A16, 0xFF4DD6A8, 0xB30D211C, 0xFF1F4A3F, 0xFFF1F5F9, 0xFF9CBFB4},
+                      {0xFF4A3010, 0xFF1A1006, 0xFFFFB74D, 0xB3231708, 0xFF4F3A1B, 0xFFF8F1E7, 0xFFC4B29A},
+                      {0xFF3A1F5C, 0xFF150B26, 0xFFCE93D8, 0xB31F1030, 0xFF40295E, 0xFFF4EEF8, 0xFFB7A6C9},
+                      {0xFF3A0508, 0xFF120203, 0xFFFF1E1E, 0xB3200709, 0xFF5A0F12, 0xFFFFECEC, 0xFFFF9A9A},
+                      {0xFF0B4F6C, 0xFF05202B, 0xFF4DD0E1, 0xB30A2A38, 0xFF16627F, 0xFFEFF9FC, 0xFF9CC4D0},
+                      {0xFF2E4A1E, 0xFF111C0B, 0xFFAED581, 0xB3172410, 0xFF3A5A2A, 0xFFF3F8EE, 0xFFB0C4A0},
+                      {0xFFDCE6F2, 0xFFB8C7DB, 0xFF1565C0, 0xCCFFFFFF, 0xFFC9D6E6, 0xFF1B2733, 0xFF4F6075},
+                      {0xFF000000, 0xFF000000, 0xFFFFFFFF, 0xCC121212, 0xFF262626, 0xFFF1F1F1, 0xFF9A9A9A},
+                      {0xFF2A0C0E, 0xFF0D0405, 0xFFB5322F, 0xB3170708, 0xFF3A1416, 0xFFE2BDBA, 0xFF9A6663},
+                      {0xFF000000, 0xFF000000, 0xFFFF1A1A, 0xCC140404, 0xFF2A0A0A, 0xFFFFE0E0, 0xFFAA6B6B}};
+              int BG1, BG2, ACC, CARD, BTN, TXT, DIM;
+              static final int FMIN = 8750, FMAX = 10800;
+
+              final Handler ui = new Handler(Looper.getMainLooper());
+              Store store;
+              Tuner tuner;
+              SharedPreferences uisp;
+              boolean land;
+              int cur = 0;
+              int shownLogoFreq = -1;
+              boolean dragging;
+              volatile boolean scanning, scanStop;
+              boolean seekWait, seenSeek;
+              long seekT;
+
+              View[] tabs = new View[3];
+              Glyph[] tabBtns = new Glyph[4];
+              TextView tvFreq, tvName, tvSub, tvScan;
+              ImageView ivLogo;
+              FreqSlider seek;
+              Glyph btnFav, btnScan, btnPause;
+              LinearLayout favList, allList;
+
+              int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+              }
+
+              GradientDrawable rect(int color, int radiusDp) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  g.setCornerRadius(dp(radiusDp));
+                  return g;
+              }
+
+              GradientDrawable card(int radiusDp) {
+                  GradientDrawable g = rect(CARD, radiusDp);
+                  g.setStroke(dp(1), (ACC & 0xFFFFFF) | 0x44000000);
+                  return g;
+              }
+
+              TextView tv(String s, int sp, int color, boolean bold) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextSize(sp);
+                  t.setTextColor(color);
+                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  return t;
+              }
+
+              // ---------- власні кнопки з намальованими значками ----------
+              class Glyph extends View {
+                  int kind;
+                  String label;
+                  float sp;
+                  boolean sel;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  Glyph(int kind, String label, float sp) {
+                      super(MainActivity.this);
+                      this.kind = kind;
+                      this.label = label;
+                      this.sp = sp;
+                      setClickable(true);
+                  }
+
+                  void set(int kind, String label, boolean sel) {
+                      this.kind = kind;
+                      this.label = label;
+                      this.sel = sel;
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void drawableStateChanged() {
+                      super.drawableStateChanged();
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), st = dp(1) * 1.5f;
+                      RectF r = new RectF(st, st, w - st, h - st);
+                      p.setStyle(Paint.Style.FILL);
+                      int base = (BTN & 0xFFFFFF) | 0x99000000;
+                      p.setColor(isPressed() ? (ACC & 0xFFFFFF) | 0x66000000 : sel ? (ACC & 0xFFFFFF) | 0x44000000 : base);
+                      cv.drawRoundRect(r, dp(16), dp(16), p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(st);
+                      p.setColor((ACC & 0xFFFFFF) | (sel ? 0xDD000000 : 0x77000000));
+                      cv.drawRoundRect(r, dp(16), dp(16), p);
+                      p.setStyle(Paint.Style.FILL);
+                      float ts = sp * getResources().getDisplayMetrics().scaledDensity;
+                      p.setTextSize(ts);
+                      p.setTypeface(Typeface.DEFAULT_BOLD);
+                      p.setColor(TXT);
+                      float tw = p.measureText(label);
+                      float is = kind >= 0 ? ts * 1.25f : 0, gap = kind >= 0 ? ts * 0.5f : 0;
+                      float x0 = (w - (is + gap + tw)) / 2f;
+                      if (kind >= 0) drawIcon(cv, kind, x0 + is / 2f, h / 2f, is);
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(TXT);
+                      p.setTextAlign(Paint.Align.LEFT);
+                      cv.drawText(label, x0 + is + gap, h / 2f + ts * 0.35f, p);
+                  }
+
+                  void drawIcon(Canvas cv, int k, float cx, float cy, float s) {
+                      p.setColor(ACC);
+                      p.setStyle(Paint.Style.FILL);
+                      float q = s / 2f;
+                      Path a = new Path();
+                      switch (k) {
+                          case 0: // ⏮
+                              cv.drawRect(cx - q, cy - q * 0.8f, cx - q * 0.65f, cy + q * 0.8f, p);
+                              a.moveTo(cx + q, cy - q * 0.85f);
+                              a.lineTo(cx - q * 0.5f, cy);
+                              a.lineTo(cx + q, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 1: // ⏭
+                              cv.drawRect(cx + q * 0.65f, cy - q * 0.8f, cx + q, cy + q * 0.8f, p);
+                              a.moveTo(cx - q, cy - q * 0.85f);
+                              a.lineTo(cx + q * 0.5f, cy);
+                              a.lineTo(cx - q, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 2: // ◀
+                              a.moveTo(cx + q * 0.7f, cy - q * 0.85f);
+                              a.lineTo(cx - q * 0.8f, cy);
+                              a.lineTo(cx + q * 0.7f, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 3: // ▶
+                              a.moveTo(cx - q * 0.7f, cy - q * 0.85f);
+                              a.lineTo(cx + q * 0.8f, cy);
+                              a.lineTo(cx - q * 0.7f, cy + q * 0.85f);
+                              a.close();
+                              cv.drawPath(a, p);
+                              break;
+                          case 4: // зірка (порожня) / 5 - заповнена
+                          case 5:
+                              for (int i = 0; i < 10; i++) {
+                                  double ang = -Math.PI / 2 + i * Math.PI / 5;
+                                  float rr = i % 2 == 0 ? q : q * 0.45f;
+                                  float xx = cx + (float) Math.cos(ang) * rr, yy = cy + (float) Math.sin(ang) * rr;
+                                  if (i == 0) a.moveTo(xx, yy);
+                                  else a.lineTo(xx, yy);
+                              }
+                              a.close();
+                              if (k == 4) {
+                                  p.setStyle(Paint.Style.STROKE);
+                                  p.setStrokeWidth(s * 0.1f);
+                                  p.setStrokeJoin(Paint.Join.ROUND);
+                              }
+                              cv.drawPath(a, p);
+                              break;
+                          case 6: // пошук
+                              p.setStyle(Paint.Style.STROKE);
+                              p.setStrokeWidth(s * 0.13f);
+                              p.setStrokeCap(Paint.Cap.ROUND);
+                              cv.drawCircle(cx - q * 0.15f, cy - q * 0.15f, q * 0.6f, p);
+                              cv.drawLine(cx + q * 0.3f, cy + q * 0.3f, cx + q * 0.9f, cy + q * 0.9f, p);
+                              break;
+                          case 8: // пауза
+                              cv.drawRoundRect(new RectF(cx - q * 0.7f, cy - q * 0.8f, cx - q * 0.15f, cy + q * 0.8f), q * 0.1f, q * 0.1f, p);
+                              cv.drawRoundRect(new RectF(cx + q * 0.15f, cy - q * 0.8f, cx + q * 0.7f, cy + q * 0.8f), q * 0.1f, q * 0.1f, p);
+                              break;
+                          case 7: // стоп
+                              cv.drawRoundRect(new RectF(cx - q * 0.7f, cy - q * 0.7f, cx + q * 0.7f, cy + q * 0.7f), q * 0.15f, q * 0.15f, p);
+                              break;
+                      }
+                  }
+              }
+
+              // ---------- повзунок частоти ----------
+              class FreqSlider extends View {
+                  int f = FMIN;
+                  final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  FreqSlider() {
+                      super(MainActivity.this);
+                  }
+
+                  void setF(int v) {
+                      f = Math.max(FMIN, Math.min(FMAX, v));
+                      invalidate();
+                  }
+
+                  float padX() {
+                      return dp(34);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float w = getWidth(), h = getHeight(), x0 = padX(), x1 = w - padX(), cy = h / 2f;
+                      float fr = (f - FMIN) / (float) (FMAX - FMIN), tx = x0 + (x1 - x0) * fr;
+                      float th = dp(12);
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor((BTN & 0xFFFFFF) | 0x99000000);
+                      cv.drawRoundRect(new RectF(x0, cy - th / 2, x1, cy + th / 2), th / 2, th / 2, p);
+                      p.setColor((ACC & 0xFFFFFF) | 0xCC000000);
+                      cv.drawRoundRect(new RectF(x0, cy - th / 2, Math.max(x0 + th, tx), cy + th / 2), th / 2, th / 2, p);
+                      p.setColor((TXT & 0xFFFFFF) | 0x55000000);
+                      p.setStrokeWidth(dp(1));
+                      for (int m = 88; m <= 108; m++) {
+                          float x = x0 + (x1 - x0) * ((m * 100 - FMIN) / (float) (FMAX - FMIN));
+                          cv.drawLine(x, cy + th / 2 + dp(5), x, cy + th / 2 + dp(m % 5 == 0 ? 14 : 9), p);
+                      }
+                      float r = dp(21);
+                      p.setColor(0x55000000);
+                      cv.drawCircle(tx, cy + dp(2), r + dp(2), p);
+                      p.setColor(BG1 | 0xFF000000);
+                      cv.drawCircle(tx, cy, r, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(dp(3));
+                      p.setColor(ACC);
+                      cv.drawCircle(tx, cy, r - dp(1), p);
+                      p.setStyle(Paint.Style.FILL);
+                      cv.drawCircle(tx, cy, dp(6), p);
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(MotionEvent e) {
+                      float x0 = padX(), x1 = getWidth() - padX();
+                      int a = e.getActionMasked();
+                      if (a == MotionEvent.ACTION_DOWN) {
+                          dragging = true;
+                          getParent().requestDisallowInterceptTouchEvent(true);
+                      }
+                      if (a == MotionEvent.ACTION_DOWN || a == MotionEvent.ACTION_MOVE || a == MotionEvent.ACTION_UP) {
+                          float fr = Math.max(0, Math.min(1, (e.getX() - x0) / (x1 - x0)));
+                          int v = FMIN + Math.round(fr * (FMAX - FMIN) / 10f) * 10;
+                          setF(v);
+                          tvFreq.setText(Station.fmt(v));
+                          if (a == MotionEvent.ACTION_UP) {
+                              dragging = false;
+                              tuneTo(v);
+                          }
+                      }
+                      if (a == MotionEvent.ACTION_CANCEL) {
+                          dragging = false;
+                          updateUi();
+                      }
+                      return true;
+                  }
+              }
+
+              void applyTheme() {
+                  int[] t = TH[Math.min(TH.length - 1, Math.max(0, uisp.getInt("theme", 0)))];
+                  BG1 = t[0];
+                  BG2 = t[1];
+                  ACC = t[2];
+                  CARD = (0x80 << 24) | (t[3] & 0xFFFFFF);
+                  BTN = t[4];
+                  TXT = t[5];
+                  DIM = t[6];
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  CrashGuard.install(this);
+                  String crash = CrashGuard.take(this);
+                  if (crash != null) {
+                      CrashGuard.show(this, crash);
+                      return;
+                  }
+                  uisp = getSharedPreferences("ui", MODE_PRIVATE);
+                  applyTheme();
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  store = new Store(this);
+                  tuner = new Tuner(this::onState);
+                  land = getResources().getDisplayMetrics().widthPixels > getResources().getDisplayMetrics().heightPixels * 1.2;
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{BG1, BG2}));
+                  root.setPadding(dp(10), dp(8), dp(10), dp(8));
+
+                  LinearLayout bar = new LinearLayout(this);
+                  String[] names = {"Радіо", "Обрані", "Станції", "Тема"};
+                  for (int i = 0; i < 4; i++) {
+                      final int idx = i;
+                      Glyph t = new Glyph(-1, names[i], 19);
+                      t.setOnClickListener(v -> {
+                          if (idx == 3) themeDialog();
+                          else showTab(idx);
+                      });
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(58), i == 3 ? 0.6f : 1);
+                      lp.setMargins(dp(4), 0, dp(4), dp(8));
+                      bar.addView(t, lp);
+                      tabBtns[i] = t;
+                  }
+                  root.addView(bar);
+
+                  FrameLayout content = new FrameLayout(this);
+                  root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
+                  tabs[0] = buildMain();
+                  tabs[1] = buildFavTab();
+                  tabs[2] = buildAllTab();
+                  for (View v : tabs) content.addView(v, new FrameLayout.LayoutParams(-1, -1));
+                  setContentView(root);
+                  showTab(0);
+
+                  tuner.setHost(this, MainActivity.class);
+                  boolean ok = tuner.start();
+                  if (!ok) tvSub.setText("Немає зв'язку з тюнером: " + tuner.error);
+                  cur = store.last() >= FMIN && store.last() <= FMAX ? store.last() : 0;
+                  updateUi();
+                  if (b == null) {
+                      // при запуску: вмикаємо тюнер на останній станції
+                      tuner.tune(this, cur, MainActivity.class);
+                  }
+              }
+
+              void themeDialog() {
+                  new AlertDialog.Builder(this).setTitle("Колірна тема")
+                          .setSingleChoiceItems(THN, uisp.getInt("theme", 0), (d, i) -> {
+                              uisp.edit().putInt("theme", i).apply();
+                              d.dismiss();
+                              recreate();
+                          }).setNegativeButton("Скасувати", null).show();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (tuner != null) tuner.stop();
+                  super.onDestroy();
+              }
+
+              // ================= Вкладка «Радіо» =================
+
+              View buildMain() {
+                  LinearLayout main = new LinearLayout(this);
+                  main.setOrientation(land ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+
+                  LinearLayout left = new LinearLayout(this);
+                  left.setOrientation(LinearLayout.VERTICAL);
+                  left.setGravity(Gravity.CENTER);
+                  left.setBackground(card(24));
+                  left.setPadding(dp(12), dp(10), dp(12), dp(10));
+                  ivLogo = new ImageView(this);
+                  ivLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                  left.addView(ivLogo, new LinearLayout.LayoutParams(dp(land ? 120 : 96), dp(land ? 120 : 96)));
+                  tvName = tv("—", 26, TXT, true);
+                  tvName.setGravity(Gravity.CENTER);
+                  tvName.setSingleLine(true);
+                  left.addView(tvName);
+                  tvFreq = tv("--.-", land ? 84 : 72, ACC, true);
+                  tvFreq.setGravity(Gravity.CENTER);
+                  left.addView(tvFreq);
+                  tvSub = tv("Чекаю дані тюнера…", 16, DIM, false);
+                  tvSub.setGravity(Gravity.CENTER);
+                  left.addView(tvSub);
+                  LinearLayout.LayoutParams lpL = land ? new LinearLayout.LayoutParams(0, -1, 1) : new LinearLayout.LayoutParams(-1, 0, 1);
+                  lpL.setMargins(dp(4), dp(4), dp(4), dp(4));
+                  main.addView(left, lpL);
+
+                  LinearLayout right = new LinearLayout(this);
+                  right.setOrientation(LinearLayout.VERTICAL);
+                  right.setPadding(dp(6), dp(4), dp(6), dp(4));
+
+                  TextView lab = tv("87.5  —  108.0 МГц", 13, DIM, false);
+                  lab.setGravity(Gravity.CENTER);
+                  right.addView(lab);
+                  seek = new FreqSlider();
+                  right.addView(seek, new LinearLayout.LayoutParams(-1, dp(84)));
+
+                  right.addView(row2(new Glyph(0, "Попередня станція", 19), new Glyph(1, "Наступна станція", 19),
+                          this::doPrev, this::doNext));
+                  right.addView(row2(new Glyph(2, "Крок назад", 19), new Glyph(3, "Крок вперед", 19),
+                          () -> tuner.stepDown(), () -> tuner.stepUp()));
+                  btnFav = new Glyph(4, "В обрані", 19);
+                  btnScan = new Glyph(6, "Знайти станції", 19);
+                  right.addView(row2(btnFav, btnScan, this::toggleFav, this::startScan));
+                  btnPause = new Glyph(8, "Пауза", 19);
+                  right.addView(row2(btnPause, new Glyph(-1, "Журнал", 19), this::doPause, this::diagDialog));
+
+                  LinearLayout.LayoutParams lpR = land ? new LinearLayout.LayoutParams(0, -1, 1.15f) : new LinearLayout.LayoutParams(-1, 0, 1.3f);
+                  main.addView(right, lpR);
+                  return main;
+              }
+
+              void doPause() {
+                  if (!tuner.paused) {
+                      scanStop = true;
+                      seekWait = false;
+                      tuner.pause();
+                  } else {
+                      tuner.resume();
+                      ui.postDelayed(() -> tuner.tune(this, cur, MainActivity.class), 1500);
+                  }
+                  updateUi();
+              }
+
+              void diagDialog() {
+                  final String txt = "Метод налаштування: " + tuner.method() + "\n\n" + tuner.getLog();
+                  ScrollView sv = new ScrollView(this);
+                  TextView t = new TextView(this);
+                  t.setTypeface(Typeface.MONOSPACE);
+                  t.setTextSize(12);
+                  t.setText(txt);
+                  t.setPadding(dp(12), dp(8), dp(12), dp(8));
+                  sv.addView(t);
+                  new AlertDialog.Builder(this).setTitle("Журнал тюнера").setView(sv)
+                          .setPositiveButton("Закрити", null)
+                          .setNeutralButton("Скинути підбір", (d, w) -> tuner.resetProbe())
+                          .setNegativeButton("Копіювати", (d, w) -> {
+                              ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("log", txt));
+                              Toast.makeText(this, "Скопійовано", Toast.LENGTH_SHORT).show();
+                          }).show();
+              }
+
+              void doNext() {
+                  beginSeek();
+                  tuner.next();
+              }
+
+              void doPrev() {
+                  beginSeek();
+                  tuner.prev();
+              }
+
+              void beginSeek() {
+                  seekWait = true;
+                  seenSeek = false;
+                  seekT = System.currentTimeMillis();
+                  updateUi();
+                  ui.postDelayed(this::onState, 2700);
+                  ui.postDelayed(this::onState, 9200);
+              }
+
+              LinearLayout row2(View a, View b, final Runnable ra, final Runnable rb) {
+                  LinearLayout r = new LinearLayout(this);
+                  a.setOnClickListener(v -> ra.run());
+                  b.setOnClickListener(v -> rb.run());
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -1, 1);
+                  p.setMargins(dp(4), dp(4), dp(4), dp(4));
+                  r.addView(a, p);
+                  r.addView(b, p);
+                  r.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1));
+                  return r;
+              }
+
+              // ================= Стан тюнера =================
+
+              void onState() {
+                  int f = tuner.freq;
+                  long now = System.currentTimeMillis();
+                  if (seekWait) {
+                      if (tuner.seeking) seenSeek = true;
+                      if ((seenSeek && !tuner.seeking) || (!seenSeek && now - seekT > 2500) || now - seekT > 9000) seekWait = false;
+                  }
+                  boolean hold = seekWait || scanning || tuner.busy();
+                  if (!hold && f >= FMIN && f <= FMAX) {
+                      cur = f;
+                      ui.removeCallbacks(saveRun);
+                      ui.postDelayed(saveRun, 1500);
+                  }
+                  updateUi();
+              }
+
+              final Runnable saveRun = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (cur >= FMIN && cur <= FMAX) {
+                          store.setLast(cur);
+                          Station s = store.get(cur);
+                          String ps = tuner.ps;
+                          if (s != null && s.name.isEmpty() && !ps.isEmpty() && tuner.freq == cur) {
+                              s.name = ps;
+                              store.save();
+                              refreshLists();
+                          }
+                      }
+                  }
+              };
+
+              String nameFor(int f) {
+                  Station s = store.get(f);
+                  if (s != null && !s.name.isEmpty()) return s.name;
+                  if (f == tuner.freq && !tuner.ps.isEmpty()) return tuner.ps;
+                  int i = Lviv.match(f);
+                  if (i >= 0) return (String) Lviv.LIST[i][1];
+                  return "FM " + Station.fmt(f);
+              }
+
+              String aliasFor(int f) {
+                  Station s = store.get(f);
+                  if (s != null && !s.alias.isEmpty()) return s.alias;
+                  int i = Lviv.match(f);
+                  return i >= 0 ? (String) Lviv.LIST[i][2] : "";
+              }
+
+              void updateUi() {
+                  if (cur <= 0) return;
+                  if (!dragging) {
+                      tvFreq.setText(Station.fmt(cur));
+                      seek.setF(cur);
+                  }
+                  String name = nameFor(cur);
+                  tvName.setText(name);
+                  if (btnPause != null) btnPause.set(tuner.paused ? 3 : 8, tuner.paused ? "Грати" : "Пауза", false);
+                  if (tuner.paused) tvSub.setText("Пауза");
+                  else if (seekWait || scanning) tvSub.setText("Шукаю станцію…");
+                  else if (tuner.busy()) tvSub.setText("Налаштування… зараз " + Station.fmt(tuner.freq) + "  →  " + Station.fmt(cur));
+                  else if (!tuner.ps.isEmpty() && cur == tuner.freq) tvSub.setText("RDS: " + tuner.ps);
+                  else tvSub.setText("FM · МГц");
+                  if (shownLogoFreq != cur) {
+                      shownLogoFreq = cur;
+                      Station s = store.get(cur);
+                      Logos.load(this, "m" + cur, name, aliasFor(cur), s != null ? s.logo : "", ivLogo);
+                  }
+                  Station s = store.get(cur);
+                  boolean fav = s != null && s.fav;
+                  btnFav.set(fav ? 5 : 4, fav ? "В обраних" : "В обрані", false);
+              }
+
+              void tuneTo(int f) {
+                  f = Math.max(FMIN, Math.min(FMAX, f));
+                  seekWait = false;
+                  cur = f;
+                  updateUi();
+                  tuner.tune(this, f, MainActivity.class);
+              }
+
+              void toggleFav() {
+                  if (cur <= 0) return;
+                  Station s = store.getOrCreate(cur);
+                  s.fav = !s.fav;
+                  if (s.fav && s.name.isEmpty()) s.name = nameFor(cur);
+                  store.save();
+                  updateUi();
+                  refreshLists();
+              }
+
+              // ================= Вкладки списків =================
+
+              View buildFavTab() {
+                  ScrollView sv = new ScrollView(this);
+                  favList = new LinearLayout(this);
+                  favList.setOrientation(LinearLayout.VERTICAL);
+                  sv.addView(favList);
+                  return sv;
+              }
+
+              View buildAllTab() {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  Glyph b = new Glyph(6, "Сканувати діапазон", 19);
+                  b.setOnClickListener(v -> startScan());
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(60));
+                  lp.setMargins(dp(4), 0, dp(4), dp(4));
+                  col.addView(b, lp);
+                  tvScan = tv("", 15, DIM, false);
+                  tvScan.setPadding(dp(8), 0, dp(8), dp(4));
+                  col.addView(tvScan);
+                  ScrollView sv = new ScrollView(this);
+                  allList = new LinearLayout(this);
+                  allList.setOrientation(LinearLayout.VERTICAL);
+                  sv.addView(allList);
+                  col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+                  return col;
+              }
+
+              void showTab(int i) {
+                  for (int k = 0; k < 3; k++) {
+                      tabs[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
+                      tabBtns[k].sel = k == i;
+                      tabBtns[k].invalidate();
+                  }
+                  refreshLists();
+              }
+
+              void refreshLists() {
+                  if (favList == null || allList == null) return;
+                  favList.removeAllViews();
+                  int n = 0;
+                  for (Station s : store.known.values()) {
+                      if (s.fav) {
+                          favList.addView(rowView(s.f, true));
+                          n++;
+                      }
+                  }
+                  if (n == 0) {
+                      TextView t = tv("Обраних поки немає.\nДодай станцію кнопкою «В обрані» або зірочкою у вкладці «Станції».", 18, DIM, false);
+                      t.setPadding(dp(16), dp(24), dp(16), dp(16));
+                      favList.addView(t);
+                  }
+                  allList.removeAllViews();
+                  int found = 0;
+                  for (Station s : store.known.values()) {
+                      allList.addView(rowView(s.f, false));
+                      found++;
+                  }
+                  if (found == 0) {
+                      TextView t = tv("Знайдених станцій ще немає. Натисни «Сканувати діапазон».", 16, DIM, false);
+                      t.setPadding(dp(16), dp(8), dp(16), dp(8));
+                      allList.addView(t);
+                  }
+                  TextView h = tv("Довідник: Львів", 16, ACC, true);
+                  h.setPadding(dp(10), dp(14), dp(10), dp(4));
+                  allList.addView(h);
+                  for (Object[] e : Lviv.LIST) {
+                      int f = (Integer) e[0];
+                      if (store.get(f) == null) allList.addView(rowView(f, false));
+                  }
+              }
+
+              View rowView(final int f, final boolean inFav) {
+                  final Station s = store.get(f);
+                  String name = nameFor(f);
+                  LinearLayout r = new LinearLayout(this);
+                  r.setGravity(Gravity.CENTER_VERTICAL);
+                  r.setBackground(card(16));
+                  r.setPadding(dp(10), dp(8), dp(10), dp(8));
+                  ImageView iv = new ImageView(this);
+                  iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                  r.addView(iv, new LinearLayout.LayoutParams(dp(60), dp(60)));
+                  Logos.load(this, "r" + f + (inFav ? "f" : "a"), name, aliasFor(f), s != null ? s.logo : "", iv);
+                  LinearLayout t = new LinearLayout(this);
+                  t.setOrientation(LinearLayout.VERTICAL);
+                  t.setPadding(dp(12), 0, dp(8), 0);
+                  t.addView(tv(name, 21, TXT, true));
+                  int li = Lviv.match(f);
+                  t.addView(tv(s != null ? "Знайдена станція" : (li >= 0 ? "Довідник Львова" : ""), 13, DIM, false));
+                  r.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+                  r.addView(tv(Station.fmt(f), 26, ACC, true));
+                  final TextView star = tv(s != null && s.fav ? "★" : "☆", 34, s != null && s.fav ? ACC : DIM, false);
+                  star.setPadding(dp(14), 0, dp(6), 0);
+                  star.setOnClickListener(v -> {
+                      Station st = store.getOrCreate(f);
+                      st.fav = !st.fav;
+                      if (st.name.isEmpty()) st.name = nameFor(f);
+                      store.save();
+                      updateUi();
+                      refreshLists();
+                  });
+                  r.addView(star);
+                  r.setOnClickListener(v -> {
+                      tuneTo(f);
+                      showTab(0);
+                  });
+                  r.setOnLongClickListener(v -> {
+                      editDialog(f);
+                      return true;
+                  });
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                  lp.setMargins(dp(4), dp(4), dp(4), dp(4));
+                  r.setLayoutParams(lp);
+                  return r;
+              }
+
+              void editDialog(final int f) {
+                  final Station s = store.getOrCreate(f);
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setPadding(dp(20), dp(10), dp(20), dp(0));
+                  final EditText en = new EditText(this);
+                  en.setHint("Назва станції");
+                  en.setText(s.name.isEmpty() ? nameFor(f) : s.name);
+                  final EditText ea = new EditText(this);
+                  ea.setHint("Назва для пошуку логотипа (латиницею, необов'язково)");
+                  ea.setText(s.alias);
+                  final EditText eu = new EditText(this);
+                  eu.setHint("Посилання на логотип (необов'язково)");
+                  eu.setText(s.logo);
+                  box.addView(en);
+                  box.addView(ea);
+                  box.addView(eu);
+                  new AlertDialog.Builder(this)
+                          .setTitle("Станція " + Station.fmt(f) + " МГц")
+                          .setView(box)
+                          .setPositiveButton("Зберегти", (d, w) -> {
+                              s.name = en.getText().toString().trim();
+                              s.alias = ea.getText().toString().trim();
+                              s.logo = eu.getText().toString().trim();
+                              store.save();
+                              shownLogoFreq = -1;
+                              updateUi();
+                              refreshLists();
+                          })
+                          .setNegativeButton("Видалити", (d, w) -> {
+                              store.remove(f);
+                              updateUi();
+                              refreshLists();
+                          })
+                          .setNeutralButton("Скасувати", null)
+                          .show();
+              }
+
+              // ================= Сканування =================
+
+              void startScan() {
+                  if (scanning) {
+                      scanStop = true;
+                      return;
+                  }
+                  if (!tuner.haveState && tuner.freq == 0) {
+                      Toast.makeText(this, "Тюнер ще не відповідає. Зачекай, поки радіо ввімкнеться.", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  scanning = true;
+                  scanStop = false;
+                  btnScan.set(7, "Зупинити пошук", false);
+                  updateUi();
+                  showTab(2);
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          int found = 0;
+                          try {
+                              tuner.tune(MainActivity.this, FMIN, MainActivity.class);
+                              Thread.sleep(500);
+                              long tw = System.currentTimeMillis();
+                              while (tuner.busy() && System.currentTimeMillis() - tw < 40000) Thread.sleep(100);
+                              Thread.sleep(2000);
+                              int last = 0;
+                              for (int n = 0; n < 80 && !scanStop; n++) {
+                                  tuner.next();
+                                  long t0 = System.currentTimeMillis();
+                                  boolean seen = false;
+                                  while (System.currentTimeMillis() - t0 < 12000) {
+                                      Thread.sleep(60);
+                                      if (tuner.seeking) seen = true;
+                                      else if (seen) break;
+                                      else if (System.currentTimeMillis() - t0 > 2500) break;
+                                  }
+                                  Thread.sleep(300);
+                                  int f = tuner.freq;
+                                  if (f < FMIN || f > FMAX) break;
+                                  if (last != 0 && f <= last) break;
+                                  last = f;
+                                  found++;
+                                  final String msg = "Знайдено: " + found + ", зараз " + Station.fmt(f) + " МГц";
+                                  runOnUiThread(() -> tvScan.setText(msg));
+                                  Thread.sleep(2800);
+                                  String ps = tuner.ps;
+                                  Station s = store.getOrCreate(f);
+                                  if (s.name.isEmpty()) {
+                                      if (!ps.isEmpty()) s.name = ps;
+                                      else {
+                                          int i = Lviv.match(f);
+                                          if (i >= 0) s.name = (String) Lviv.LIST[i][1];
+                                      }
+                                  }
+                                  store.save();
+                              }
+                          } catch (Throwable ignored) {
+                          }
+                          scanning = false;
+                          final int total = found;
+                          runOnUiThread(() -> {
+                              btnScan.set(6, "Знайти станції", false);
+                              tvScan.setText("Готово. Знайдено станцій: " + total);
+                              if (tuner.freq >= FMIN && tuner.freq <= FMAX) cur = tuner.freq;
+                              refreshLists();
+                              updateUi();
+                          });
+                      }
+                  }).start();
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/radioapp/Station.java <<'EOF'
+          package com.example.radioapp;
+
+          final class Station {
+              int f;              // частота в одиницях 10 кГц (9030 = 90,30 МГц)
+              String name = "";
+              String alias = "";  // назва для пошуку логотипа
+              String logo = "";   // власний URL логотипа
+              boolean fav;
+
+              Station(int f) {
+                  this.f = f;
+              }
+
+              static String fmt(int f) {
+                  if (f % 10 == 0) return (f / 100) + "." + ((f % 100) / 10);
+                  return (f / 100) + "." + String.format(java.util.Locale.US, "%02d", f % 100);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/radioapp/Lviv.java <<'EOF'
+          package com.example.radioapp;
+
+          /** Довідник FM-станцій Львова (з відкритих джерел; сигнал RDS має пріоритет над назвою звідси). */
+          final class Lviv {
+              private Lviv() {
+              }
+
+              // частота (10 кГц), назва, назва для пошуку логотипа
+              static final Object[][] LIST = {
+                  {8820, "Перше", "Перше радіо"},
+                  {8860, "Радіо НВ", "Radio NV"},
+                  {8910, "Radio ROKS", "Radio ROKS"},
+                  {8970, "ФМ Галичина", "FM Galychyna"},
+                  {9040, "Шлягер FM", "Shlyager FM"},
+                  {9110, "Kiss FM", "Kiss FM Ukraine"},
+                  {9150, "Мелодія FM", "Melodia FM"},
+                  {9190, "Радіо П'ятниця", "Radio Pyatnytsya"},
+                  {9240, "Армія FM", "Army FM"},
+                  {9330, "Relax", "Radio Relax"},
+                  {9530, "Перець FM", "Perets FM"},
+                  {9700, "Ностальжі", "Nostalgie"},
+                  {10080, "Львівська хвиля", "Lvivska Khvylia"},
+                  {10130, "Країна FM", "Krayina FM"},
+                  {10170, "Хіт FM", "Hit FM"},
+                  {10210, "Радіо Максимум", "Radio Maximum"},
+                  {10250, "Ретро FM", "Retro FM"},
+                  {10330, "Українське радіо", "Ukrainske Radio"},
+                  {10390, "Радіо Культура", "Radio Kultura"},
+                  {10430, "Дуже радіо", "Duzhe Radio"},
+                  {10470, "Люкс FM", "Lux FM"},
+                  {10540, "Авторадіо", "Avtoradio Ukraine"},
+                  {10600, "Наше радіо", "Nashe Radio"},
+                  {10670, "Радіо Незалежність", "Radio Nezalezhnist"},
+                  {10720, "Вголос", "Vgolos"},
+              };
+
+              static int match(int f) {
+                  for (int i = 0; i < LIST.length; i++) {
+                      if (Math.abs(((Integer) LIST[i][0]) - f) <= 5) return i;
+                  }
+                  return -1;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/radioapp/Store.java <<'EOF'
+          package com.example.radioapp;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.util.TreeMap;
+
+          /** Постійне сховище: список станцій і остання станція. Пишеться синхронно (commit), щоб пережити відключення живлення. */
+          final class Store {
+              private final SharedPreferences sp;
+              final TreeMap<Integer, Station> known = new TreeMap<Integer, Station>();
+
+              Store(Context c) {
+                  sp = c.getSharedPreferences("radio", Context.MODE_PRIVATE);
+                  try {
+                      JSONArray a = new JSONArray(sp.getString("st", "[]"));
+                      for (int i = 0; i < a.length(); i++) {
+                          JSONObject o = a.getJSONObject(i);
+                          Station s = new Station(o.getInt("f"));
+                          s.name = o.optString("n", "");
+                          s.alias = o.optString("a", "");
+                          s.logo = o.optString("u", "");
+                          s.fav = o.optBoolean("v", false);
+                          known.put(s.f, s);
+                      }
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              synchronized void save() {
+                  try {
+                      JSONArray a = new JSONArray();
+                      for (Station s : known.values()) {
+                          JSONObject o = new JSONObject();
+                          o.put("f", s.f);
+                          o.put("n", s.name);
+                          o.put("a", s.alias);
+                          o.put("u", s.logo);
+                          o.put("v", s.fav);
+                          a.put(o);
+                      }
+                      sp.edit().putString("st", a.toString()).commit();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              synchronized Station get(int f) {
+                  return known.get(f);
+              }
+
+              synchronized Station getOrCreate(int f) {
+                  Station s = known.get(f);
+                  if (s == null) {
+                      s = new Station(f);
+                      known.put(f, s);
+                  }
+                  return s;
+              }
+
+              synchronized void remove(int f) {
+                  known.remove(f);
+                  save();
+              }
+
+              int last() {
+                  return sp.getInt("last", 0);
+              }
+
+              void setLast(int f) {
+                  sp.edit().putInt("last", f).commit();
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/radioapp/Tuner.java <<'EOF'
+          package com.example.radioapp;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.Message;
+
+          import java.lang.reflect.Method;
+
+          /** Зв'язок із тюнером магнітоли (TWUtil через reflection) і керування штатним радіо. */
+          final class Tuner {
+              interface Listener {
+                  void onState();
+              }
+
+              static final int[] IDS = {0x401, 0x402, 0x404, 0x405, 0x406, 0x9e00, 0x9e11};
+              /** Режим зв'язку як у NavRadio: TWUtil(1) і 12 повідомлень. Режим 1 - старий (без номера модуля). */
+              static final int[] IDS12 = {0x109, 0x10a, 0x201, 0x203, 0x301, 0x302, 0x401, 0x402, 0x404, 0x405, 0x406, 0x9e00};
+              int tmode = 0;
+              private boolean modeTried;
+              private String hname = "radio";
+
+              private Object util;
+              private Class<?> cls;
+              private Method wr, wr2;
+              private boolean inited;
+              // підбір команди прямої установки частоти: -2 невідомо, 0..4 робочий варіант, 99 не працює
+              int dv = -2;
+              SharedPreferences tp;
+              volatile boolean paused, quiet;
+              private final StringBuilder logb = new StringBuilder();
+              private int lastLogF = -1, lastLogFl = -1;
+
+              synchronized void log(String s) {
+                  logb.append(new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date())).append(' ').append(s).append('\n');
+                  if (logb.length() > 20000) logb.delete(0, logb.length() - 15000);
+              }
+
+              synchronized String getLog() {
+                  return logb.toString();
+              }
+
+              String method() {
+                  return dv == -2 ? "ще не визначено" : dv == 99 ? "пряма команда не працює, лише кроки" : "варіант " + dv;
+              }
+
+              void resetProbe() {
+                  dv = -2;
+                  if (tp != null) tp.edit().remove("dv").apply();
+                  log("підбір скинуто");
+              }
+
+              static String hex(byte[] b) {
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < b.length && i < 24; i++) sb.append(String.format("%02x ", b[i] & 0xff));
+                  return sb.toString();
+              }
+              private final Listener listener;
+              private final Handler h;
+
+              volatile int freq, flags, b1;
+              volatile String ps = "";
+              volatile boolean seeking, haveState;
+              volatile long lastMsg;
+              String error = "";
+
+              Tuner(Listener l) {
+                  listener = l;
+                  h = new Handler(Looper.getMainLooper(), new Handler.Callback() {
+                      @Override
+                      public boolean handleMessage(Message m) {
+                          onMsg(m);
+                          return true;
+                      }
+                  });
+              }
+
+              boolean start() {
+                  return start(tmode);
+              }
+
+              boolean start(int mode) {
+                  try {
+                      tmode = mode;
+                      cls = Class.forName("android.tw.john.TWUtil");
+                      int[] src = IDS;
+                      hname = "twradio";
+                      if (mode == 0) {
+                          try {
+                              util = cls.getConstructor(int.class).newInstance(1);
+                              src = IDS12;
+                              hname = "radio";
+                          } catch (Throwable e1) {
+                              util = cls.getConstructor().newInstance();
+                          }
+                      } else {
+                          util = cls.getConstructor().newInstance();
+                      }
+                      log("зв'язок: режим " + mode);
+                      short[] ids = new short[src.length];
+                      for (int i = 0; i < ids.length; i++) ids[i] = (short) src[i];
+                      Object r = cls.getMethod("open", short[].class).invoke(util, (Object) ids);
+                      cls.getMethod("start").invoke(util);
+                      cls.getMethod("addHandler", String.class, Handler.class).invoke(util, hname, h);
+                      wr = cls.getMethod("write", int.class, int.class, int.class);
+                      try { wr2 = cls.getMethod("write", int.class, int.class); } catch (Throwable ignored) { wr2 = null; }
+                      error = "";
+                      return r != null;
+                  } catch (Throwable t) {
+                      error = String.valueOf(t.getCause() != null ? t.getCause() : t);
+                      return false;
+                  }
+              }
+
+              void stop() {
+                  try {
+                      if (util != null) {
+                          try { cls.getMethod("removeHandler", String.class).invoke(util, hname); } catch (Throwable ignored) { }
+                          try { cls.getMethod("stop").invoke(util); } catch (Throwable ignored) { }
+                          try { cls.getMethod("close").invoke(util); } catch (Throwable ignored) { }
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  util = null;
+              }
+
+              private void onMsg(Message m) {
+                  if (m.what != 0x401 || !(m.obj instanceof byte[])) {
+                      log("RX 0x" + Integer.toHexString(m.what) + " a1=" + m.arg1 + " a2=" + m.arg2 + " " + (m.obj instanceof byte[] ? hex((byte[]) m.obj) : String.valueOf(m.obj)));
+                      return;
+                  }
+                  byte[] b = (byte[]) m.obj;
+                  if (b.length < 13) {
+                      log("RX 0x401 коротке: " + hex(b));
+                      return;
+                  }
+                  int f = ((b[2] & 0xff) << 8) | (b[3] & 0xff);
+                  flags = b[0] & 0xff;
+                  b1 = b[1] & 0xff;
+                  seeking = (flags & 0x40) != 0;
+                  StringBuilder sb = new StringBuilder();
+                  boolean ok = true;
+                  for (int i = 5; i < 13; i++) {
+                      int c = b[i] & 0xff;
+                      if (c == 0) continue;
+                      if (c < 32 || c > 126) {
+                          ok = false;
+                          break;
+                      }
+                      sb.append((char) c);
+                  }
+                  ps = ok ? sb.toString().trim() : "";
+                  if (f != lastLogF || flags != lastLogFl) {
+                      lastLogF = f;
+                      lastLogFl = flags;
+                      log("RX freq=" + f + " flags=0x" + Integer.toHexString(flags) + (seeking ? " ПОШУК" : "") + " ps=" + ps);
+                  }
+                  freq = f;
+                  if (!haveState && tp != null) tp.edit().putInt("tmode", tmode).apply();
+                  haveState = true;
+                  lastMsg = System.currentTimeMillis();
+                  if (listener != null) listener.onState();
+              }
+
+              int write(int what, int a1, int a2) {
+                  try {
+                      if (wr == null) return -1;
+                      Object r = wr.invoke(util, what, a1, a2);
+                      if (!quiet) log("TX 0x" + Integer.toHexString(what) + " " + a1 + " " + a2);
+                      return r instanceof Integer ? (Integer) r : 0;
+                  } catch (Throwable t) {
+                      return -2;
+                  }
+              }
+
+              int write2(int what, int a1) {
+                  try {
+                      if (wr2 == null) return -1;
+                      Object r = wr2.invoke(util, what, a1);
+                      if (!quiet) log("TX 0x" + Integer.toHexString(what) + " " + a1);
+                      return r instanceof Integer ? (Integer) r : 0;
+                  } catch (Throwable t) {
+                      return -2;
+                  }
+              }
+
+              /** Те, що штатне радіо робить у onResume: вмикає режим радіо й просить поточний стан. */
+              void initRadio() {
+                  if (tmode == 0) {
+                      write2(0x109, 255);
+                      write2(0x10a, 255);
+                      write(0x10a, 255, 1);
+                      write2(0x112, 255);
+                      write(0x10a, 255, 0);
+                      write2(0x301, 255);
+                      write2(0x406, 0);
+                      write2(0x401, 255);
+                      write2(0x404, 255);
+                      write2(0x405, 255);
+                      write2(0x203, 255);
+                      write(0x301, 192, 1);
+                  }
+                  write2(0x9e00, 1);
+                  write(0x9e11, 192, 1);
+                  write2(0x406, 0);
+                  write2(0x401, 255);
+                  write2(0x404, 255);
+                  inited = true;
+              }
+
+              void switchMode() {
+                  int m = 1 - tmode;
+                  stop();
+                  log("перемикаю режим зв'язку на " + m);
+                  start(m);
+                  initRadio();
+              }
+
+              private Context host;
+              private Class<?> front;
+              private boolean waking;
+              volatile boolean stepping;
+              private volatile int tgt;
+              private int lastFreq, lastSentFrom, nearSends, stuck;
+              private long lastMoveAt, lastSendAt;
+
+              void setHost(Context c, Class<?> f) {
+                  host = c;
+                  front = f;
+                  if (tp == null) {
+                      tp = c.getSharedPreferences("tuner", Context.MODE_PRIVATE);
+                      dv = tp.getInt("dv", -2);
+                      tmode = tp.getInt("tmode", 0);
+                  }
+              }
+
+              /** Виконує дію, коли тюнер відповідає; якщо ні — тихо запускає штатне радіо (один раз), щоб воно «розбудило» тюнер. */
+              void ensure(final Runnable then) {
+                  if (haveState) {
+                      then.run();
+                      return;
+                  }
+                  initRadio();
+                  h.postDelayed(new Runnable() {
+                      @Override
+                      public void run() {
+                          if (!haveState) initRadio();
+                          h.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  if (!haveState && !modeTried) {
+                                      modeTried = true;
+                                      switchMode();
+                                      h.postDelayed(new Runnable() {
+                                          @Override
+                                          public void run() {
+                                              if (!haveState && !waking && host != null) {
+                                                  waking = true;
+                                                  toast("Тюнер не відповідає. Відкрий штатне радіо один раз і повернись.");
+                                              }
+                                              then.run();
+                                          }
+                                      }, 2200);
+                                      return;
+                                  }
+                                  if (!haveState && !waking && host != null) {
+                                      waking = true;
+                                      toast("Тюнер не відповідає. Відкрий штатне радіо один раз і повернись.");
+                                  }
+                                  then.run();
+                              }
+                          }, 1200);
+                      }
+                  }, 1000);
+              }
+
+              private void toast(String t) {
+                  try {
+                      android.widget.Toast.makeText(host, t, android.widget.Toast.LENGTH_LONG).show();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              volatile boolean directPending;
+
+              boolean busy() {
+                  return stepping || directPending;
+              }
+
+              void cancelTune() {
+                  stepping = false;
+                  directPending = false;
+                  h.removeCallbacks(stepper);
+                  h.removeCallbacks(directCheck);
+              }
+
+              private void notifyState() {
+                  if (listener != null) listener.onState();
+              }
+
+              void next() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 1, 0); } }); }
+              void prev() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 1, 1); } }); }
+              void stepUp() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 0); } }); }
+              void stepDown() { cancelTune(); ensure(new Runnable() { public void run() { write(0x401, 2, 1); } }); }
+
+              private int probeIdx, probeTries, directStart;
+
+              private void sendVariant(int v, int f) {
+                  switch (v) {
+                      case 0: write(0x402, 255, f); break;
+                      case 1: write(0x402, 0, f); break;
+                      case 2: write2(0x402, f); break;
+                      case 3: write(0x401, 3, f); break;
+                      default:
+                          if (host != null) launchStock(host, f, front);
+                  }
+              }
+
+              private int lastChk;
+              private long lastProgress, sendT;
+              private boolean slewing;
+
+              private void sendProbe() {
+                  directStart = freq;
+                  lastChk = freq;
+                  sendT = System.currentTimeMillis();
+                  lastProgress = sendT;
+                  slewing = false;
+                  log("налаштування на " + tgt + ", варіант " + probeIdx);
+                  sendVariant(probeIdx, tgt);
+                  h.postDelayed(directCheck, 900);
+              }
+
+              private final Runnable directCheck = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (!directPending) return;
+                      long now = System.currentTimeMillis();
+                      boolean arrived = Math.abs(tgt - freq) <= 2;
+                      boolean changed = freq != lastChk;
+                      lastChk = freq;
+                      boolean closer = Math.abs(tgt - directStart) - Math.abs(tgt - freq) >= 5;
+                      if (closer) {
+                          slewing = true;
+                          if (dv != probeIdx) {
+                              dv = probeIdx;
+                              if (tp != null) tp.edit().putInt("dv", dv).apply();
+                              log("РОБОЧИЙ ВАРІАНТ: " + dv);
+                          }
+                      }
+                      if (changed) lastProgress = now;
+                      if (arrived) {
+                          directPending = false;
+                          log("досягнуто " + freq);
+                          notifyState();
+                          return;
+                      }
+                      if (slewing) {
+                          // тюнер сам їде до частоти (≈0.5 МГц/с): чекаємо, поки не зупиниться
+                          if (now - lastProgress < 2500 && now - sendT < 120000) {
+                              h.postDelayed(directCheck, 500);
+                              return;
+                          }
+                          if (++probeTries < 2) {
+                              log("зупинився на " + freq + ", повторюю команду");
+                              sendProbe();
+                              return;
+                          }
+                          directPending = false;
+                          notifyState();
+                          return;
+                      }
+                      if (dv >= 0) {
+                          if (++probeTries < 2) {
+                              sendProbe();
+                              return;
+                          }
+                          directPending = false;
+                          if (dv != 3) startStepping();
+                          else notifyState();
+                          return;
+                      }
+                      if (++probeIdx <= 4) {
+                          sendProbe();
+                          return;
+                      }
+                      dv = 99;
+                      if (tp != null) tp.edit().putInt("dv", 99).apply();
+                      log("жоден варіант не спрацював, лишаються кроки");
+                      directPending = false;
+                      startStepping();
+                  }
+              };
+
+              void pause() {
+                  cancelTune();
+                  paused = true;
+                  if (tmode == 0) write(0x301, 192, 0);
+                  write2(0x9e00, 129);
+                  write(0x9e11, 192, 129);
+                  haveState = false;
+                  inited = false;
+                  log("ПАУЗА");
+                  notifyState();
+              }
+
+              void resume() {
+                  paused = false;
+                  inited = false;
+                  initRadio();
+                  log("ГРАТИ");
+              }
+
+              private void startStepping() {
+                  if (stepping) return;
+                  stepping = true;
+                  lastFreq = freq;
+                  lastSentFrom = -1;
+                  nearSends = 0;
+                  lastMoveAt = System.currentTimeMillis();
+                  h.post(stepper);
+              }
+
+              /** Налаштування на частоту (одиниці 10 кГц) кроками ±0.05 МГц — без відкриття штатного радіо. */
+              void tune(final Context c, final int f10k, final Class<?> fr) {
+                  host = c;
+                  front = fr;
+                  ensure(new Runnable() {
+                      @Override
+                      public void run() {
+                          if (f10k <= 0) return;
+                          cancelTune();
+                          paused = false;
+                          tgt = f10k;
+                          if (dv == 99 || Math.abs(tgt - freq) <= 5) {
+                              startStepping();
+                          } else {
+                              directPending = true;
+                              probeIdx = dv >= 0 ? dv : 0;
+                              probeTries = 0;
+                              sendProbe();
+                          }
+                      }
+                  });
+              }
+
+              private final Runnable stepper = new Runnable() {
+                  @Override
+                  public void run() {
+                      long now = System.currentTimeMillis();
+                      int diff = tgt - freq;
+                      int ad = Math.abs(diff);
+                      if (ad <= 2 || (ad <= 5 && nearSends >= 2)) {
+                          stepping = false;
+                          notifyState();
+                          return;
+                      }
+                      if (freq != lastFreq) {
+                          lastFreq = freq;
+                          lastMoveAt = now;
+                          stuck = 0;
+                      }
+                      if (now - lastMoveAt > 2500) {
+                          if (stuck++ < 1) {
+                              initRadio();
+                              lastMoveAt = now;
+                          } else {
+                              stepping = false;
+                              stuck = 0;
+                              notifyState();
+                              toast("Тюнер не реагує на кроки.");
+                              return;
+                          }
+                      }
+                      boolean far = ad > 15;
+                      if (far || freq != lastSentFrom || now - lastSendAt > 400) {
+                          quiet = true;
+                          write(0x401, 2, diff > 0 ? 0 : 1);
+                          quiet = false;
+                          lastSentFrom = freq;
+                          lastSendAt = now;
+                          if (ad <= 5) nearSends++;
+                      }
+                      h.postDelayed(this, far ? 30 : 60);
+                  }
+              };
+
+              void launchStock(Context c, int f10k, Class<?> front) {
+                  try {
+                      Intent in = new Intent();
+                      in.setClassName("com.tw.radio", "com.tw.radio.RadioActivity");
+                      in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      if (f10k > 0) in.putExtra("frequency", f10k / 10f);
+                      c.startActivity(in);
+                  } catch (Throwable t) {
+                      error = String.valueOf(t);
+                  }
+                  final Context cc = c;
+                  final Class<?> fr = front;
+                  h.postDelayed(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              Intent b = new Intent(cc, fr);
+                              b.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                              cc.startActivity(b);
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                  }, 700);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/radioapp/Logos.java <<'EOF'
+          package com.example.radioapp;
+
+          import android.content.Context;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Typeface;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.widget.ImageView;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.net.URLEncoder;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+
+          /** Логотипи станцій: кеш на диску, пошук в radio-browser.info, запасний варіант — кольорова літера. */
+          final class Logos {
+              private Logos() {
+              }
+
+              private static final ExecutorService EX = Executors.newSingleThreadExecutor();
+              private static final Handler UI = new Handler(Looper.getMainLooper());
+              private static final String[] HOSTS = {
+                  "https://de1.api.radio-browser.info", "https://at1.api.radio-browser.info", "https://nl1.api.radio-browser.info"
+              };
+
+              static Bitmap letter(String name, int size) {
+                  Bitmap b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                  Canvas c = new Canvas(b);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  int h = Math.abs((name == null ? "" : name).hashCode());
+                  int[] cols = {0xFF1565C0, 0xFF00838F, 0xFF2E7D32, 0xFFAD1457, 0xFF6A1B9A, 0xFFEF6C00, 0xFF37474F, 0xFFC62828};
+                  p.setColor(cols[h % cols.length]);
+                  c.drawCircle(size / 2f, size / 2f, size / 2f, p);
+                  p.setColor(0xFFFFFFFF);
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTypeface(Typeface.DEFAULT_BOLD);
+                  p.setTextSize(size * 0.5f);
+                  String t = (name == null || name.trim().isEmpty()) ? "FM" : name.trim().substring(0, 1).toUpperCase();
+                  c.drawText(t, size / 2f, size / 2f + size * 0.18f, p);
+                  return b;
+              }
+
+              static void load(final Context ctx, final String key, final String display, final String query, final String url, final ImageView iv) {
+                  iv.setTag(key);
+                  iv.setImageBitmap(letter(display, 128));
+                  final String q = (query == null || query.trim().isEmpty()) ? display : query;
+                  if ((url == null || url.isEmpty()) && (q == null || q.trim().isEmpty())) return;
+                  EX.execute(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              File dir = new File(ctx.getCacheDir(), "logos");
+                              dir.mkdirs();
+                              String id = Integer.toHexString((q + "|" + url).hashCode());
+                              File f = new File(dir, id + ".png");
+                              File none = new File(dir, id + ".none");
+                              Bitmap bm = null;
+                              if (f.exists()) {
+                                  bm = BitmapFactory.decodeFile(f.getAbsolutePath());
+                              } else if (!(none.exists() && System.currentTimeMillis() - none.lastModified() < 3 * 24 * 3600 * 1000L)) {
+                                  String u = url;
+                                  if (u == null || u.isEmpty()) u = lookup(q);
+                                  if (u != null && !u.isEmpty()) {
+                                      byte[] data = download(u);
+                                      if (data != null) bm = BitmapFactory.decodeByteArray(data, 0, data.length);
+                                  }
+                                  if (bm != null) {
+                                      int w = bm.getWidth(), h = bm.getHeight();
+                                      float k = 192f / Math.max(w, h);
+                                      if (k < 1f) bm = Bitmap.createScaledBitmap(bm, Math.max(1, (int) (w * k)), Math.max(1, (int) (h * k)), true);
+                                      FileOutputStream fo = new FileOutputStream(f);
+                                      bm.compress(Bitmap.CompressFormat.PNG, 100, fo);
+                                      fo.close();
+                                  } else {
+                                      new FileOutputStream(none).close();
+                                      none.setLastModified(System.currentTimeMillis());
+                                  }
+                              }
+                              if (bm == null) return;
+                              final Bitmap fb = bm;
+                              UI.post(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      if (key.equals(iv.getTag())) iv.setImageBitmap(fb);
+                                  }
+                              });
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                  });
+              }
+
+              private static String lookup(String name) {
+                  for (String host : HOSTS) {
+                      try {
+                          String u = host + "/json/stations/search?countrycode=UA&hidebroken=true&order=votes&reverse=true&limit=6&name="
+                                  + URLEncoder.encode(name, "UTF-8");
+                          byte[] d = download(u);
+                          if (d == null) continue;
+                          JSONArray a = new JSONArray(new String(d, "UTF-8"));
+                          for (int i = 0; i < a.length(); i++) {
+                              JSONObject o = a.getJSONObject(i);
+                              String fav = o.optString("favicon", "");
+                              if (!fav.isEmpty()) return fav;
+                          }
+                          return null;
+                      } catch (Throwable ignored) {
+                      }
+                  }
+                  return null;
+              }
+
+              private static byte[] download(String u) {
+                  HttpURLConnection c = null;
+                  try {
+                      c = (HttpURLConnection) new URL(u).openConnection();
+                      c.setConnectTimeout(6000);
+                      c.setReadTimeout(8000);
+                      c.setRequestProperty("User-Agent", "RadioApp/1.0");
+                      if (c.getResponseCode() != 200) return null;
+                      InputStream in = c.getInputStream();
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int n;
+                      while ((n = in.read(buf)) > 0) {
+                          bo.write(buf, 0, n);
+                          if (bo.size() > 600000) return null;
+                      }
+                      return bo.toByteArray();
+                  } catch (Throwable t) {
+                      return null;
+                  } finally {
+                      if (c != null) c.disconnect();
+                  }
+              }
+          }
+          EOF
+
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#0B1220" android:pathData="M54,4 a50,50 0 1,0 0.01,0 z"/>
+              <path android:fillColor="#22D3EE" android:pathData="M32,46 h44 a4,4 0 0 1 4,4 v24 a4,4 0 0 1 -4,4 h-44 a4,4 0 0 1 -4,-4 v-24 a4,4 0 0 1 4,-4 z"/>
+              <path android:strokeColor="#FFFFFF" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M40,46 L68,26"/>
+              <path android:fillColor="#0B1220" android:pathData="M44,54 a8,8 0 1,0 0.01,0 z"/>
+              <path android:fillColor="#0B1220" android:pathData="M58,56 h16 v4 h-16 z"/>
+              <path android:fillColor="#0B1220" android:pathData="M58,66 h16 v4 h-16 z"/>
+          </vector>
+          EOF
+
+          cat > app/src/main/java/com/example/radioapp/CrashGuard.java <<'EOF'
+          package com.example.radioapp;
+
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+
+          import java.io.PrintWriter;
+          import java.io.StringWriter;
+
+          /** Записує причину збою програми й показує її при наступному запуску, щоб її можна було скопіювати. */
+          final class CrashGuard {
+              private CrashGuard() {
+              }
+
+              static void install(final Context ctx) {
+                  final SharedPreferences sp = ctx.getSharedPreferences("crash", Context.MODE_PRIVATE);
+                  final Thread.UncaughtExceptionHandler old = Thread.getDefaultUncaughtExceptionHandler();
+                  Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+                      @Override
+                      public void uncaughtException(Thread t, Throwable e) {
+                          try {
+                              StringWriter sw = new StringWriter();
+                              e.printStackTrace(new PrintWriter(sw));
+                              sp.edit().putString("trace", sw.toString()).commit();
+                          } catch (Throwable ignored) {
+                          }
+                          if (old != null) old.uncaughtException(t, e);
+                      }
+                  });
+              }
+
+              static String take(Context ctx) {
+                  SharedPreferences sp = ctx.getSharedPreferences("crash", Context.MODE_PRIVATE);
+                  String s = sp.getString("trace", null);
+                  if (s != null) sp.edit().remove("trace").commit();
+                  return s;
+              }
+
+              static void show(final Activity a, final String trace) {
+                  LinearLayout col = new LinearLayout(a);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setBackgroundColor(0xFF101418);
+                  col.setPadding(24, 24, 24, 24);
+                  TextView h = new TextView(a);
+                  h.setText("Попередній запуск завершився збоєм. Натисни «Копіювати» і встав текст у чат, потім запусти програму ще раз.");
+                  h.setTextColor(0xFFFFB74D);
+                  h.setTextSize(16);
+                  col.addView(h);
+                  Button b = new Button(a);
+                  b.setText("Копіювати");
+                  b.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          ClipboardManager cm = (ClipboardManager) a.getSystemService(Context.CLIPBOARD_SERVICE);
+                          cm.setPrimaryClip(ClipData.newPlainText("crash", trace));
+                      }
+                  });
+                  col.addView(b);
+                  ScrollView sv = new ScrollView(a);
+                  TextView t = new TextView(a);
+                  t.setText(trace);
+                  t.setTextColor(0xFFECEFF1);
+                  t.setTextSize(11);
+                  t.setTextIsSelectable(true);
+                  sv.addView(t);
+                  col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+                  a.setContentView(col);
+              }
+          }
+          EOF
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Diagnostika
+          path: app/build/outputs/apk/debug/app-debug.apk
