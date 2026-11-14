@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 22
-                  versionName "3.1"
+                  versionCode 23
+                  versionName "3.2"
               }
               signingConfigs {
                   debug {
@@ -614,21 +614,6 @@ jobs:
                   tabs[1] = buildFavTab();
                   tabs[2] = buildAllTab();
                   for (View v : tabs) content.addView(v, new FrameLayout.LayoutParams(-1, -1));
-                  LinearLayout bar = new LinearLayout(this);
-                  String[] names = {"Обрані", "Станції", "Тема"};
-                  for (int i = 0; i < 3; i++) {
-                      final int idx = i + 1;
-                      Glyph tb = new Glyph(-1, names[i], 19);
-                      tb.setOnClickListener(v -> {
-                          if (idx == 3) themeDialog();
-                          else showTab(idx);
-                      });
-                      LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, dp(58), 1);
-                      blp.setMargins(dp(4), dp(8), dp(4), 0);
-                      bar.addView(tb, blp);
-                      tabBtns[idx] = tb;
-                  }
-                  root.addView(bar);
                   setContentView(root);
                   showTab(0);
 
@@ -902,15 +887,21 @@ jobs:
                   seek = new FreqSlider();
                   right.addView(seek, new LinearLayout.LayoutParams(-1, dp(84)));
 
-                  right.addView(row2(new Glyph(0, "Попередня станція", 19), new Glyph(1, "Наступна станція", 19),
-                          this::doPrev, this::doNext));
-                  right.addView(row2(new Glyph(2, "Крок назад", 19), new Glyph(3, "Крок вперед", 19),
-                          () -> tuner.stepDown(), () -> tuner.stepUp()));
+                  LinearLayout r4 = new LinearLayout(this);
+                  int[] kinds = {0, 2, 3, 1};
+                  final Runnable[] acts = {this::doPrev, () -> tuner.stepDown(), () -> tuner.stepUp(), this::doNext};
+                  for (int i = 0; i < 4; i++) {
+                      Glyph g4 = new Glyph(kinds[i], "", 19);
+                      final Runnable ac = acts[i];
+                      g4.setOnClickListener(v -> ac.run());
+                      LinearLayout.LayoutParams p4 = new LinearLayout.LayoutParams(0, -1, 1);
+                      p4.setMargins(dp(4), dp(4), dp(4), dp(4));
+                      r4.addView(g4, p4);
+                  }
+                  right.addView(r4, new LinearLayout.LayoutParams(-1, 0, 1));
                   btnScan = new Glyph(6, "Знайти станції", 19);
-                  btnScan.setOnClickListener(v -> startScan());
-                  LinearLayout.LayoutParams scp = new LinearLayout.LayoutParams(-1, 0, 1);
-                  scp.setMargins(dp(4), dp(4), dp(4), dp(4));
-                  right.addView(btnScan, scp);
+                  right.addView(row2(new Glyph(-1, "Станції", 19), btnScan, () -> showTab(2), this::startScan));
+                  right.addView(row2(new Glyph(-1, "Обрані", 19), new Glyph(-1, "Тема", 19), () -> showTab(1), this::themeDialog));
 
                   LinearLayout.LayoutParams lpR = land ? new LinearLayout.LayoutParams(0, -1, 1.15f) : new LinearLayout.LayoutParams(-1, 0, 1.3f);
                   main.addView(right, lpR);
