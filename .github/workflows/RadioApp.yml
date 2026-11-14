@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 17
-                  versionName "2.6"
+                  versionCode 18
+                  versionName "2.7"
               }
               signingConfigs {
                   debug {
@@ -190,9 +190,58 @@ jobs:
                   return g;
               }
 
+              static final String[] BSN = {"Звичайний", "Градієнт вертикальний", "Градієнт до акценту", "Градієнт горизонтальний", "Світіння", "Скло", "Лише контур"};
+
+              int mixC(int a, int b, float t) {
+                  int r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+                  int g = Math.round(((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+                  int bl = Math.round((a & 255) * (1 - t) + (b & 255) * t);
+                  return (r << 16) | (g << 8) | bl;
+              }
+
+              int withA(int rgb, int al) {
+                  return (al << 24) | (rgb & 0xFFFFFF);
+              }
+
+              GradientDrawable styled(int base, int radiusDp, float radialPx) {
+                  int st = uisp.getInt("bstyle", 0);
+                  int ca = base >>> 24, cr = base & 0xFFFFFF;
+                  GradientDrawable g = new GradientDrawable();
+                  g.setCornerRadius(dp(radiusDp));
+                  switch (st) {
+                      case 1:
+                          g.setOrientation(GradientDrawable.Orientation.TOP_BOTTOM);
+                          g.setColors(new int[]{withA(mixC(cr, 0xFFFFFF, 0.14f), ca), withA(mixC(cr, 0x000000, 0.30f), ca)});
+                          break;
+                      case 2:
+                          g.setOrientation(GradientDrawable.Orientation.TL_BR);
+                          g.setColors(new int[]{withA(mixC(cr, ACC, 0.45f), ca), withA(mixC(cr, 0x000000, 0.2f), ca)});
+                          break;
+                      case 3:
+                          g.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
+                          g.setColors(new int[]{withA(mixC(cr, ACC, 0.38f), ca), withA(cr, ca)});
+                          break;
+                      case 4:
+                          g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+                          g.setGradientRadius(radialPx);
+                          g.setColors(new int[]{withA(mixC(cr, ACC, 0.5f), ca), withA(cr, ca)});
+                          break;
+                      case 5:
+                          g.setColor(withA(TXT, Math.round(ca * 0.3f)));
+                          break;
+                      case 6:
+                          g.setColor(withA(cr, Math.round(ca * 0.2f)));
+                          g.setStroke(dp(2), withA(ACC, 0xDD));
+                          break;
+                      default:
+                          g.setColor(base);
+                  }
+                  return g;
+              }
+
               GradientDrawable card(int radiusDp) {
-                  GradientDrawable g = rect(CARD, radiusDp);
-                  g.setStroke(dp(1), (ACC & 0xFFFFFF) | 0x44000000);
+                  GradientDrawable g = styled(CARD, radiusDp, dp(300));
+                  if (uisp.getInt("bstyle", 0) != 6) g.setStroke(dp(1), (ACC & 0xFFFFFF) | 0x44000000);
                   return g;
               }
 
@@ -240,8 +289,13 @@ jobs:
                       RectF r = new RectF(st, st, w - st, h - st);
                       p.setStyle(Paint.Style.FILL);
                       int base = (BTN & 0xFFFFFF) | 0x99000000;
-                      p.setColor(isPressed() ? (ACC & 0xFFFFFF) | 0x66000000 : sel ? (ACC & 0xFFFFFF) | 0x44000000 : base);
-                      cv.drawRoundRect(r, dp(16), dp(16), p);
+                      GradientDrawable sg = styled(base, 16, Math.max(w, h) * 0.8f);
+                      sg.setBounds(Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom));
+                      sg.draw(cv);
+                      if (isPressed() || sel) {
+                          p.setColor(isPressed() ? (ACC & 0xFFFFFF) | 0x66000000 : (ACC & 0xFFFFFF) | 0x44000000);
+                          cv.drawRoundRect(r, dp(16), dp(16), p);
+                      }
                       p.setStyle(Paint.Style.STROKE);
                       p.setStrokeWidth(st);
                       p.setColor((ACC & 0xFFFFFF) | (sel ? 0xDD000000 : 0x77000000));
@@ -581,6 +635,13 @@ jobs:
                   cb2.setChecked(uisp.getBoolean("tDark", true));
                   box.addView(cb1);
                   box.addView(cb2);
+                  TextView stl = new TextView(this);
+                  stl.setText("Стиль блоків");
+                  box.addView(stl);
+                  final android.widget.Spinner spn = new android.widget.Spinner(this);
+                  spn.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, BSN));
+                  spn.setSelection(Math.min(BSN.length - 1, uisp.getInt("bstyle", 0)));
+                  box.addView(spn);
                   final Runnable load = new Runnable() {
                       @Override
                       public void run() {
@@ -602,7 +663,7 @@ jobs:
                   svx.addView(box);
                   new AlertDialog.Builder(this).setTitle("Свій колір").setView(svx)
                           .setPositiveButton("Застосувати", (d, w) -> {
-                              uisp.edit().putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
+                              uisp.edit().putInt("bstyle", spn.getSelectedItemPosition()).putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
                                       .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
                                       .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
                               recreate();
