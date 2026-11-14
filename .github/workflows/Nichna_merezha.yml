@@ -95,8 +95,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 16
-                  versionName = "1.16"
+                  versionCode = 17
+                  versionName = "1.17"
               }
 
               signingConfigs {
@@ -1501,7 +1501,11 @@ jobs:
                * called only when something happens anyway (screen, Wi-Fi, charger events, notification refresh). Traffic that
                * occurred while Wi-Fi was connected is not added. wifi = new Wi-Fi state if known (from a network callback).
                */
-              static synchronized void sample(Context c, Boolean wifi) {
+              static void sample(Context c, Boolean wifi) {
+                  if ("own".equals(Prefs.get(c).getString("use_src", "dump"))) sampleNow(c, wifi);
+              }
+
+              static synchronized void sampleNow(Context c, Boolean wifi) {
                   try {
                       SharedPreferences p = Prefs.get(c);
                       long start = periodStart(p, System.currentTimeMillis());
@@ -1627,6 +1631,14 @@ jobs:
                   }).start();
               }
 
+              /** Refreshes only if the cached figure is older than maxAgeMs (used when the app is opened). */
+              static void refreshIfOlder(Context c, long maxAgeMs) {
+                  SharedPreferences p = Prefs.get(c);
+                  long start = periodStart(p, System.currentTimeMillis());
+                  if ("dump".equals(p.getString("use_src", "dump")) && (p.getLong("ud_period", 0) != start || System.currentTimeMillis() - p.getLong("ud_at", 0) > maxAgeMs))
+                      refreshAsync(c, start);
+              }
+
               /** Forces an immediate refresh from the system statistics. */
               static void refreshNow(Context c) {
                   SharedPreferences p = Prefs.get(c);
@@ -1638,13 +1650,16 @@ jobs:
                   SharedPreferences p = Prefs.get(c);
                   String src = p.getString("use_src", "dump");
                   if (src.equals("own")) {
-                      sample(c, null);
+                      sampleNow(c, null);
                       return p.getLong("use2_period", 0) == start ? p.getLong("use2_acc", 0) : 0;
                   }
                   if (src.equals("wild")) return Math.max(0, wildcard(c, start));
                   long now = System.currentTimeMillis();
                   boolean same = p.getLong("ud_period", 0) == start;
-                  if (!same || now - p.getLong("ud_at", 0) > 10 * 60000L) refreshAsync(c, start);
+                  // The full system dump is heavy: refresh rarely (every 15 min close to the limit, else hourly) or on demand.
+                  long maxAge = 60 * 60000L;
+                  if (p.getBoolean("limit_on", false) && p.getLong("ud_bytes", 0) > p.getFloat("limit_gb", 3.8f) * 0.8 * 1073741824.0) maxAge = 15 * 60000L;
+                  if (!same || now - p.getLong("ud_at", 0) > maxAge) refreshAsync(c, start);
                   if (!p.getBoolean("ud_ok", false) && p.getLong("ud_at", 0) > 0) return Math.max(0, wildcard(c, start));
                   if (!same) return 0;
                   return p.getLong("ud_bytes", 0);
@@ -1684,7 +1699,7 @@ jobs:
                   }
                   long w = wildcard(c, start);
                   sb.append("\nB. Старий запит (усі мобільні разом): ").append(w < 0 ? "помилка" : fmt(w)).append('\n');
-                  sample(c, null);
+                  sampleNow(c, null);
                   sb.append("C. Власний лічильник: ").append(fmt(p.getLong("use2_period", 0) == start ? p.getLong("use2_acc", 0) : 0)).append('\n');
                   sb.append("\nУ вікні «Джерело» оберіть той варіант, цифра якого збігається з Налаштуваннями Android.");
                   return sb.toString();
@@ -2022,7 +2037,7 @@ jobs:
                   nm.createNotificationChannel(chMin);
                   startForeground(2, build(null, null, null, true));
 
-                  ht = new HandlerThread("nightnet-monitor");
+                  ht = new HandlerThread("nightnet-monitor", android.os.Process.THREAD_PRIORITY_BACKGROUND);
                   ht.start();
                   h = new Handler(ht.getLooper());
                   PowerManager pm = getSystemService(PowerManager.class);
@@ -2204,6 +2219,7 @@ jobs:
               }
 
               private long curAt;
+              private String lastSpeedKey = "";
               private long speedUntil;
               private String curKey = "";
 
@@ -2257,9 +2273,15 @@ jobs:
                       showBasic(false);
                       return curShown ? Math.min(idleMs, curMs) : idleMs;
                   }
-                  nm.notify(2, build(usageLine(), null, speedIcon(rxs), false));
+                  // Update the status bar icon only when the shown text changes, and at most every 2 s (less work for SystemUI).
+                  String[] sp = Fmt.speed(rxs, cfg.getInt("speed_min_kb", 10));
+                  String key = sp[0] + sp[1];
+                  if (basicShown || !key.equals(lastSpeedKey)) {
+                      nm.notify(2, build(usageLine(), null, speedIcon(rxs), false));
+                      lastSpeedKey = key;
+                  }
                   basicShown = false;
-                  return 1000L;
+                  return 2000L;
               }
 
               // ------------------------------------------------------------ screen events and lock sessions
@@ -2270,7 +2292,7 @@ jobs:
                       SharedPreferences m = getSharedPreferences("mon", MODE_PRIVATE);
                       boolean mon = cfg.getBoolean("mon_enabled", true);
                       boolean open = m.getBoolean("open", false);
-                      if (cfg.getBoolean("show_usage", false) || cfg.getBoolean("limit_on", false)) Usage.sample(this, null);
+                      Usage.sample(this, null);
                       if (Intent.ACTION_SCREEN_OFF.equals(a)) {
                           unlocked = false;
                           if (cfg.getLong("idle_since", 0) == 0) cfg.edit().putLong("idle_since", now).apply();
@@ -2343,8 +2365,7 @@ jobs:
                       // Too short for the log: no snapshot, to save battery.
                       return;
                   }
-                  long snapB = Snapper.take(this);
-                  Sess s = new Sess();
+                  final Sess s = new Sess();
                   s.st = st;
                   s.en = now;
                   s.stLvl = m.getInt("st_lvl", 0);
@@ -2355,10 +2376,16 @@ jobs:
                   s.up = up - stUp;
                   s.sched = m.getBoolean("sched0", false) || cfg.getBoolean("active", false) || cfg.getLong("flip_ts", 0) >= st;
                   s.snapA = m.getLong("snap_a", 0);
-                  s.snapB = snapB;
-                  Db db = Db.get(this);
-                  db.putSession(s);
-                  db.prune(now - cfg.getInt("keep_days", 14) * 86400000L);
+                  final long keepMs = cfg.getInt("keep_days", 14) * 86400000L;
+                  // The statistics snapshot is heavy for the system, so it is taken a minute after unlocking, not while the phone is being used.
+                  h.postDelayed(() -> {
+                      try {
+                          s.snapB = Snapper.take(MonitorService.this);
+                          Db db = Db.get(MonitorService.this);
+                          db.putSession(s);
+                          db.prune(System.currentTimeMillis() - keepMs);
+                      } catch (Throwable ignored) { }
+                  }, 60000L);
               }
           }
           EOF
@@ -3913,7 +3940,7 @@ jobs:
                   super.onResume(); render(); runSync();
                   MonitorService.ensure(getApplicationContext());
                   if (ui != null) ui.refresh();
-                  if (bp != null) bp.refresh();
+                  Usage.refreshIfOlder(getApplicationContext(), 10 * 60000L);
               }
               private void requestNotificationPermissionIfNeeded() {
                   if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
