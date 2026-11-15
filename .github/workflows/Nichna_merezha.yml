@@ -95,8 +95,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 21
-                  versionName = "1.21"
+                  versionCode = 22
+                  versionName = "1.22"
               }
 
               signingConfigs {
@@ -4355,7 +4355,7 @@ jobs:
                           }
                           BdayEv e = l.get(i);
                           rv.setViewVisibility(TILE[i], View.VISIBLE);
-                          rv.setImageViewBitmap(PIC[i], photo(c, e, 260));
+                          rv.setImageViewBitmap(PIC[i], circle(photo(c, e, 260), 200));
                           String a = e.nameday ? "🎈" : ("🎂" + (e.age >= 0 ? " " + e.age : ""));
                           rv.setTextViewText(AGE[i], a);
                           rv.setTextViewText(DAYS[i], String.valueOf(e.days));
@@ -4864,7 +4864,8 @@ jobs:
                       android:id="@+id/p1"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:scaleType="centerCrop" />
+                      android:padding="2dp"
+                      android:scaleType="fitCenter" />
                   <TextView
                       android:id="@+id/a1"
                       android:layout_width="wrap_content"
@@ -4915,7 +4916,8 @@ jobs:
                       android:id="@+id/p2"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:scaleType="centerCrop" />
+                      android:padding="2dp"
+                      android:scaleType="fitCenter" />
                   <TextView
                       android:id="@+id/a2"
                       android:layout_width="wrap_content"
@@ -4966,7 +4968,8 @@ jobs:
                       android:id="@+id/p3"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:scaleType="centerCrop" />
+                      android:padding="2dp"
+                      android:scaleType="fitCenter" />
                   <TextView
                       android:id="@+id/a3"
                       android:layout_width="wrap_content"
@@ -5017,7 +5020,8 @@ jobs:
                       android:id="@+id/p4"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:scaleType="centerCrop" />
+                      android:padding="2dp"
+                      android:scaleType="fitCenter" />
                   <TextView
                       android:id="@+id/a4"
                       android:layout_width="wrap_content"
