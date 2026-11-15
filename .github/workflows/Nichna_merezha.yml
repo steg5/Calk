@@ -95,8 +95,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 20
-                  versionName = "1.20"
+                  versionCode = 21
+                  versionName = "1.21"
               }
 
               signingConfigs {
@@ -4355,7 +4355,7 @@ jobs:
                           }
                           BdayEv e = l.get(i);
                           rv.setViewVisibility(TILE[i], View.VISIBLE);
-                          rv.setImageViewBitmap(PIC[i], circle(photo(c, e, 260), 200));
+                          rv.setImageViewBitmap(PIC[i], photo(c, e, 260));
                           String a = e.nameday ? "🎈" : ("🎂" + (e.age >= 0 ? " " + e.age : ""));
                           rv.setTextViewText(AGE[i], a);
                           rv.setTextViewText(DAYS[i], String.valueOf(e.days));
@@ -4859,14 +4859,12 @@ jobs:
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:layout_margin="3dp"
-                  android:background="@drawable/tile_bg">
+                  android:layout_margin="2dp">
                   <ImageView
                       android:id="@+id/p1"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:padding="5dp"
-                      android:scaleType="fitCenter" />
+                      android:scaleType="centerCrop" />
                   <TextView
                       android:id="@+id/a1"
                       android:layout_width="wrap_content"
@@ -4898,10 +4896,7 @@ jobs:
                       android:layout_width="match_parent"
                       android:layout_height="wrap_content"
                       android:layout_gravity="bottom"
-                      android:shadowColor="#CC000000"
-                      android:shadowDx="1"
-                      android:shadowDy="1"
-                      android:shadowRadius="3"
+                      android:background="#88000000"
                       android:gravity="center"
                       android:maxLines="1"
                       android:ellipsize="end"
@@ -4915,14 +4910,12 @@ jobs:
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:layout_margin="3dp"
-                  android:background="@drawable/tile_bg">
+                  android:layout_margin="2dp">
                   <ImageView
                       android:id="@+id/p2"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:padding="5dp"
-                      android:scaleType="fitCenter" />
+                      android:scaleType="centerCrop" />
                   <TextView
                       android:id="@+id/a2"
                       android:layout_width="wrap_content"
@@ -4954,10 +4947,7 @@ jobs:
                       android:layout_width="match_parent"
                       android:layout_height="wrap_content"
                       android:layout_gravity="bottom"
-                      android:shadowColor="#CC000000"
-                      android:shadowDx="1"
-                      android:shadowDy="1"
-                      android:shadowRadius="3"
+                      android:background="#88000000"
                       android:gravity="center"
                       android:maxLines="1"
                       android:ellipsize="end"
@@ -4971,14 +4961,12 @@ jobs:
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:layout_margin="3dp"
-                  android:background="@drawable/tile_bg">
+                  android:layout_margin="2dp">
                   <ImageView
                       android:id="@+id/p3"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:padding="5dp"
-                      android:scaleType="fitCenter" />
+                      android:scaleType="centerCrop" />
                   <TextView
                       android:id="@+id/a3"
                       android:layout_width="wrap_content"
@@ -5010,10 +4998,7 @@ jobs:
                       android:layout_width="match_parent"
                       android:layout_height="wrap_content"
                       android:layout_gravity="bottom"
-                      android:shadowColor="#CC000000"
-                      android:shadowDx="1"
-                      android:shadowDy="1"
-                      android:shadowRadius="3"
+                      android:background="#88000000"
                       android:gravity="center"
                       android:maxLines="1"
                       android:ellipsize="end"
@@ -5027,14 +5012,12 @@ jobs:
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:layout_margin="3dp"
-                  android:background="@drawable/tile_bg">
+                  android:layout_margin="2dp">
                   <ImageView
                       android:id="@+id/p4"
                       android:layout_width="match_parent"
                       android:layout_height="match_parent"
-                      android:padding="5dp"
-                      android:scaleType="fitCenter" />
+                      android:scaleType="centerCrop" />
                   <TextView
                       android:id="@+id/a4"
                       android:layout_width="wrap_content"
@@ -5066,10 +5049,7 @@ jobs:
                       android:layout_width="match_parent"
                       android:layout_height="wrap_content"
                       android:layout_gravity="bottom"
-                      android:shadowColor="#CC000000"
-                      android:shadowDx="1"
-                      android:shadowDy="1"
-                      android:shadowRadius="3"
+                      android:background="#88000000"
                       android:gravity="center"
                       android:maxLines="1"
                       android:ellipsize="end"
@@ -5089,15 +5069,6 @@ jobs:
                   android:textSize="13sp"
                   android:visibility="gone" />
           </FrameLayout>
-          EOF
-
-          mkdir -p src/main/res/drawable
-          cat > src/main/res/drawable/tile_bg.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#99303236" />
-              <corners android:radius="18dp" />
-          </shape>
           EOF
 
       - name: Build APK
