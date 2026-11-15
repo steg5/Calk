@@ -62,8 +62,8 @@ jobs:
                   applicationId "com.example.carprobe"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "1.4"
+                  versionCode 6
+                  versionName "1.5"
               }
               signingConfigs {
                   debug {
@@ -114,33 +114,46 @@ jobs:
           import android.content.ClipData;
           import android.content.ClipboardManager;
           import android.content.Context;
+          import android.database.Cursor;
           import android.graphics.Typeface;
+          import android.net.Uri;
           import android.os.Bundle;
           import android.os.Handler;
           import android.os.HandlerThread;
           import android.os.Looper;
           import android.os.Message;
           import android.os.SystemClock;
+          import android.provider.Settings;
           import android.view.View;
           import android.view.WindowManager;
           import android.widget.Button;
-          import android.widget.EditText;
           import android.widget.LinearLayout;
           import android.widget.ScrollView;
           import android.widget.TextView;
           import android.widget.Toast;
 
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
           import java.lang.reflect.InvocationTargetException;
           import java.lang.reflect.Method;
           import java.util.ArrayList;
           import java.util.Arrays;
+          import java.util.HashMap;
           import java.util.Locale;
           import java.util.Map;
           import java.util.TreeMap;
+          import java.util.TreeSet;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
 
           public class MainActivity extends Activity {
 
               static final String TW = "android.tw.john.TWUtil";
+              static final String[] MARKS = {
+                      "ФАРИ ВКЛ", "ФАРИ ВИКЛ", "ДАЛЬНЄ", "ЛІВИЙ ПОВОРОТ", "ПРАВИЙ ПОВОРОТ", "АВАРІЙКА",
+                      "РУЧНИК ВКЛ", "РУЧНИК ВИКЛ", "ЗАДНЯ ВКЛ", "ЗАДНЯ ВИКЛ", "ГАЗ", "ГАЛЬМО"
+              };
+              static final Pattern PROP = Pattern.compile("^\\[(.*?)\\]: \\[(.*)\\]$");
 
               static class Grp {
                   int n;
@@ -166,12 +179,15 @@ jobs:
               final ArrayList<Group> groupsList = new ArrayList<>();
               final TreeMap<String, Grp> msgs = new TreeMap<>();
               final ArrayList<String> logLines = new ArrayList<>();
-              String statusText = "Готово. Вмикай групи по одній.";
+              final ArrayList<String> sysLines = new ArrayList<>();
+              String statusText = "Готово.";
               String diagText = "";
               int total = 0;
+              volatile boolean watch = true;
+              HashMap<String, String> prev = null;
+              Button btnWatch;
 
-              TextView tvStatus, tvDiag, tvMsgs, tvLog;
-              EditText etMark;
+              TextView tvStatus, tvDiag, tvMsgs, tvLog, tvSys;
 
               void addGroup(String name, int... ids) {
                   Group g = new Group();
@@ -211,70 +227,84 @@ jobs:
 
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(20, 12, 20, 12);
+                  root.setPadding(20, 8, 20, 8);
 
                   LinearLayout bar = new LinearLayout(this);
                   bar.setOrientation(LinearLayout.HORIZONTAL);
-                  bar.addView(btn("Копіювати все", new View.OnClickListener() {
+                  bar.addView(btn("Копіювати все", 14, new View.OnClickListener() {
                       public void onClick(View v) { copyAll(); }
                   }), new LinearLayout.LayoutParams(0, -2, 1f));
-                  bar.addView(btn("Очистити", new View.OnClickListener() {
+                  bar.addView(btn("Очистити", 14, new View.OnClickListener() {
                       public void onClick(View v) { clearAll(); }
                   }), new LinearLayout.LayoutParams(0, -2, 1f));
-                  bar.addView(btn("СТОП усе", new View.OnClickListener() {
+                  bar.addView(btn("ВКЛ ВСІ групи", 14, new View.OnClickListener() {
+                      public void onClick(View v) { startAll(); }
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  bar.addView(btn("СТОП усе", 14, new View.OnClickListener() {
                       public void onClick(View v) { stopAll(); }
                   }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  btnWatch = btn("Система: ВКЛ", 14, new View.OnClickListener() {
+                      public void onClick(View v) { toggleWatch(); }
+                  });
+                  bar.addView(btnWatch, new LinearLayout.LayoutParams(0, -2, 1f));
                   root.addView(bar);
 
                   LinearLayout gl = new LinearLayout(this);
                   gl.setOrientation(LinearLayout.HORIZONTAL);
                   for (final Group g : groupsList) {
                       g.h = new H(g.name);
-                      g.btn = btn("▶ " + g.name, new View.OnClickListener() {
+                      g.btn = btn("▶ " + g.name, 12, new View.OnClickListener() {
                           public void onClick(View v) { toggle(g); }
                       });
                       gl.addView(g.btn, new LinearLayout.LayoutParams(0, -2, 1f));
                   }
                   root.addView(gl);
 
-                  LinearLayout mk = new LinearLayout(this);
-                  mk.setOrientation(LinearLayout.HORIZONTAL);
-                  etMark = new EditText(this);
-                  etMark.setHint("мітка в лог (наприклад: фари ввімкнув)");
-                  etMark.setSingleLine(true);
-                  mk.addView(etMark, new LinearLayout.LayoutParams(0, -2, 1f));
-                  mk.addView(btn("Мітка", new View.OnClickListener() {
-                      public void onClick(View v) { addMark(); }
-                  }));
-                  root.addView(mk);
+                  for (int row = 0; row < 2; row++) {
+                      LinearLayout mk = new LinearLayout(this);
+                      mk.setOrientation(LinearLayout.HORIZONTAL);
+                      for (int i = row * 6; i < row * 6 + 6; i++) {
+                          final String name = MARKS[i];
+                          mk.addView(btn(name, 12, new View.OnClickListener() {
+                              public void onClick(View v) { addMark(name); }
+                          }), new LinearLayout.LayoutParams(0, -2, 1f));
+                      }
+                      root.addView(mk);
+                  }
 
-                  tvStatus = tv(14, true);
+                  tvStatus = tv(13, true);
                   root.addView(tvStatus);
 
                   ScrollView sv = new ScrollView(this);
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  col.addView(head("== ДІАГНОСТИКА TWUtil =="));
-                  tvDiag = tv(11, false);
-                  col.addView(tvDiag);
+                  col.addView(head("== ЗМІНИ В СИСТЕМІ (налаштування і властивості), нові зверху =="));
+                  tvSys = tv(12, false);
+                  col.addView(tvSys);
                   col.addView(head("== ПОВІДОМЛЕННЯ MCU: останнє по what =="));
                   tvMsgs = tv(13, false);
                   col.addView(tvMsgs);
-                  col.addView(head("== ЛОГ ЗМІН (нові зверху) =="));
+                  col.addView(head("== ЛОГ MCU І МІТОК (нові зверху) =="));
                   tvLog = tv(12, false);
                   col.addView(tvLog);
+                  col.addView(head("== ДІАГНОСТИКА TWUtil =="));
+                  tvDiag = tv(11, false);
+                  col.addView(tvDiag);
                   sv.addView(col);
                   root.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
                   setContentView(root);
 
                   diagText = diag();
                   ui.postDelayed(ticker, 1000);
+                  bg.postDelayed(watcher, 1500);
                   refresh();
               }
 
-              Button btn(String t, View.OnClickListener l) {
+              Button btn(String t, float sp, View.OnClickListener l) {
                   Button b = new Button(this);
                   b.setText(t);
+                  b.setTextSize(sp);
+                  b.setPadding(4, 4, 4, 4);
                   b.setOnClickListener(l);
                   return b;
               }
@@ -334,9 +364,16 @@ jobs:
                   else startGroup(g);
               }
 
+              void startAll() {
+                  for (Group g : groupsList) {
+                      if (!g.on) startGroup(g);
+                  }
+              }
+
               void startGroup(final Group g) {
                   bg.post(new Runnable() {
                       public void run() {
+                          if (g.on) return;
                           try {
                               Object tw = Class.forName(TW).getConstructor().newInstance();
                               Object r = call(tw, "open", new Class<?>[]{short[].class}, new Object[]{g.ids});
@@ -349,7 +386,7 @@ jobs:
                                       new Object[]{"CP_" + g.name, g.h});
                               g.tw = tw;
                               g.on = true;
-                              setStatus(g.name + ": слухаю (open=0, start, addHandler)");
+                              setStatus(g.name + ": слухаю");
                               ui.post(new Runnable() {
                                   public void run() { g.btn.setText("■ " + g.name); }
                               });
@@ -386,6 +423,100 @@ jobs:
                       if (g.on) stopGroup(g);
                   }
               }
+
+              void toggleWatch() {
+                  watch = !watch;
+                  if (watch) prev = null;
+                  btnWatch.setText(watch ? "Система: ВКЛ" : "Система: ВИКЛ");
+                  setStatus("Стеження за системою: " + (watch ? "увімкнено" : "вимкнено"));
+              }
+
+              // ---------- стеження за налаштуваннями та властивостями ----------
+
+              final Runnable watcher = new Runnable() {
+                  public void run() {
+                      if (watch) {
+                          try {
+                              HashMap<String, String> cur = snap();
+                              if (prev != null) diff(prev, cur);
+                              prev = cur;
+                          } catch (Throwable e) {
+                          }
+                      }
+                      bg.postDelayed(this, 2000);
+                  }
+              };
+
+              HashMap<String, String> snap() {
+                  HashMap<String, String> m = new HashMap<>();
+                  readSettings(m, "S:", Settings.System.CONTENT_URI);
+                  readSettings(m, "SEC:", Settings.Secure.CONTENT_URI);
+                  readSettings(m, "G:", Settings.Global.CONTENT_URI);
+                  readProps(m);
+                  return m;
+              }
+
+              void readSettings(HashMap<String, String> m, String pre, Uri uri) {
+                  Cursor c = null;
+                  try {
+                      c = getContentResolver().query(uri, new String[]{"name", "value"}, null, null, null);
+                      if (c != null) {
+                          while (c.moveToNext()) m.put(pre + c.getString(0), c.getString(1));
+                      }
+                  } catch (Throwable e) {
+                  } finally {
+                      if (c != null) c.close();
+                  }
+              }
+
+              void readProps(HashMap<String, String> m) {
+                  Process p = null;
+                  try {
+                      p = Runtime.getRuntime().exec(new String[]{"getprop"});
+                      BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                      String l;
+                      while ((l = br.readLine()) != null) {
+                          Matcher mt = PROP.matcher(l);
+                          if (mt.matches()) m.put("P:" + mt.group(1), mt.group(2));
+                      }
+                      br.close();
+                  } catch (Throwable e) {
+                  } finally {
+                      if (p != null) p.destroy();
+                  }
+              }
+
+              static boolean noisy(String k) {
+                  return k.contains("boottime") || k.contains("uptime") || k.contains("init.svc_debug_pid");
+              }
+
+              static String cut(String s) {
+                  if (s == null) return "null";
+                  return s.length() > 80 ? s.substring(0, 80) + "..." : s;
+              }
+
+              void diff(HashMap<String, String> a, HashMap<String, String> b) {
+                  TreeSet<String> keys = new TreeSet<>();
+                  keys.addAll(a.keySet());
+                  keys.addAll(b.keySet());
+                  double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+                  boolean any = false;
+                  synchronized (lock) {
+                      for (String k : keys) {
+                          if (noisy(k)) continue;
+                          String x = a.get(k);
+                          String y = b.get(k);
+                          if (x == null && y == null) continue;
+                          if (x != null && x.equals(y)) continue;
+                          sysLines.add(String.format(Locale.US, "[%6.1f] %s: %s -> %s", t, k, x == null ? "(нема)" : cut(x), y == null ? "(видалено)" : cut(y)));
+                          any = true;
+                      }
+                      while (sysLines.size() > 500) sysLines.remove(0);
+                  }
+                  if (any) refresh();
+              }
+
+              // ---------- повідомлення MCU ----------
 
               static String hex(byte[] b, int max) {
                   StringBuilder sb = new StringBuilder();
@@ -428,13 +559,13 @@ jobs:
                   refresh();
               }
 
-              void addMark() {
-                  String t = etMark.getText().toString().trim();
+              void addMark(String name) {
+                  double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+                  String line = String.format(Locale.US, "[%6.1f] ===== МІТКА: %s =====", t, name);
                   synchronized (lock) {
-                      double tt = (SystemClock.elapsedRealtime() - t0) / 1000.0;
-                      logLines.add(String.format(Locale.US, "[%6.1f] ===== МІТКА: %s =====", tt, t.length() == 0 ? "-" : t));
+                      logLines.add(line);
+                      sysLines.add(line);
                   }
-                  etMark.setText("");
                   refresh();
               }
 
@@ -450,13 +581,22 @@ jobs:
                   return sb.length() == 0 ? "(поки нічого не прийшло)" : sb.toString();
               }
 
-              String buildLog() {
+              static String rev(ArrayList<String> l, int max) {
                   StringBuilder sb = new StringBuilder();
-                  synchronized (lock) {
-                      int from = Math.max(0, logLines.size() - 250);
-                      for (int i = logLines.size() - 1; i >= from; i--) sb.append(logLines.get(i)).append('\n');
-                  }
+                  int from = Math.max(0, l.size() - max);
+                  for (int i = l.size() - 1; i >= from; i--) sb.append(l.get(i)).append('\n');
                   return sb.toString();
+              }
+
+              String buildLog() {
+                  synchronized (lock) { return rev(logLines, 250); }
+              }
+
+              String buildSys() {
+                  synchronized (lock) {
+                      String r = rev(sysLines, 250);
+                      return r.length() == 0 ? "(змін поки немає)" : r;
+                  }
               }
 
               String buildStatus() {
@@ -477,6 +617,7 @@ jobs:
                       tvDiag.setText(diagText);
                       tvMsgs.setText(buildMsgs());
                       tvLog.setText(buildLog());
+                      tvSys.setText(buildSys());
                   }
               };
 
@@ -496,14 +637,16 @@ jobs:
                   synchronized (lock) {
                       msgs.clear();
                       logLines.clear();
+                      sysLines.clear();
                       total = 0;
                   }
                   refresh();
               }
 
               void copyAll() {
-                  String all = buildStatus() + "\n\n== ДІАГНОСТИКА ==\n" + diagText
-                          + "\n== ПОВІДОМЛЕННЯ ==\n" + buildMsgs() + "\n== ЛОГ ==\n" + buildLog();
+                  String all = buildStatus() + "\n\n== ЗМІНИ В СИСТЕМІ ==\n" + buildSys()
+                          + "\n== ПОВІДОМЛЕННЯ MCU ==\n" + buildMsgs() + "\n== ЛОГ ==\n" + buildLog()
+                          + "\n== ДІАГНОСТИКА ==\n" + diagText;
                   ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                   cm.setPrimaryClip(ClipData.newPlainText("carprobe", all));
                   Toast.makeText(this, "Скопійовано", Toast.LENGTH_SHORT).show();
@@ -513,6 +656,7 @@ jobs:
               protected void onDestroy() {
                   super.onDestroy();
                   ui.removeCallbacks(ticker);
+                  bg.removeCallbacks(watcher);
                   for (Group g : groupsList) {
                       Object tw = g.tw;
                       if (tw != null) {
@@ -538,5 +682,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CarProbe-v5-${{ github.run_number }}
+          name: CarProbe-v6-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
