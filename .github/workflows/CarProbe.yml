@@ -62,8 +62,8 @@ jobs:
                   applicationId "com.example.carprobe"
                   minSdk 23
                   targetSdk 26
-                  versionCode 4
-                  versionName "1.3"
+                  versionCode 5
+                  versionName "1.4"
               }
               signingConfigs {
                   debug {
@@ -113,21 +113,14 @@ jobs:
           import android.app.Activity;
           import android.content.ClipData;
           import android.content.ClipboardManager;
-          import android.content.ComponentName;
           import android.content.Context;
-          import android.content.Intent;
-          import android.content.ServiceConnection;
-          import android.content.pm.ResolveInfo;
           import android.graphics.Typeface;
-          import android.os.Binder;
           import android.os.Bundle;
           import android.os.Handler;
           import android.os.HandlerThread;
-          import android.os.IBinder;
           import android.os.Looper;
-          import android.os.Parcel;
+          import android.os.Message;
           import android.os.SystemClock;
-          import android.text.InputType;
           import android.view.View;
           import android.view.WindowManager;
           import android.widget.Button;
@@ -137,65 +130,70 @@ jobs:
           import android.widget.TextView;
           import android.widget.Toast;
 
+          import java.lang.reflect.InvocationTargetException;
+          import java.lang.reflect.Method;
           import java.util.ArrayList;
-          import java.util.List;
+          import java.util.Arrays;
           import java.util.Locale;
           import java.util.Map;
           import java.util.TreeMap;
 
           public class MainActivity extends Activity {
 
-              static final String CTRL = "com.tw.uart.IUartController";
-              static final String RCV = "com.tw.uart.IUartReceiver";
-              static final String ACT = "com.tw.uart.UartService.Bind";
-              static final String PKG = "com.tw.uart";
-              static final String CLS = "com.tw.uart.UartService";
+              static final String TW = "android.tw.john.TWUtil";
 
               static class Grp {
                   int n;
                   int chg;
-                  int len;
                   String last = "";
+              }
+
+              static class Group {
+                  String name;
+                  short[] ids;
+                  Object tw;
+                  boolean on;
+                  Button btn;
+                  Handler h;
               }
 
               final Object lock = new Object();
               final Handler ui = new Handler(Looper.getMainLooper());
               HandlerThread ht;
               Handler bg;
-              final Binder recv = new Recv();
-              volatile IBinder svc;
-              volatile boolean registered;
-              boolean bound;
               final long t0 = SystemClock.elapsedRealtime();
 
-              String statusText = "Запуск...";
-              String diagText = "";
-              int frames = 0;
-              long bytes = 0;
-              long lastFrameAt = 0;
-              final TreeMap<String, Grp> groups = new TreeMap<>();
+              final ArrayList<Group> groupsList = new ArrayList<>();
+              final TreeMap<String, Grp> msgs = new TreeMap<>();
               final ArrayList<String> logLines = new ArrayList<>();
+              String statusText = "Готово. Вмикай групи по одній.";
+              String diagText = "";
+              int total = 0;
 
-              TextView tvStatus, tvDiag, tvGroups, tvLog;
-              EditText etPort, etBaud;
+              TextView tvStatus, tvDiag, tvMsgs, tvLog;
+              EditText etMark;
 
-              final ServiceConnection conn = new ServiceConnection() {
-                  @Override
-                  public void onServiceConnected(ComponentName name, IBinder b) {
-                      svc = b;
-                      String d;
-                      try { d = b.getInterfaceDescriptor(); } catch (Throwable e) { d = "err " + e; }
-                      setStatus("Зв'язок є: " + name.flattenToShortString() + ", дескриптор: " + d);
-                      registerRecv();
+              void addGroup(String name, int... ids) {
+                  Group g = new Group();
+                  g.name = name;
+                  g.ids = new short[ids.length];
+                  for (int i = 0; i < ids.length; i++) g.ids[i] = (short) ids[i];
+                  groupsList.add(g);
+              }
+
+              class H extends Handler {
+                  final String g;
+
+                  H(String g) {
+                      super(Looper.getMainLooper());
+                      this.g = g;
                   }
 
                   @Override
-                  public void onServiceDisconnected(ComponentName name) {
-                      svc = null;
-                      registered = false;
-                      setStatus("Сервіс відключився");
+                  public void handleMessage(Message m) {
+                      onMsg(g, m);
                   }
-              };
+              }
 
               @Override
               protected void onCreate(Bundle s) {
@@ -205,6 +203,12 @@ jobs:
                   ht.start();
                   bg = new Handler(ht.getLooper());
 
+                  addGroup("0x1xx", 0x104, 0x106, 0x107, 0x10a, 0x112);
+                  addGroup("0x2xx", 0x201, 0x202, 0x203, 0x204, 0x205, 0x20b, 0x20c);
+                  addGroup("0x3xx", 0x301, 0x302, 0x304);
+                  addGroup("0x4-5xx", 0x404, 0x501, 0x505, 0x506, 0x507, 0x508, 0x509, 0x50e);
+                  addGroup("0x9xxx", 0x9e00, 0x9f00, 0x9e11, 0x9f10, 0x9f1b, 0x9f1c);
+
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
                   root.setPadding(20, 12, 20, 12);
@@ -213,33 +217,36 @@ jobs:
                   bar.setOrientation(LinearLayout.HORIZONTAL);
                   bar.addView(btn("Копіювати все", new View.OnClickListener() {
                       public void onClick(View v) { copyAll(); }
-                  }));
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
                   bar.addView(btn("Очистити", new View.OnClickListener() {
                       public void onClick(View v) { clearAll(); }
-                  }));
-                  bar.addView(btn("Перепідключити", new View.OnClickListener() {
-                      public void onClick(View v) { reconnect(); }
-                  }));
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  bar.addView(btn("СТОП усе", new View.OnClickListener() {
+                      public void onClick(View v) { stopAll(); }
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
                   root.addView(bar);
 
-                  LinearLayout exp = new LinearLayout(this);
-                  exp.setOrientation(LinearLayout.HORIZONTAL);
-                  TextView el = tv(12, true);
-                  el.setText("Експеримент, код 3: ");
-                  exp.addView(el);
-                  etPort = new EditText(this);
-                  etPort.setHint("порт (рядок)");
-                  etPort.setSingleLine(true);
-                  exp.addView(etPort, new LinearLayout.LayoutParams(0, -2, 1f));
-                  etBaud = new EditText(this);
-                  etBaud.setHint("число");
-                  etBaud.setInputType(InputType.TYPE_CLASS_NUMBER);
-                  etBaud.setSingleLine(true);
-                  exp.addView(etBaud, new LinearLayout.LayoutParams(0, -2, 1f));
-                  exp.addView(btn("Викликати", new View.OnClickListener() {
-                      public void onClick(View v) { exp3(); }
+                  LinearLayout gl = new LinearLayout(this);
+                  gl.setOrientation(LinearLayout.HORIZONTAL);
+                  for (final Group g : groupsList) {
+                      g.h = new H(g.name);
+                      g.btn = btn("▶ " + g.name, new View.OnClickListener() {
+                          public void onClick(View v) { toggle(g); }
+                      });
+                      gl.addView(g.btn, new LinearLayout.LayoutParams(0, -2, 1f));
+                  }
+                  root.addView(gl);
+
+                  LinearLayout mk = new LinearLayout(this);
+                  mk.setOrientation(LinearLayout.HORIZONTAL);
+                  etMark = new EditText(this);
+                  etMark.setHint("мітка в лог (наприклад: фари ввімкнув)");
+                  etMark.setSingleLine(true);
+                  mk.addView(etMark, new LinearLayout.LayoutParams(0, -2, 1f));
+                  mk.addView(btn("Мітка", new View.OnClickListener() {
+                      public void onClick(View v) { addMark(); }
                   }));
-                  root.addView(exp);
+                  root.addView(mk);
 
                   tvStatus = tv(14, true);
                   root.addView(tvStatus);
@@ -247,12 +254,12 @@ jobs:
                   ScrollView sv = new ScrollView(this);
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  col.addView(head("== ДІАГНОСТИКА =="));
-                  tvDiag = tv(12, false);
+                  col.addView(head("== ДІАГНОСТИКА TWUtil =="));
+                  tvDiag = tv(11, false);
                   col.addView(tvDiag);
-                  col.addView(head("== КАДРИ UART: останній по групах (перші 2 байти) =="));
-                  tvGroups = tv(13, false);
-                  col.addView(tvGroups);
+                  col.addView(head("== ПОВІДОМЛЕННЯ MCU: останнє по what =="));
+                  tvMsgs = tv(13, false);
+                  col.addView(tvMsgs);
                   col.addView(head("== ЛОГ ЗМІН (нові зверху) =="));
                   tvLog = tv(12, false);
                   col.addView(tvLog);
@@ -260,7 +267,7 @@ jobs:
                   root.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
                   setContentView(root);
 
-                  connect();
+                  diagText = diag();
                   ui.postDelayed(ticker, 1000);
                   refresh();
               }
@@ -294,178 +301,89 @@ jobs:
               String diag() {
                   StringBuilder sb = new StringBuilder();
                   try {
-                      getPackageManager().getPackageInfo(PKG, 0);
-                      sb.append("пакет ").append(PKG).append(": є\n");
-                  } catch (Throwable e) {
-                      sb.append("пакета ").append(PKG).append(": немає\n");
-                  }
-                  try {
-                      List<ResolveInfo> l = getPackageManager().queryIntentServices(new Intent(ACT), 0);
-                      sb.append("сервіси на дію ").append(ACT).append(": ").append(l.size()).append("\n");
-                      for (ResolveInfo ri : l) {
-                          sb.append("  ").append(ri.serviceInfo.packageName).append("/").append(ri.serviceInfo.name).append("\n");
+                      Class<?> c = Class.forName(TW);
+                      sb.append("клас ").append(TW).append(": є\n");
+                      for (Method m : c.getDeclaredMethods()) {
+                          if (!java.lang.reflect.Modifier.isPublic(m.getModifiers())) continue;
+                          sb.append("  ").append(m.getName()).append("(");
+                          Class<?>[] p = m.getParameterTypes();
+                          for (int i = 0; i < p.length; i++) {
+                              if (i > 0) sb.append(",");
+                              sb.append(p[i].getSimpleName());
+                          }
+                          sb.append(")\n");
                       }
                   } catch (Throwable e) {
-                      sb.append("queryIntentServices: ").append(e).append("\n");
+                      sb.append("клас ").append(TW).append(": ").append(e).append("\n");
                   }
                   return sb.toString();
               }
 
-              void connect() {
-                  diagText = diag();
-                  Intent i = new Intent(ACT);
-                  i.setClassName(PKG, CLS);
-                  try {
-                      bound = bindService(i, conn, Context.BIND_AUTO_CREATE);
-                  } catch (Throwable e) {
-                      bound = false;
-                      diagText += "bindService(явний): " + e + "\n";
-                  }
-                  if (!bound) {
-                      try {
-                          List<ResolveInfo> l = getPackageManager().queryIntentServices(new Intent(ACT), 0);
-                          for (ResolveInfo ri : l) {
-                              Intent i2 = new Intent(ACT);
-                              i2.setClassName(ri.serviceInfo.packageName, ri.serviceInfo.name);
-                              if (bindService(i2, conn, Context.BIND_AUTO_CREATE)) {
-                                  bound = true;
-                                  break;
-                              }
-                          }
-                      } catch (Throwable e) {
-                          diagText += "bindService(пошук): " + e + "\n";
-                      }
-                  }
-                  setStatus("bindService=" + bound);
+              Object call(Object o, String name, Class<?>[] types, Object[] args) throws Exception {
+                  Method m = o.getClass().getMethod(name, types);
+                  return m.invoke(o, args);
               }
 
-              void reconnect() {
+              static Throwable root(Throwable e) {
+                  if (e instanceof InvocationTargetException && e.getCause() != null) return e.getCause();
+                  return e;
+              }
+
+              void toggle(final Group g) {
+                  if (g.on) stopGroup(g);
+                  else startGroup(g);
+              }
+
+              void startGroup(final Group g) {
                   bg.post(new Runnable() {
                       public void run() {
-                          unregisterRecv();
-                          ui.post(new Runnable() {
-                              public void run() {
-                                  if (bound) {
-                                      try { unbindService(conn); } catch (Throwable e) { }
-                                      bound = false;
-                                  }
-                                  svc = null;
-                                  connect();
+                          try {
+                              Object tw = Class.forName(TW).getConstructor().newInstance();
+                              Object r = call(tw, "open", new Class<?>[]{short[].class}, new Object[]{g.ids});
+                              if (r instanceof Integer && ((Integer) r) != 0) {
+                                  setStatus(g.name + ": open повернув " + r + " (не запущено)");
+                                  return;
                               }
+                              call(tw, "start", new Class<?>[]{}, new Object[]{});
+                              call(tw, "addHandler", new Class<?>[]{String.class, Handler.class},
+                                      new Object[]{"CP_" + g.name, g.h});
+                              g.tw = tw;
+                              g.on = true;
+                              setStatus(g.name + ": слухаю (open=0, start, addHandler)");
+                              ui.post(new Runnable() {
+                                  public void run() { g.btn.setText("■ " + g.name); }
+                              });
+                          } catch (Throwable e) {
+                              setStatus(g.name + ": помилка " + root(e));
+                          }
+                      }
+                  });
+              }
+
+              void stopGroup(final Group g) {
+                  bg.post(new Runnable() {
+                      public void run() {
+                          Object tw = g.tw;
+                          if (tw != null) {
+                              try {
+                                  call(tw, "removeHandler", new Class<?>[]{String.class}, new Object[]{"CP_" + g.name});
+                              } catch (Throwable e) { }
+                              try { call(tw, "stop", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                              try { call(tw, "close", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                          }
+                          g.tw = null;
+                          g.on = false;
+                          setStatus(g.name + ": зупинено");
+                          ui.post(new Runnable() {
+                              public void run() { g.btn.setText("▶ " + g.name); }
                           });
                       }
                   });
               }
 
-              void registerRecv() {
-                  bg.post(new Runnable() {
-                      public void run() {
-                          IBinder s = svc;
-                          if (s == null) return;
-                          Parcel d = Parcel.obtain();
-                          Parcel r = Parcel.obtain();
-                          try {
-                              d.writeInterfaceToken(CTRL);
-                              d.writeStrongBinder(recv);
-                              s.transact(1, d, r, 0);
-                              r.readException();
-                              registered = true;
-                              setStatus("Приймача зареєстровано (код 1). Слухаю UART...");
-                          } catch (Throwable e) {
-                              setStatus("Помилка реєстрації приймача: " + e);
-                          } finally {
-                              d.recycle();
-                              r.recycle();
-                          }
-                      }
-                  });
-              }
-
-              void unregisterRecv() {
-                  IBinder s = svc;
-                  if (s == null || !registered) return;
-                  Parcel d = Parcel.obtain();
-                  Parcel r = Parcel.obtain();
-                  try {
-                      d.writeInterfaceToken(CTRL);
-                      d.writeStrongBinder(recv);
-                      s.transact(2, d, r, 0);
-                  } catch (Throwable e) {
-                  } finally {
-                      d.recycle();
-                      r.recycle();
-                      registered = false;
-                  }
-              }
-
-              void exp3() {
-                  final String port = etPort.getText().toString().trim();
-                  int bd = 0;
-                  try { bd = Integer.parseInt(etBaud.getText().toString().trim()); } catch (Throwable e) { }
-                  final int baud = bd;
-                  bg.post(new Runnable() {
-                      public void run() {
-                          IBinder s = svc;
-                          if (s == null) {
-                              setStatus("Код 3: сервіс не підключений");
-                              return;
-                          }
-                          Parcel d = Parcel.obtain();
-                          Parcel r = Parcel.obtain();
-                          try {
-                              d.writeInterfaceToken(CTRL);
-                              d.writeInt(baud);
-                              d.writeString(port);
-                              s.transact(3, d, r, 0);
-                              r.readException();
-                              setStatus("Код 3 (" + baud + ", \"" + port + "\") виконано");
-                          } catch (Throwable e) {
-                              setStatus("Код 3: " + e);
-                          } finally {
-                              d.recycle();
-                              r.recycle();
-                          }
-                      }
-                  });
-              }
-
-              class Recv extends Binder {
-                  @Override
-                  protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) {
-                      if (code == INTERFACE_TRANSACTION) {
-                          if (reply != null) reply.writeString(RCV);
-                          return true;
-                      }
-                      try {
-                          try { data.enforceInterface(RCV); } catch (Throwable e) { }
-                          if (code == 1) {
-                              byte[] b = data.createByteArray();
-                              if (b != null) frame(b);
-                          } else if (code == 2) {
-                              String t = "bundle?";
-                              try {
-                                  int has = data.readInt();
-                                  if (has != 0) {
-                                      Bundle bu = Bundle.CREATOR.createFromParcel(data);
-                                      bu.setClassLoader(getClassLoader());
-                                      StringBuilder sb = new StringBuilder();
-                                      for (String k : bu.keySet()) sb.append(k).append("=").append(bu.get(k)).append(" ");
-                                      t = sb.toString();
-                                  } else {
-                                      t = "(порожній)";
-                                  }
-                              } catch (Throwable e) {
-                                  t = "bundle err " + e;
-                              }
-                              note("BUNDLE", t, 0);
-                          } else {
-                              note("code" + code, "dataSize=" + data.dataSize(), 0);
-                          }
-                      } catch (Throwable e) {
-                          note("ERR", e.toString(), 0);
-                      }
-                      if (reply != null && (flags & FLAG_ONEWAY) == 0) reply.writeNoException();
-                      return true;
+              void stopAll() {
+                  for (Group g : groupsList) {
+                      if (g.on) stopGroup(g);
                   }
               }
 
@@ -474,49 +392,59 @@ jobs:
                   int n = Math.min(b.length, max);
                   for (int i = 0; i < n; i++) sb.append(String.format("%02X ", b[i] & 0xff));
                   if (b.length > max) sb.append("...");
-                  return sb.toString().trim();
+                  return sb.toString().trim() + " [" + b.length + "]";
               }
 
-              void frame(byte[] b) {
-                  String key;
-                  if (b.length == 0) key = "(пусто)";
-                  else if (b.length == 1) key = String.format("%02X", b[0] & 0xff);
-                  else key = String.format("%02X %02X", b[0] & 0xff, b[1] & 0xff);
-                  synchronized (lock) {
-                      frames++;
-                      bytes += b.length;
-                      lastFrameAt = SystemClock.elapsedRealtime();
-                  }
-                  note(key, hex(b, 64), b.length);
+              static String desc(Object o) {
+                  if (o == null) return "-";
+                  if (o instanceof byte[]) return "bytes " + hex((byte[]) o, 48);
+                  if (o instanceof int[]) return "int[] " + Arrays.toString((int[]) o);
+                  if (o instanceof short[]) return "short[] " + Arrays.toString((short[]) o);
+                  if (o instanceof String) return "\"" + o + "\"";
+                  String s = String.valueOf(o);
+                  if (s.length() > 80) s = s.substring(0, 80) + "...";
+                  return o.getClass().getSimpleName() + " " + s;
               }
 
-              void note(String key, String val, int len) {
+              void onMsg(String grp, Message m) {
+                  String key = String.format(Locale.US, "%04X", m.what);
+                  String val = "a1=" + m.arg1 + " a2=" + m.arg2 + " obj=" + desc(m.obj);
                   synchronized (lock) {
-                      Grp g = groups.get(key);
+                      total++;
+                      Grp g = msgs.get(key);
                       if (g == null) {
                           g = new Grp();
-                          groups.put(key, g);
+                          msgs.put(key, g);
                       }
                       g.n++;
-                      g.len = len;
                       if (!g.last.equals(val)) {
                           g.last = val;
                           g.chg++;
                           double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
-                          logLines.add(String.format(Locale.US, "[%6.1f] %s | %dб | %s", t, key, len, val));
-                          if (logLines.size() > 500) logLines.remove(0);
+                          logLines.add(String.format(Locale.US, "[%6.1f] %s %s: %s", t, grp, key, val));
+                          if (logLines.size() > 600) logLines.remove(0);
                       }
                   }
                   refresh();
               }
 
-              String buildGroups() {
+              void addMark() {
+                  String t = etMark.getText().toString().trim();
+                  synchronized (lock) {
+                      double tt = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+                      logLines.add(String.format(Locale.US, "[%6.1f] ===== МІТКА: %s =====", tt, t.length() == 0 ? "-" : t));
+                  }
+                  etMark.setText("");
+                  refresh();
+              }
+
+              String buildMsgs() {
                   StringBuilder sb = new StringBuilder();
                   synchronized (lock) {
-                      for (Map.Entry<String, Grp> e : groups.entrySet()) {
+                      for (Map.Entry<String, Grp> e : msgs.entrySet()) {
                           Grp g = e.getValue();
-                          sb.append(String.format(Locale.US, "%s  всього=%d змін=%d довж=%d\n   %s\n",
-                                  e.getKey(), g.n, g.chg, g.len, g.last));
+                          sb.append(String.format(Locale.US, "what=%s  всього=%d змін=%d\n   %s\n",
+                                  e.getKey(), g.n, g.chg, g.last));
                       }
                   }
                   return sb.length() == 0 ? "(поки нічого не прийшло)" : sb.toString();
@@ -525,17 +453,20 @@ jobs:
               String buildLog() {
                   StringBuilder sb = new StringBuilder();
                   synchronized (lock) {
-                      int from = Math.max(0, logLines.size() - 200);
+                      int from = Math.max(0, logLines.size() - 250);
                       for (int i = logLines.size() - 1; i >= from; i--) sb.append(logLines.get(i)).append('\n');
                   }
                   return sb.toString();
               }
 
               String buildStatus() {
+                  StringBuilder on = new StringBuilder();
+                  for (Group g : groupsList) {
+                      if (g.on) on.append(g.name).append(' ');
+                  }
                   synchronized (lock) {
-                      String ago = lastFrameAt == 0 ? "ще не було"
-                              : String.format(Locale.US, "%.1f с тому", (SystemClock.elapsedRealtime() - lastFrameAt) / 1000.0);
-                      return statusText + "\nКадрів: " + frames + ", байт: " + bytes + ", останній: " + ago;
+                      return statusText + "\nУвімкнено: " + (on.length() == 0 ? "нічого" : on.toString())
+                              + "| повідомлень: " + total;
                   }
               }
 
@@ -544,7 +475,7 @@ jobs:
                       if (tvStatus == null) return;
                       tvStatus.setText(buildStatus());
                       tvDiag.setText(diagText);
-                      tvGroups.setText(buildGroups());
+                      tvMsgs.setText(buildMsgs());
                       tvLog.setText(buildLog());
                   }
               };
@@ -563,18 +494,16 @@ jobs:
 
               void clearAll() {
                   synchronized (lock) {
-                      groups.clear();
+                      msgs.clear();
                       logLines.clear();
-                      frames = 0;
-                      bytes = 0;
-                      lastFrameAt = 0;
+                      total = 0;
                   }
                   refresh();
               }
 
               void copyAll() {
                   String all = buildStatus() + "\n\n== ДІАГНОСТИКА ==\n" + diagText
-                          + "\n== ГРУПИ ==\n" + buildGroups() + "\n== ЛОГ ==\n" + buildLog();
+                          + "\n== ПОВІДОМЛЕННЯ ==\n" + buildMsgs() + "\n== ЛОГ ==\n" + buildLog();
                   ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                   cm.setPrimaryClip(ClipData.newPlainText("carprobe", all));
                   Toast.makeText(this, "Скопійовано", Toast.LENGTH_SHORT).show();
@@ -584,9 +513,13 @@ jobs:
               protected void onDestroy() {
                   super.onDestroy();
                   ui.removeCallbacks(ticker);
-                  try { unregisterRecv(); } catch (Throwable e) { }
-                  if (bound) {
-                      try { unbindService(conn); } catch (Throwable e) { }
+                  for (Group g : groupsList) {
+                      Object tw = g.tw;
+                      if (tw != null) {
+                          try { call(tw, "removeHandler", new Class<?>[]{String.class}, new Object[]{"CP_" + g.name}); } catch (Throwable e) { }
+                          try { call(tw, "stop", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                          try { call(tw, "close", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                      }
                   }
                   ht.quit();
               }
@@ -605,5 +538,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CarProbe-v4-${{ github.run_number }}
+          name: CarProbe-v5-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
