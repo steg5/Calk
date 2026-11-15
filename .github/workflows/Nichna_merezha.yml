@@ -95,8 +95,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 19
-                  versionName = "1.19"
+                  versionCode = 20
+                  versionName = "1.20"
               }
 
               signingConfigs {
@@ -375,6 +375,24 @@ jobs:
               static String text(Context c) {
                   String t = c.getSharedPreferences("actlog", Context.MODE_PRIVATE).getString("t", "");
                   return t.isEmpty() ? "Подій ще немає." : t;
+              }
+              /** Log text where the app's own actions are coloured: off = orange, on = green, failure = red. */
+              static CharSequence styled(Context c) {
+                  String t = text(c);
+                  android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+                  for (String ln : t.split("\n")) {
+                      int st = sb.length();
+                      sb.append(ln).append('\n');
+                      int col = 0;
+                      if (ln.contains("не вдалося")) col = 0xFFC62828;
+                      else if (ln.contains("вимикаю") || ln.contains("мережу вимкнено") || ln.contains("Авто Wi‑Fi вимкнено:")) col = 0xFFE65100;
+                      else if (ln.contains("вмикаю") || ln.contains("відновлено") || ln.contains("дані повернуто")) col = 0xFF2E7D32;
+                      if (col != 0) {
+                          sb.setSpan(new android.text.style.ForegroundColorSpan(col), st, sb.length() - 1, 0);
+                          sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, sb.length() - 1, 0);
+                      }
+                  }
+                  return sb;
               }
               static void clear(Context c) { c.getSharedPreferences("actlog", Context.MODE_PRIVATE).edit().clear().apply(); }
           }
@@ -4025,7 +4043,7 @@ jobs:
                   String s = !binder ? "Shizuku не запущено. Запустіть його, і розклад та Wi‑Fi авто запрацюють." : !granted ? "Shizuku запущено, але цьому застосунку ще не дано дозвіл." : "Shizuku готовий.";
                   if (prefs.getBoolean("active", false)) s += "\nЗараз зв’язок вимкнено за розкладом.";
                   tvStatus.setText(s); btnPermission.setVisibility(binder && !granted ? View.VISIBLE : View.GONE);
-                  tvLog.setText(ActLog.text(getApplicationContext()));
+                  tvLog.setText(ActLog.styled(getApplicationContext()));
               }
           }
           EOF
