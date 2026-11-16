@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 32
-                  versionName "3.13"
+                  versionCode 33
+                  versionName "3.14"
               }
               signingConfigs {
                   debug {
@@ -118,9 +118,11 @@ jobs:
                   <receiver
                       android:name=".BootReceiver"
                       android:exported="true">
-                      <intent-filter>
+                      <intent-filter android:priority="999">
                           <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                          <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED"/>
                           <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                          <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
                       </intent-filter>
                   </receiver>
                   <service
@@ -321,7 +323,7 @@ jobs:
               long lastSave = 0;
 
               ImageView bg;
-              TextView tvClock, tvDate, tvSpeed, tvAvg, tvMax, tvSats, tvStation, tvFreq, tvTrack, tvArtist, navNote;
+              TextView tvKmh, tvClock, tvDate, tvSpeed, tvAvg, tvMax, tvSats, tvStation, tvFreq, tvTrack, tvArtist, navNote;
               Button rPlay, aPlay;
               FrameLayout dayNight;
               BrightIcon bIcon;
@@ -1919,7 +1921,11 @@ jobs:
                       @Override
                       public void onReceive(Context c, Intent i) {
                           appCache = null;
-                          preloadApps(null);
+                          preloadApps(() -> {
+                              if (!ready) return;
+                              if (drawerRebuild != null) drawerRebuild.run();
+                              refreshApps();
+                          });
                       }
                   }, pf);
                   if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -2014,10 +2020,11 @@ jobs:
                       return true;
                   });
                   clockCard.put(2, speedRow, -2, -2);
-                  tvSpeed = text("—", 110, ACC, true);
+                  tvSpeed = text("—", 110, sp.contains("spdc") ? sp.getInt("spdc", ACC) : ACC, true);
                   tvSpeed.setGravity(Gravity.CENTER);
                   speedRow.addView(tvSpeed, lp(-1, -2, 0));
-                  TextView kmh = text("км/год", 20, DIM, false);
+                  TextView kmh = text("км/год", 20, sp.contains("kmhc") ? sp.getInt("kmhc", DIM) : DIM, false);
+                  tvKmh = kmh;
                   kmh.setGravity(Gravity.CENTER);
                   LinearLayout.LayoutParams kmp = lp(-1, -2, 0);
                   kmp.setMargins(0, -px(12), 0, 0);
@@ -2101,6 +2108,12 @@ jobs:
                   tvStation.setGravity(Gravity.CENTER);
                   tvStation.setMaxLines(3);
                   tvStation.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                  ivRadioLogo = new ImageView(this);
+                  ivRadioLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                  ivRadioLogo.setVisibility(View.GONE);
+                  LinearLayout.LayoutParams ilp = lp(-1, 0, 1);
+                  ilp.setMargins(0, 0, 0, px(6));
+                  radio.addView(ivRadioLogo, ilp);
                   radio.addView(tvStation, lp(-1, 0, 1));
                   tvFreq = text(sp.getString("lfreq", ""), 22, ACC, true);
                   tvFreq.setGravity(Gravity.CENTER);
@@ -2325,11 +2338,48 @@ jobs:
                       int k = 0;
                       for (final String ap : aa) {
                           if (ap.isEmpty()) continue;
-                          ui.postDelayed(() -> launch(ap), 9000 + 5000L * k);
+                          ui.postDelayed(() -> launch(ap), 3000 + 3500L * k);
                           k++;
                       }
                   }
               }
+
+              ImageView ivRadioLogo;
+              long logoStamp;
+              boolean logoPolling;
+
+              /** Логотип станції, який зберігає програма «Радіо» у спільний файл. */
+              void updateRadioLogo() {
+                  if (ivRadioLogo == null || tvStation == null) return;
+                  try {
+                      File f = new File(Environment.getExternalStorageDirectory(), "fordradio_logo.png");
+                      boolean has = f.exists() && f.length() > 0;
+                      if (has && f.lastModified() != logoStamp) {
+                          Bitmap b = BitmapFactory.decodeFile(f.getAbsolutePath());
+                          if (b != null) {
+                              logoStamp = f.lastModified();
+                              ivRadioLogo.setImageBitmap(b);
+                          } else has = false;
+                      }
+                      if (!has) logoStamp = 0;
+                      ivRadioLogo.setVisibility(has ? View.VISIBLE : View.GONE);
+                      LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) tvStation.getLayoutParams();
+                      p.height = has ? -2 : 0;
+                      p.weight = has ? 0 : 1;
+                      tvStation.setLayoutParams(p);
+                      tvStation.setMaxLines(has ? 2 : 3);
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              final Runnable logoPoll = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (!logoPolling) return;
+                      updateRadioLogo();
+                      ui.postDelayed(this, 2500);
+                  }
+              };
 
               View navHintView;
               MapView map;
@@ -2350,11 +2400,15 @@ jobs:
                   refreshApps();
                   updateBright();
                   refreshMedia();
+                  logoPolling = true;
+                  ui.removeCallbacks(logoPoll);
+                  ui.post(logoPoll);
               }
 
               @Override
               protected void onPause() {
                   super.onPause();
+                  logoPolling = false;
                   if (ready) {
                       saveTrip();
                       if (map != null) sp.edit().putFloat("clat", (float) map.lat).putFloat("clon", (float) map.lon).putFloat("czoom", (float) map.zoom).apply();
@@ -2569,11 +2623,18 @@ jobs:
               }
 
               volatile List<AppEntry> appCache = null;
+              Runnable drawerRebuild;
+              volatile boolean reloadAgain;
+              volatile Runnable pendingThen;
               volatile boolean appsLoading = false;
               Bitmap bgCache;
 
               void preloadApps(final Runnable then) {
-                  if (appsLoading) return;
+                  if (appsLoading) {
+                      reloadAgain = true;
+                      if (then != null) pendingThen = then;
+                      return;
+                  }
                   appsLoading = true;
                   new Thread(() -> {
                       List<AppEntry> out = new ArrayList<AppEntry>();
@@ -2598,7 +2659,18 @@ jobs:
                       }
                       appCache = out;
                       appsLoading = false;
-                      if (then != null) ui.post(then);
+                      final Runnable pt = pendingThen;
+                      pendingThen = null;
+                      Runnable fin = then;
+                      if (pt != null) fin = then == null ? pt : () -> {
+                          then.run();
+                          pt.run();
+                      };
+                      final Runnable ff = fin;
+                      if (reloadAgain) {
+                          reloadAgain = false;
+                          ui.post(() -> preloadApps(ff));
+                      } else if (ff != null) ui.post(ff);
                   }).start();
               }
 
@@ -2871,9 +2943,14 @@ jobs:
               }
 
               void appMenu(final AppEntry e, final Runnable rebuild) {
+                  appMenu(e, rebuild, false);
+              }
+
+              void appMenu(final AppEntry e, final Runnable rebuild, boolean dock) {
                   final LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   final Dialog dl = themedDialog(appName(e.pkg, e.label), col, -1);
+                  if (dock) addMenuBtn(col, dl, "Програми внизу…", this::pickApps);
                   addMenuBtn(col, dl, "Властивості", () -> {
                       try {
                           startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + e.pkg)));
@@ -3316,6 +3393,8 @@ jobs:
                   rebuild.run();
                   col.addView(grid, lp(-1, -2, 0));
                   d.setContentView(themedBg(sc));
+                  drawerRebuild = rebuild;
+                  d.setOnDismissListener(x -> drawerRebuild = null);
                   d.show();
               }
 
@@ -3716,6 +3795,8 @@ jobs:
                   String fname = fp.isEmpty() ? "Стандартний" : new File(fp).getName().replaceAll("\\.[^.]*$", "");
                   group("Вигляд",
                           t("Кольори і стиль", "повзунки, світіння, синхронізація", false, this::themeMenu),
+                          t("Колір швидкості", "цифри", false, () -> colorPick("Колір швидкості", "spdc", ACC)),
+                          t("Колір напису км/год", "напис", false, () -> colorPick("Колір напису км/год", "kmhc", DIM)),
                           t("Шрифт", fname, false, this::fontMenu),
                           t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", false, this::alphaDialog),
                           t("Фон з галереї", "вибрати картинку", false, () -> pickImage(5)),
@@ -3755,8 +3836,8 @@ jobs:
                           t("Лаунчер за замовчуванням", homeLabel(), false, this::setDefaultHome),
                           t("Програма радіо", keyLabel("radio"), false, () -> chooseApp("radio", "Радіо")),
                           t("Програма плеєра", keyLabel("aimp"), false, () -> chooseApp("aimp", "Плеєр")),
-                          t("Автозапуск лаунчера (примусово)", onOff(sp.getBoolean("autostart", false)), false, () -> {
-                              sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", false)).apply();
+                          t("Автозапуск лаунчера (примусово)", onOff(sp.getBoolean("autostart", true)), false, () -> {
+                              sp.edit().putBoolean("autostart", !sp.getBoolean("autostart", true)).apply();
                               rebuildSettings();
                           }));
               }
@@ -3969,6 +4050,67 @@ jobs:
                   b.setAlpha(0.88f);
                   if (c != null) b.setOnClickListener(c);
                   return b;
+              }
+
+              void colorPick(String title, final String key, int deflt) {
+                  final float[] c = new float[3];
+                  android.graphics.Color.colorToHSV(sp.contains(key) ? sp.getInt(key, deflt) : deflt, c);
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setPadding(dp(18), dp(8), dp(18), dp(4));
+                  final TextView prev = new TextView(this);
+                  prev.setText("120 км/год");
+                  prev.setTextSize(28);
+                  prev.setGravity(Gravity.CENTER);
+                  prev.setBackgroundColor(0xFF000000);
+                  prev.setPadding(dp(10), dp(16), dp(10), dp(16));
+                  box.addView(prev, new LinearLayout.LayoutParams(-1, -2));
+                  final float[] hc = {c[0], c[1], c[2]};
+                  final Runnable upd = () -> prev.setTextColor(android.graphics.Color.HSVToColor(hc));
+                  String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
+                  int[] mx = {360, 100, 100};
+                  int[] st = {Math.round(c[0]), Math.round(c[1] * 100), Math.round(c[2] * 100)};
+                  for (int k = 0; k < 3; k++) {
+                      final int kk = k;
+                      TextView lb = new TextView(this);
+                      lb.setText(nm[k]);
+                      box.addView(lb);
+                      android.widget.SeekBar sb = new android.widget.SeekBar(this);
+                      sb.setMax(mx[k]);
+                      sb.setProgress(st[k]);
+                      if (k == 0) {
+                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000});
+                          hg.setCornerRadius(dp(6));
+                          sb.setBackground(hg);
+                      }
+                      sb.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                          @Override
+                          public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                              hc[kk] = kk == 0 ? p : p / 100f;
+                              upd.run();
+                          }
+
+                          @Override
+                          public void onStartTrackingTouch(android.widget.SeekBar s) {
+                          }
+
+                          @Override
+                          public void onStopTrackingTouch(android.widget.SeekBar s) {
+                          }
+                      });
+                      box.addView(sb, new LinearLayout.LayoutParams(-1, dp(40)));
+                  }
+                  upd.run();
+                  new AlertDialog.Builder(this).setTitle(title).setView(box)
+                          .setPositiveButton("Застосувати", (d, w) -> {
+                              sp.edit().putInt(key, android.graphics.Color.HSVToColor(hc)).apply();
+                              recreate();
+                          })
+                          .setNeutralButton("За темою", (d, w) -> {
+                              sp.edit().remove(key).apply();
+                              recreate();
+                          })
+                          .setNegativeButton("Скасувати", null).show();
               }
 
               void themeMenu() {
@@ -4296,9 +4438,40 @@ jobs:
                   launch(p);
               }
 
+              /** Запуск за точною активністю програми (а не за «першою» від системи). */
+              Intent launchIntent(String pkg) {
+                  try {
+                      Intent q = new Intent(Intent.ACTION_MAIN);
+                      q.addCategory(Intent.CATEGORY_LAUNCHER);
+                      q.setPackage(pkg);
+                      List<ResolveInfo> l = pm.queryIntentActivities(q, 0);
+                      if (!l.isEmpty()) {
+                          String app = "";
+                          try {
+                              app = String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)));
+                          } catch (Throwable ignored) {
+                          }
+                          ResolveInfo best = l.get(0);
+                          for (ResolveInfo ri : l) {
+                              if (String.valueOf(ri.loadLabel(pm)).equals(app)) {
+                                  best = ri;
+                                  break;
+                              }
+                          }
+                          Intent in = new Intent(Intent.ACTION_MAIN);
+                          in.addCategory(Intent.CATEGORY_LAUNCHER);
+                          in.setComponent(new ComponentName(pkg, best.activityInfo.name));
+                          in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                          return in;
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  return pm.getLaunchIntentForPackage(pkg);
+              }
+
               void launch(String pkg) {
                   try {
-                      Intent in = pm.getLaunchIntentForPackage(pkg);
+                      Intent in = launchIntent(pkg);
                       sp.edit().putInt("cnt_" + pkg, sp.getInt("cnt_" + pkg, 0) + 1).apply();
                       if (in != null) startActivity(in);
                   } catch (Throwable t) {
@@ -4349,8 +4522,19 @@ jobs:
                       } else {
                           iv.setOnClickListener(v -> pickApps());
                       }
+                      final int idx = i;
+                      final List<String> fl = l;
                       iv.setOnLongClickListener(v -> {
-                          pickApps();
+                          if (idx < fl.size()) {
+                              AppEntry ae = new AppEntry();
+                              ae.pkg = fl.get(idx);
+                              try {
+                                  ae.label = String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(ae.pkg, 0)));
+                              } catch (Throwable ex) {
+                                  ae.label = ae.pkg;
+                              }
+                              appMenu(ae, this::refreshApps, true);
+                          } else pickApps();
                           return true;
                       });
                       LinearLayout.LayoutParams ip = lp(0, -1, 1);
@@ -4429,6 +4613,7 @@ jobs:
                   String fr = (f / 100) + "." + String.format(Locale.US, "%02d", f % 100) + " МГц";
                   tvStation.setText(name);
                   tvFreq.setText(fr);
+                  updateRadioLogo();
                   sp.edit().putString("lname", name).putString("lfreq", fr).apply();
               }
 
@@ -6156,7 +6341,7 @@ jobs:
               public void onReceive(Context c, Intent i) {
                   try {
                       SharedPreferences sp = c.getSharedPreferences("launcher", Context.MODE_PRIVATE);
-                      if (!sp.getBoolean("autostart", false)) return;
+                      if (!sp.getBoolean("autostart", true)) return;
                       Intent in = new Intent(c, MainActivity.class);
                       in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                       c.startActivity(in);
