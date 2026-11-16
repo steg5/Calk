@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 39
-                  versionName "3.20"
+                  versionCode 40
+                  versionName "3.21"
               }
               signingConfigs {
                   debug {
@@ -263,6 +263,9 @@ jobs:
                       e.putInt("bstyle", Integer.parseInt(p.getProperty("bstyle", "0")));
                       e.putInt("glow", Integer.parseInt(p.getProperty("glow", "0")));
                       e.putInt("bglow", Integer.parseInt(p.getProperty("bglow", "0")));
+                      e.putBoolean("outl_b", p.getProperty("outl_b", "0").equals("1"));
+                      e.putInt("outW_b", Integer.parseInt(p.getProperty("outW_b", "3")));
+                      e.putInt("outC_b", Integer.parseInt(p.getProperty("outC_b", "-1")));
                       e.putBoolean("bDark", p.getProperty("bDark", "1").equals("1"));
                       e.putBoolean("tDark", p.getProperty("tDark", "1").equals("1"));
                       e.putLong("ts", ts).apply();
@@ -281,6 +284,9 @@ jobs:
                       p.setProperty("bstyle", "" + sp.getInt("bstyle", 0));
                       p.setProperty("glow", "" + sp.getInt("glow", 0));
                       p.setProperty("bglow", "" + sp.getInt("bglow", 0));
+                      p.setProperty("outl_b", sp.getBoolean("outl_b", false) ? "1" : "0");
+                      p.setProperty("outW_b", "" + sp.getInt("outW_b", 3));
+                      p.setProperty("outC_b", "" + sp.getInt("outC_b", -1));
                       p.setProperty("bDark", sp.getBoolean("bDark", true) ? "1" : "0");
                       p.setProperty("tDark", sp.getBoolean("tDark", true) ? "1" : "0");
                       p.setProperty("ts", "" + ts);
@@ -1336,18 +1342,34 @@ jobs:
                   return blockBg(r, CARD);
               }
 
+              static final float[][] METAL = {{45, 0.75f, 0.95f}, {0, 0f, 0.80f}, {30, 0.65f, 0.70f}, {20, 0.70f, 0.80f}, {200, 0.06f, 0.85f}, {10, 0.35f, 0.90f}, {210, 0.12f, 0.60f}, {0, 0f, 0.35f}};
+
+              GradientDrawable metalBg(float r, int rgb, int alpha) {
+                  GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
+                          withA(mixC(rgb, 0xFFFFFF, 0.55f), alpha), withA(rgb, alpha), withA(mixC(rgb, 0x000000, 0.38f), alpha), withA(mixC(rgb, 0xFFFFFF, 0.22f), alpha)});
+                  g.setCornerRadius(px(r));
+                  return g;
+              }
+
               android.graphics.drawable.Drawable blockBg(float r, int base) {
-                  return outlineWrap(glowWrap(blockBase(r, base), r, ACC, sp.getInt("bglow", 0)), r);
+                  GradientDrawable core;
+                  if (sp.getInt("met1", -1) >= 0) {
+                      int mc = hsvc(new float[]{sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)});
+                      core = metalBg(r, mc & 0xFFFFFF, base >>> 24);
+                  } else {
+                      core = blockBase(r, base);
+                  }
+                  return outlineWrap(glowWrap(core, r, ACC, sp.getInt("bglow", 0)), r, "b");
               }
 
               android.graphics.drawable.Drawable btnFlat(float r) {
                   int bc = btnC();
-                  return outlineWrap(glowWrap(rounded(bc, r), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0)), r);
+                  return outlineWrap(glowWrap(sp.getInt("met3", -1) >= 0 ? metalBg(r, bc & 0xFFFFFF, 255) : rounded(bc, r), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0)), r, "k");
               }
 
               android.graphics.drawable.Drawable btnBg(float r) {
                   int bc = btnC();
-                  return outlineWrap(glowWrap(blockBase(r, bc), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0)), r);
+                  return outlineWrap(glowWrap(sp.getInt("met3", -1) >= 0 ? metalBg(r, bc & 0xFFFFFF, 255) : blockBase(r, bc), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0)), r, "k");
               }
 
               GradientDrawable blockBase(float r, int base) {
@@ -2258,6 +2280,29 @@ jobs:
                       map.markLat = (double) sp.getFloat("mlat", 0);
                       map.markLon = (double) sp.getFloat("mlon", 0);
                   }
+                  if (savedMap != null) {
+                      MapView o = savedMap;
+                      map.lat = o.lat;
+                      map.lon = o.lon;
+                      map.zoom = o.zoom;
+                      map.rot = o.rot;
+                      map.follow = o.follow;
+                      map.night = o.night;
+                      map.hasFix = o.hasFix;
+                      map.headingUp = o.headingUp;
+                      map.myLat = o.myLat;
+                      map.myLon = o.myLon;
+                      map.markLat = o.markLat;
+                      map.markLon = o.markLon;
+                      map.manualUntil = o.manualUntil;
+                      map.fixLat = o.fixLat;
+                      map.fixLon = o.fixLon;
+                      map.fixBearing = o.fixBearing;
+                      map.fixSpeed = o.fixSpeed;
+                      map.fixTime = o.fixTime;
+                      hd.setText(map.headingUp ? "↑" : "N");
+                      nIcon.moon = map.night;
+                  }
                   openMap();
                   addBlock(3, nav);
 
@@ -2502,6 +2547,7 @@ jobs:
               int tickN = 0;
 
               boolean preview = false;
+              MapView savedMap = null;
 
               void tickText() {
                   Date d = new Date();
@@ -2514,8 +2560,10 @@ jobs:
 
               void liveRebuild() {
                   try {
+                      savedMap = map;
                       applyTheme();
                       buildHome();
+                      savedMap = null;
                       loadBg();
                       tickText();
                       refreshApps();
@@ -4178,7 +4226,7 @@ jobs:
               }
 
               Button mapBtn(String t, View.OnClickListener c) {
-                  Button b = btn(t, 28);
+                  Button b = mbtn(t, 28);
                   b.setAlpha(0.88f);
                   if (c != null) b.setOnClickListener(c);
                   return b;
@@ -4278,8 +4326,9 @@ jobs:
                   final int[] sel = {0};
                   final boolean[] busy = {false};
                   final boolean[] applied = {false};
+                  final int[] met = {-1, sp.getInt("met1", -1), -1, sp.getInt("met3", -1)};
                   final Runnable[] R = new Runnable[2];
-                  final String[] KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "sglow", "kglow", "bDark", "tDark", "bstyle", "spdc", "btnc", "outl", "outW", "outC"};
+                  final String[] KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "sglow", "kglow", "bDark", "tDark", "bstyle", "spdc", "btnc", "met1", "met3", "outl_b", "outW_b", "outC_b", "outl_k", "outW_k", "outC_k"};
                   final java.util.Map<String, ?> snap = sp.getAll();
 
                   final java.util.List<TextView> tl = new java.util.ArrayList<TextView>();
@@ -4360,6 +4409,7 @@ jobs:
                               float[] cur = c[sel[0]];
                               cur[1] = swv[idx][0];
                               cur[2] = swv[idx][1];
+                              met[sel[0]] = -1;
                               touched[sel[0]] = true;
                               R[0].run();
                               R[1].run();
@@ -4370,6 +4420,28 @@ jobs:
                       }
                       left.addView(rw, new LinearLayout.LayoutParams(-1, -2));
                   }
+
+                  final GradientDrawable[] mg = new GradientDrawable[8];
+                  LinearLayout mrow = new LinearLayout(this);
+                  for (int i = 0; i < 8; i++) {
+                      final int mi = i;
+                      View mv = new View(this);
+                      int mcol = android.graphics.Color.HSVToColor(METAL[i]) & 0xFFFFFF;
+                      mg[i] = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF000000 | mixC(mcol, 0xFFFFFF, 0.55f), 0xFF000000 | mcol, 0xFF000000 | mixC(mcol, 0x000000, 0.38f), 0xFF000000 | mixC(mcol, 0xFFFFFF, 0.22f)});
+                      mg[i].setCornerRadius(px(6));
+                      mv.setBackground(mg[i]);
+                      mv.setOnClickListener(x -> {
+                          c[sel[0]] = new float[]{METAL[mi][0], METAL[mi][1], METAL[mi][2]};
+                          met[sel[0]] = mi;
+                          touched[sel[0]] = true;
+                          R[0].run();
+                          R[1].run();
+                      });
+                      LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(0, px(32), 1);
+                      mlp.setMargins(px(2), px(6), px(2), px(2));
+                      mrow.addView(mv, mlp);
+                  }
+                  left.addView(mrow, new LinearLayout.LayoutParams(-1, -2));
 
                   // слайдери
                   final String[] SN = {"Відтінок", "Яскравість", "Світіння"};
@@ -4467,14 +4539,14 @@ jobs:
                   cb3.setChecked(sp.getBoolean("sync", true));
                   final CheckBox cb4 = new CheckBox(this);
                   cb4.setText("Контур");
-                  cb4.setChecked(sp.getBoolean("outl", false));
+                  cb4.setChecked(sp.getBoolean("outl_b", false));
                   final Button bOut = new Button(this);
                   bOut.setText("Налаштувати");
+                  final LinearLayout orow = new LinearLayout(this);
                   for (CheckBox cx : new CheckBox[]{cb1, cb2, cb4, cb3}) {
                       tl.add(cx);
                       cx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 17 * u);
                       if (cx == cb4) {
-                          LinearLayout orow = new LinearLayout(this);
                           orow.setGravity(Gravity.CENTER_VERTICAL);
                           orow.addView(cb4, new LinearLayout.LayoutParams(0, -2, 1));
                           orow.addView(bOut, new LinearLayout.LayoutParams(-2, px(44)));
@@ -4484,13 +4556,16 @@ jobs:
                       }
                   }
                   cb4.setOnCheckedChangeListener((v, on) -> {
-                      sp.edit().putBoolean("outl", on).apply();
+                      if (busy[0]) return;
+                      String kd = sel[0] == 3 ? "k" : "b";
+                      sp.edit().putBoolean("outl_" + kd, on).apply();
                       R[1].run();
-                      if (on) outlineDialog(R[1]);
+                      if (on) outlineDialog(R[1], kd);
                   });
                   bOut.setOnClickListener(v -> {
+                      String kd = sel[0] == 3 ? "k" : "b";
                       if (!cb4.isChecked()) cb4.setChecked(true);
-                      else outlineDialog(R[1]);
+                      else outlineDialog(R[1], kd);
                   });
                   cb1.setOnCheckedChangeListener((v, on) -> R[1].run());
                   cb2.setOnCheckedChangeListener((v, on) -> R[1].run());
@@ -4518,6 +4593,7 @@ jobs:
                       ed.putInt("glow", g[0]).putInt("bglow", g[1]).putInt("sglow", g[2]).putInt("kglow", g[3]);
                       ed.putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked());
                       ed.putInt("bstyle", spn.getSelectedItemPosition());
+                      ed.putInt("met1", met[1]).putInt("met3", met[3]);
                       if (touched[2]) ed.putInt("spdc", android.graphics.Color.HSVToColor(c[2]) | 0xFF000000);
                       if (touched[3]) ed.putInt("btnc", android.graphics.Color.HSVToColor(c[3]) | 0xFF000000);
                       ed.apply();
@@ -4535,6 +4611,9 @@ jobs:
                       sk[1].setProgress(Math.round(cur[2] * 100));
                       sk[2].setProgress(g[sel[0]]);
                       styleBox.setVisibility(sel[0] == 1 ? View.VISIBLE : View.GONE);
+                      orow.setVisibility(sel[0] == 1 || sel[0] == 3 ? View.VISIBLE : View.GONE);
+                      cb4.setChecked(sp.getBoolean("outl_" + (sel[0] == 3 ? "k" : "b"), false));
+                      for (int i = 0; i < 8; i++) mg[i].setStroke(px(met[sel[0]] == i ? 3 : 1), met[sel[0]] == i ? 0xFFFFFFFF : 0x55FFFFFF);
                       boolean gray = cur[1] < 0.12f;
                       for (int r = 0; r < 6; r++) {
                           for (int q = 0; q < 7; q++) {
@@ -4596,6 +4675,7 @@ jobs:
                       float[] cur = c[sel[0]];
                       cur[0] = wheel.h;
                       cur[1] = wheel.s;
+                      met[sel[0]] = -1;
                       touched[sel[0]] = true;
                       R[0].run();
                       R[1].run();
@@ -4665,16 +4745,16 @@ jobs:
                   dlg.show();
               }
 
-              android.graphics.drawable.Drawable outlineWrap(android.graphics.drawable.Drawable d, float r) {
-                  if (!sp.getBoolean("outl", false)) return d;
+              android.graphics.drawable.Drawable outlineWrap(android.graphics.drawable.Drawable d, float r, String kd) {
+                  if (!sp.getBoolean("outl_" + kd, false)) return d;
                   GradientDrawable ring = new GradientDrawable();
                   ring.setColor(0);
                   ring.setCornerRadius(px(r));
-                  ring.setStroke(Math.max(1, px(sp.getInt("outW", 3))), sp.getInt("outC", 0xFFFFFFFF) | 0xFF000000);
+                  ring.setStroke(Math.max(1, px(sp.getInt("outW_" + kd, 3))), sp.getInt("outC_" + kd, 0xFFFFFFFF) | 0xFF000000);
                   return new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{d, ring});
               }
 
-              void outlineDialog(final Runnable after) {
+              void outlineDialog(final Runnable after, final String kd) {
                   final Dialog od = new Dialog(this);
                   od.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
                   LinearLayout pn = new LinearLayout(this);
@@ -4686,7 +4766,7 @@ jobs:
                   pg.setStroke(px(1), 0x55FFFFFF);
                   pn.setBackground(pg);
                   TextView ti = new TextView(this);
-                  ti.setText("Контур: колір і товщина");
+                  ti.setText(kd.equals("k") ? "Контур кнопок: колір і товщина" : "Контур блоків: колір і товщина");
                   ti.setTextColor(0xFFDDDDDD);
                   ti.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
                   pn.addView(ti);
@@ -4698,7 +4778,7 @@ jobs:
                       GradientDrawable sg = new GradientDrawable();
                       sg.setColor(0x33000000);
                       sg.setCornerRadius(px(12));
-                      sg.setStroke(Math.max(1, px(sp.getInt("outW", 3))), sp.getInt("outC", 0xFFFFFFFF) | 0xFF000000);
+                      sg.setStroke(Math.max(1, px(sp.getInt("outW_" + kd, 3))), sp.getInt("outC_" + kd, 0xFFFFFFFF) | 0xFF000000);
                       sample.setBackground(sg);
                   };
                   upd.run();
@@ -4717,7 +4797,7 @@ jobs:
                           sgd.setStroke(px(1), 0x55FFFFFF);
                           sv.setBackground(sgd);
                           sv.setOnClickListener(x -> {
-                              sp.edit().putInt("outC", col | 0xFF000000).apply();
+                              sp.edit().putInt("outC_" + kd, col | 0xFF000000).apply();
                               upd.run();
                               after.run();
                           });
@@ -4735,12 +4815,12 @@ jobs:
                   pn.addView(tw);
                   SeekBar ts = new SeekBar(this);
                   ts.setMax(9);
-                  ts.setProgress(Math.max(0, Math.min(9, sp.getInt("outW", 3) - 1)));
+                  ts.setProgress(Math.max(0, Math.min(9, sp.getInt("outW_" + kd, 3) - 1)));
                   ts.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                       @Override
                       public void onProgressChanged(SeekBar s, int p, boolean user) {
                           if (!user) return;
-                          sp.edit().putInt("outW", p + 1).apply();
+                          sp.edit().putInt("outW_" + kd, p + 1).apply();
                           upd.run();
                           after.run();
                       }
