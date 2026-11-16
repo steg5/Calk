@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 41
-                  versionName "3.22"
+                  versionCode 42
+                  versionName "3.23"
               }
               signingConfigs {
                   debug {
@@ -2040,7 +2040,8 @@ jobs:
                   tvSpeed = text("—", 110, sp.contains("spdc") ? sp.getInt("spdc", ACC) : ACC, true);
                   tvSpeed.setGravity(Gravity.CENTER);
                   speedRow.addView(tvSpeed, lp(-1, -2, 0));
-                  TextView kmh = text("км/год", 20, sp.contains("spdc") ? sp.getInt("spdc", ACC) : DIM, false);
+                  int kbase = sp.contains("spdc") ? sp.getInt("spdc", ACC) : ACC;
+                  TextView kmh = text("км/год", 20, sp.getBoolean("tDark", true) ? dimc(kbase, 0.75f) : kbase, false);
                   {
                       int spc = sp.contains("spdc") ? sp.getInt("spdc", ACC) : ACC;
                       float sgr = sp.getInt("sglow", 0) / 100f * 14 * getResources().getDisplayMetrics().density;
@@ -3977,6 +3978,7 @@ jobs:
                   String fname = fp.isEmpty() ? "Стандартний" : new File(fp).getName().replaceAll("\\.[^.]*$", "");
                   group("Вигляд",
                           t("Кольори і стиль", "повзунки, світіння, синхронізація", false, this::themeMenu),
+                          t("Збережені теми", "вибрати", false, this::themesDialog),
                           t("Шрифт", fname, false, this::fontMenu),
                           t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", false, this::alphaDialog),
                           t("Фон з галереї", "вибрати картинку", false, () -> pickImage(5)),
@@ -4232,6 +4234,275 @@ jobs:
                   return b;
               }
 
+              static final String[] THEME_KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "sglow", "kglow", "bDark", "tDark", "bstyle", "spdc", "btnc", "met1", "met3", "outl_b", "outW_b", "outC_b", "outl_k", "outW_k", "outC_k"};
+
+              org.json.JSONArray themesArr() {
+                  try {
+                      return new org.json.JSONArray(sp.getString("themes", "[]"));
+                  } catch (Throwable x) {
+                      return new org.json.JSONArray();
+                  }
+              }
+
+              void saveTheme() {
+                  try {
+                      java.util.Map<String, ?> all = sp.getAll();
+                      org.json.JSONObject jo = new org.json.JSONObject();
+                      for (String k : THEME_KEYS) {
+                          Object o = all.get(k);
+                          if (o == null) continue;
+                          if (o instanceof Float) jo.put(k, ((Float) o).doubleValue());
+                          else jo.put(k, o);
+                      }
+                      org.json.JSONArray a = themesArr();
+                      a.put(jo);
+                      sp.edit().putString("themes", a.toString()).apply();
+                      Toast.makeText(this, "Тему збережено", Toast.LENGTH_SHORT).show();
+                  } catch (Throwable x) {
+                      Toast.makeText(this, "Не вдалось зберегти тему: " + x, Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              void putThemeObj(org.json.JSONObject jo) {
+                  SharedPreferences.Editor e = sp.edit();
+                  for (String k : THEME_KEYS) {
+                      if (!jo.has(k)) {
+                          e.remove(k);
+                          continue;
+                      }
+                      try {
+                          if (k.equals("cH") || k.equals("cS") || k.equals("cV") || k.equals("bH") || k.equals("bS") || k.equals("bV")) e.putFloat(k, (float) jo.getDouble(k));
+                          else if (k.equals("bDark") || k.equals("tDark") || k.equals("outl_b") || k.equals("outl_k")) e.putBoolean(k, jo.getBoolean(k));
+                          else e.putInt(k, jo.getInt(k));
+                      } catch (Throwable x) {
+                          e.remove(k);
+                      }
+                  }
+                  e.apply();
+              }
+
+              android.graphics.drawable.Drawable themeTile(org.json.JSONObject jo) {
+                  float[] bl = {(float) jo.optDouble("bH", 4), (float) jo.optDouble("bS", 0.9), (float) jo.optDouble("bV", 0.25)};
+                  float[] tx = {(float) jo.optDouble("cH", 4), (float) jo.optDouble("cS", 0.95), (float) jo.optDouble("cV", 0.95)};
+                  int bc = hsvc(bl) | 0xFF000000, tc = hsvc(tx) | 0xFF000000;
+                  GradientDrawable core = jo.optInt("met1", -1) >= 0 ? metalBg(14, bc & 0xFFFFFF, 255) : rounded(bc, 14);
+                  android.graphics.drawable.Drawable d = glowWrap(core, 14, tc, jo.optInt("bglow", 0));
+                  if (jo.optBoolean("outl_b", false)) {
+                      GradientDrawable ring = new GradientDrawable();
+                      ring.setColor(0);
+                      ring.setCornerRadius(px(14));
+                      ring.setStroke(Math.max(1, px(jo.optInt("outW_b", 3))), jo.optInt("outC_b", -1) | 0xFF000000);
+                      d = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{d, ring});
+                  }
+                  return d;
+              }
+
+              void themesDialog() {
+                  final org.json.JSONArray[] arr = {themesArr()};
+                  final int[] sel = {-1};
+                  final boolean[] applied = {false};
+                  final java.util.Map<String, ?> snap = sp.getAll();
+                  final Runnable[] R = new Runnable[1];
+                  final Runnable rbRun = () -> liveRebuild();
+
+                  final LinearLayout panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setPadding(px(14), px(6), px(14), px(12));
+                  GradientDrawable pbg = new GradientDrawable();
+                  pbg.setColor(0xE6101010);
+                  pbg.setCornerRadius(px(18));
+                  pbg.setStroke(px(1), 0x55FFFFFF);
+                  panel.setBackground(pbg);
+                  TextView hd = new TextView(this);
+                  hd.setText("≡  Збережені теми  (потягніть, щоб пересунути)");
+                  hd.setTextColor(0xFFEEEEEE);
+                  hd.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
+                  hd.setGravity(Gravity.CENTER);
+                  hd.setPadding(0, px(8), 0, px(8));
+                  panel.addView(hd, new LinearLayout.LayoutParams(-1, -2));
+
+                  final LinearLayout grid = new LinearLayout(this);
+                  grid.setOrientation(LinearLayout.VERTICAL);
+                  ScrollView gsv = new ScrollView(this);
+                  gsv.addView(grid);
+                  panel.addView(gsv, new LinearLayout.LayoutParams(-1, px(250)));
+
+                  final CheckBox cbS = new CheckBox(this);
+                  cbS.setText("Синхронізувати з програмами Радіо, Передача і Діагностика");
+                  cbS.setTextColor(0xFFEEEEEE);
+                  cbS.setTextSize(TypedValue.COMPLEX_UNIT_PX, 17 * u);
+                  cbS.setChecked(sp.getBoolean("sync", true));
+                  panel.addView(cbS);
+
+                  final Button bDel = new Button(this);
+                  bDel.setText("Видалити");
+                  final Button bOk = new Button(this);
+                  bOk.setText("Застосувати");
+                  final Button bNo = new Button(this);
+                  bNo.setText("Скасувати");
+                  LinearLayout fb = new LinearLayout(this);
+                  fb.setGravity(Gravity.RIGHT);
+                  for (Button bx : new Button[]{bDel, bNo, bOk}) {
+                      GradientDrawable bd = new GradientDrawable();
+                      bd.setColor(0xFF2A2A2A);
+                      bd.setCornerRadius(px(12));
+                      bd.setStroke(px(1), 0x88FFFFFF);
+                      bx.setBackground(bd);
+                      bx.setTextColor(0xFFFFFFFF);
+                      bx.setAllCaps(false);
+                      bx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
+                      bx.setPadding(px(10), 0, px(10), 0);
+                      bx.setMinHeight(0);
+                      bx.setMinimumHeight(0);
+                      bx.setMinWidth(0);
+                      bx.setMinimumWidth(0);
+                      bx.setGravity(Gravity.CENTER);
+                      bx.setIncludeFontPadding(false);
+                      LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, px(52));
+                      bp.setMargins(px(6), px(8), 0, 0);
+                      fb.addView(bx, bp);
+                  }
+                  panel.addView(fb, new LinearLayout.LayoutParams(-1, -2));
+
+                  R[0] = () -> {
+                      grid.removeAllViews();
+                      bDel.setEnabled(sel[0] >= 0);
+                      bDel.setAlpha(sel[0] >= 0 ? 1f : 0.4f);
+                      if (arr[0].length() == 0) {
+                          TextView em = new TextView(this);
+                          em.setText("Пусто");
+                          em.setTextColor(0xFFAAAAAA);
+                          em.setTextSize(TypedValue.COMPLEX_UNIT_PX, 22 * u);
+                          em.setGravity(Gravity.CENTER);
+                          em.setPadding(0, px(60), 0, px(60));
+                          grid.addView(em, new LinearLayout.LayoutParams(-1, -2));
+                          return;
+                      }
+                      LinearLayout row = null;
+                      for (int i = 0; i < arr[0].length(); i++) {
+                          final int ii = i;
+                          if (i % 4 == 0) {
+                              row = new LinearLayout(this);
+                              grid.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                          }
+                          org.json.JSONObject jo = arr[0].optJSONObject(i);
+                          if (jo == null) continue;
+                          FrameLayout cont = new FrameLayout(this);
+                          cont.setPadding(px(4), px(4), px(4), px(4));
+                          if (i == sel[0]) {
+                              GradientDrawable sb = new GradientDrawable();
+                              sb.setColor(0);
+                              sb.setCornerRadius(px(18));
+                              sb.setStroke(px(3), 0xFFFFFFFF);
+                              cont.setBackground(sb);
+                          }
+                          TextView tv = new TextView(this);
+                          tv.setText("Ford");
+                          tv.setGravity(Gravity.CENTER);
+                          tv.setTypeface(Typeface.DEFAULT_BOLD);
+                          tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, 28 * u);
+                          float[] tx = {(float) jo.optDouble("cH", 4), (float) jo.optDouble("cS", 0.95), (float) jo.optDouble("cV", 0.95)};
+                          int tcol = hsvc(tx) | 0xFF000000;
+                          tv.setTextColor(tcol);
+                          float gr = jo.optInt("glow", 0) / 100f * 14 * getResources().getDisplayMetrics().density;
+                          tv.setShadowLayer(gr, 0, 0, tcol);
+                          tv.setBackground(themeTile(jo));
+                          cont.addView(tv, new FrameLayout.LayoutParams(-1, -1));
+                          cont.setOnClickListener(x -> {
+                              sel[0] = ii;
+                              putThemeObj(arr[0].optJSONObject(ii));
+                              ui.removeCallbacks(rbRun);
+                              ui.postDelayed(rbRun, 150);
+                              R[0].run();
+                          });
+                          tv.setOnClickListener(x -> cont.performClick());
+                          LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, px(92), 1);
+                          row.addView(cont, cp);
+                      }
+                      int rest = arr[0].length() % 4;
+                      if (rest != 0 && row != null) {
+                          for (int k = rest; k < 4; k++) row.addView(new View(this), new LinearLayout.LayoutParams(0, px(92), 1));
+                      }
+                  };
+
+                  final Dialog dlg = new Dialog(this);
+                  dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  dlg.setContentView(panel);
+                  final android.view.Window win = dlg.getWindow();
+                  win.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                  win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                  win.setLayout(px(760), -2);
+                  dlg.setCanceledOnTouchOutside(false);
+                  final float[] dr = new float[4];
+                  hd.setOnTouchListener((v, e) -> {
+                      android.view.WindowManager.LayoutParams wl = win.getAttributes();
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              dr[0] = e.getRawX();
+                              dr[1] = e.getRawY();
+                              dr[2] = wl.x;
+                              dr[3] = wl.y;
+                              break;
+                          case MotionEvent.ACTION_MOVE:
+                              wl.x = (int) (dr[2] + e.getRawX() - dr[0]);
+                              wl.y = (int) (dr[3] + e.getRawY() - dr[1]);
+                              win.setAttributes(wl);
+                              break;
+                          default:
+                              break;
+                      }
+                      return true;
+                  });
+                  final Runnable restore = () -> {
+                      SharedPreferences.Editor e = sp.edit();
+                      for (String k : THEME_KEYS) {
+                          Object o = snap.get(k);
+                          if (o instanceof Float) e.putFloat(k, (Float) o);
+                          else if (o instanceof Integer) e.putInt(k, (Integer) o);
+                          else if (o instanceof Boolean) e.putBoolean(k, (Boolean) o);
+                          else e.remove(k);
+                      }
+                      e.apply();
+                  };
+                  bDel.setOnClickListener(v -> {
+                      if (sel[0] < 0) return;
+                      arr[0].remove(sel[0]);
+                      sp.edit().putString("themes", arr[0].toString()).apply();
+                      sel[0] = -1;
+                      restore.run();
+                      ui.removeCallbacks(rbRun);
+                      ui.postDelayed(rbRun, 150);
+                      R[0].run();
+                  });
+                  bNo.setOnClickListener(v -> dlg.cancel());
+                  bOk.setOnClickListener(v -> {
+                      if (sel[0] < 0) {
+                          dlg.cancel();
+                          return;
+                      }
+                      applied[0] = true;
+                      sp.edit().putBoolean("sync", cbS.isChecked()).apply();
+                      dlg.dismiss();
+                  });
+                  dlg.setOnDismissListener(d -> {
+                      ui.removeCallbacks(rbRun);
+                      preview = false;
+                      if (applied[0]) {
+                          syncOut();
+                          recreate();
+                          return;
+                      }
+                      restore.run();
+                      liveRebuild();
+                      if (setDlg != null) setDlg.show();
+                  });
+                  if (setDlg != null && setDlg.isShowing()) setDlg.hide();
+                  preview = true;
+                  if (tvSpeed != null) tvSpeed.setText("88");
+                  R[0].run();
+                  dlg.show();
+              }
+
               void themeMenu() {
                   customDialog();
               }
@@ -4348,7 +4619,13 @@ jobs:
                   hd.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
                   hd.setGravity(Gravity.CENTER);
                   hd.setPadding(0, px(8), 0, px(8));
-                  panel.addView(hd, new LinearLayout.LayoutParams(-1, -2));
+                  LinearLayout hrow = new LinearLayout(this);
+                  hrow.setGravity(Gravity.CENTER_VERTICAL);
+                  hrow.addView(hd, new LinearLayout.LayoutParams(0, -2, 1));
+                  final Button bRst = new Button(this);
+                  bRst.setText("↺");
+                  hrow.addView(bRst, new LinearLayout.LayoutParams(px(52), px(44)));
+                  panel.addView(hrow, new LinearLayout.LayoutParams(-1, -2));
 
                   LinearLayout cols = new LinearLayout(this);
                   cols.setOrientation(LinearLayout.HORIZONTAL);
@@ -4570,6 +4847,11 @@ jobs:
                   cb1.setOnCheckedChangeListener((v, on) -> R[1].run());
                   cb2.setOnCheckedChangeListener((v, on) -> R[1].run());
 
+                  final Button bSave = new Button(this);
+                  bSave.setText("Зберегти тему");
+                  LinearLayout.LayoutParams svp = new LinearLayout.LayoutParams(-1, px(50));
+                  svp.setMargins(0, px(8), 0, 0);
+                  right.addView(bSave, svp);
                   LinearLayout fb = new LinearLayout(this);
                   fb.setGravity(Gravity.RIGHT);
                   final Button bNo = new Button(this);
@@ -4652,7 +4934,7 @@ jobs:
                       int txc = hsvc(c[0]) | 0xFF000000;
                       for (TextView tx : tl) tx.setTextColor(txc);
                       pbg.setColor(0xE6000000 | (dimc(hsvc(c[1]), 0.4f) & 0xFFFFFF));
-                      for (Button bx : new Button[]{bNo, bOk, bOut}) {
+                      for (Button bx : new Button[]{bNo, bOk, bOut, bSave, bRst}) {
                           GradientDrawable bd = new GradientDrawable();
                           bd.setColor(hsvc(c[1]) | 0xFF000000);
                           bd.setCornerRadius(px(12));
@@ -4711,6 +4993,28 @@ jobs:
                       return true;
                   });
 
+                  bSave.setOnClickListener(v -> {
+                      R[1].run();
+                      saveTheme();
+                  });
+                  bRst.setOnClickListener(v -> {
+                      c[0] = new float[]{2f, 0.60f, 0.95f};
+                      c[1] = new float[]{0f, 0.50f, 0.30f};
+                      c[2] = c[0].clone();
+                      c[3] = c[1].clone();
+                      for (int i = 0; i < 4; i++) {
+                          g[i] = 0;
+                          met[i] = -1;
+                          touched[i] = false;
+                      }
+                      sp.edit().remove("spdc").remove("btnc").putBoolean("outl_b", false).putBoolean("outl_k", false)
+                              .putInt("outW_b", 3).putInt("outW_k", 3).putInt("outC_b", -1).putInt("outC_k", -1).apply();
+                      cb1.setChecked(true);
+                      cb2.setChecked(true);
+                      spn.setSelection(0);
+                      R[0].run();
+                      R[1].run();
+                  });
                   bNo.setOnClickListener(v -> dlg.cancel());
                   bOk.setOnClickListener(v -> {
                       applied[0] = true;
