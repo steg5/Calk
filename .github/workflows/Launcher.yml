@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 42
-                  versionName "3.23"
+                  versionCode 43
+                  versionName "3.24"
               }
               signingConfigs {
                   debug {
@@ -2217,7 +2217,12 @@ jobs:
                       }
                   });
                   nav.setClipToOutline(true);
-                  map = new MapView(this);
+                  if (savedMap != null) {
+                      map = savedMap;
+                      if (map.getParent() instanceof ViewGroup) ((ViewGroup) map.getParent()).removeView(map);
+                  } else {
+                      map = new MapView(this);
+                  }
                   map.listener = this::saveMark;
                   map.autoMin = sp.getFloat("azmin", 13f);
                   applyMark();
@@ -2272,39 +2277,20 @@ jobs:
                   FrameLayout.LayoutParams zp = new FrameLayout.LayoutParams(bs, px(36), Gravity.BOTTOM | Gravity.RIGHT);
                   zp.setMargins(0, 0, px(12), px(10));
                   nav.addView(navZoom, zp);
-                  if (sp.contains("clat")) {
+                  if (savedMap == null && sp.contains("clat")) {
                       map.lat = sp.getFloat("clat", 49.84f);
                       map.lon = sp.getFloat("clon", 24.03f);
                       map.zoom = Math.min(20f, sp.getFloat("czoom", 14f));
                   }
-                  if (sp.contains("mlat")) {
+                  if (savedMap == null && sp.contains("mlat")) {
                       map.markLat = (double) sp.getFloat("mlat", 0);
                       map.markLon = (double) sp.getFloat("mlon", 0);
                   }
                   if (savedMap != null) {
-                      MapView o = savedMap;
-                      map.lat = o.lat;
-                      map.lon = o.lon;
-                      map.zoom = o.zoom;
-                      map.rot = o.rot;
-                      map.follow = o.follow;
-                      map.night = o.night;
-                      map.hasFix = o.hasFix;
-                      map.headingUp = o.headingUp;
-                      map.myLat = o.myLat;
-                      map.myLon = o.myLon;
-                      map.markLat = o.markLat;
-                      map.markLon = o.markLon;
-                      map.manualUntil = o.manualUntil;
-                      map.fixLat = o.fixLat;
-                      map.fixLon = o.fixLon;
-                      map.fixBearing = o.fixBearing;
-                      map.fixSpeed = o.fixSpeed;
-                      map.fixTime = o.fixTime;
                       hd.setText(map.headingUp ? "↑" : "N");
                       nIcon.moon = map.night;
                   }
-                  openMap();
+                  if (savedMap == null) openMap();
                   addBlock(3, nav);
 
                   // --- ряд програм + кнопка налаштувань ---
@@ -4319,7 +4305,17 @@ jobs:
                   hd.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
                   hd.setGravity(Gravity.CENTER);
                   hd.setPadding(0, px(8), 0, px(8));
-                  panel.addView(hd, new LinearLayout.LayoutParams(-1, -2));
+                  LinearLayout hrow2 = new LinearLayout(this);
+                  hrow2.setGravity(Gravity.CENTER_VERTICAL);
+                  hrow2.addView(hd, new LinearLayout.LayoutParams(0, -2, 1));
+                  final Glyph bDel = new Glyph(this, 2);
+                  GradientDrawable dgd = new GradientDrawable();
+                  dgd.setColor(0xFF2A2A2A);
+                  dgd.setCornerRadius(px(12));
+                  dgd.setStroke(px(1), 0x88FFFFFF);
+                  bDel.setBackground(dgd);
+                  hrow2.addView(bDel, new LinearLayout.LayoutParams(px(52), px(44)));
+                  panel.addView(hrow2, new LinearLayout.LayoutParams(-1, -2));
 
                   final LinearLayout grid = new LinearLayout(this);
                   grid.setOrientation(LinearLayout.VERTICAL);
@@ -4334,15 +4330,13 @@ jobs:
                   cbS.setChecked(sp.getBoolean("sync", true));
                   panel.addView(cbS);
 
-                  final Button bDel = new Button(this);
-                  bDel.setText("Видалити");
                   final Button bOk = new Button(this);
                   bOk.setText("Застосувати");
                   final Button bNo = new Button(this);
                   bNo.setText("Скасувати");
                   LinearLayout fb = new LinearLayout(this);
                   fb.setGravity(Gravity.RIGHT);
-                  for (Button bx : new Button[]{bDel, bNo, bOk}) {
+                  for (Button bx : new Button[]{bNo, bOk}) {
                       GradientDrawable bd = new GradientDrawable();
                       bd.setColor(0xFF2A2A2A);
                       bd.setCornerRadius(px(12));
@@ -4358,8 +4352,8 @@ jobs:
                       bx.setMinimumWidth(0);
                       bx.setGravity(Gravity.CENTER);
                       bx.setIncludeFontPadding(false);
-                      LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, px(52));
-                      bp.setMargins(px(6), px(8), 0, 0);
+                      LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, px(52), 1);
+                      bp.setMargins(px(4), px(8), px(4), 0);
                       fb.addView(bx, bp);
                   }
                   panel.addView(fb, new LinearLayout.LayoutParams(-1, -2));
@@ -4578,6 +4572,61 @@ jobs:
                   }
               }
 
+              class Glyph extends View {
+                  int kind;
+                  int col = 0xFFFFFFFF;
+                  final Paint gp = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  Glyph(Context cx, int k) {
+                      super(cx);
+                      kind = k;
+                      setClickable(true);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float s = Math.min(getWidth(), getHeight()) * 0.36f;
+                      cv.translate(getWidth() / 2f, getHeight() / 2f);
+                      gp.setColor(col);
+                      gp.setStyle(Paint.Style.STROKE);
+                      gp.setStrokeWidth(s * 0.16f);
+                      gp.setStrokeCap(Paint.Cap.ROUND);
+                      gp.setStrokeJoin(Paint.Join.ROUND);
+                      if (kind == 0) {
+                          cv.drawArc(new RectF(-s * 0.6f, -s * 0.6f, s * 0.6f, s * 0.6f), -60, 300, false, gp);
+                          float ex = (float) Math.cos(Math.toRadians(240)) * 0.6f * s, ey = (float) Math.sin(Math.toRadians(240)) * 0.6f * s;
+                          Path hp = new Path();
+                          hp.moveTo(ex + 0.866f * 0.45f * s, ey - 0.5f * 0.45f * s);
+                          hp.lineTo(ex + 0.5f * 0.35f * s, ey + 0.866f * 0.35f * s);
+                          hp.lineTo(ex - 0.5f * 0.35f * s, ey - 0.866f * 0.35f * s);
+                          hp.close();
+                          gp.setStyle(Paint.Style.FILL);
+                          cv.drawPath(hp, gp);
+                      } else if (kind == 1) {
+                          cv.drawRoundRect(new RectF(-s * 0.75f, -s * 0.75f, s * 0.75f, s * 0.75f), s * 0.12f, s * 0.12f, gp);
+                          cv.drawRect(new RectF(-s * 0.4f, -s * 0.75f, s * 0.35f, -s * 0.25f), gp);
+                          cv.drawRect(new RectF(-s * 0.45f, s * 0.05f, s * 0.45f, s * 0.75f), gp);
+                      } else {
+                          cv.drawLine(-s * 0.75f, -s * 0.5f, s * 0.75f, -s * 0.5f, gp);
+                          Path hp = new Path();
+                          hp.moveTo(-s * 0.25f, -s * 0.5f);
+                          hp.lineTo(-s * 0.25f, -s * 0.75f);
+                          hp.lineTo(s * 0.25f, -s * 0.75f);
+                          hp.lineTo(s * 0.25f, -s * 0.5f);
+                          cv.drawPath(hp, gp);
+                          Path bp = new Path();
+                          bp.moveTo(-s * 0.55f, -s * 0.35f);
+                          bp.lineTo(s * 0.55f, -s * 0.35f);
+                          bp.lineTo(s * 0.45f, s * 0.8f);
+                          bp.lineTo(-s * 0.45f, s * 0.8f);
+                          bp.close();
+                          cv.drawPath(bp, gp);
+                          cv.drawLine(-s * 0.14f, -s * 0.15f, -s * 0.14f, s * 0.55f, gp);
+                          cv.drawLine(s * 0.14f, -s * 0.15f, s * 0.14f, s * 0.55f, gp);
+                      }
+                  }
+              }
+
               float[] hsvIn(float h, float s, float v) {
                   if (h < 0) return new float[]{0, 0, 0};
                   if (h > 360) return new float[]{0, 0, 1};
@@ -4622,8 +4671,11 @@ jobs:
                   LinearLayout hrow = new LinearLayout(this);
                   hrow.setGravity(Gravity.CENTER_VERTICAL);
                   hrow.addView(hd, new LinearLayout.LayoutParams(0, -2, 1));
-                  final Button bRst = new Button(this);
-                  bRst.setText("↺");
+                  final Glyph bSave = new Glyph(this, 1);
+                  LinearLayout.LayoutParams gsp = new LinearLayout.LayoutParams(px(52), px(44));
+                  gsp.setMargins(0, 0, px(8), 0);
+                  hrow.addView(bSave, gsp);
+                  final Glyph bRst = new Glyph(this, 0);
                   hrow.addView(bRst, new LinearLayout.LayoutParams(px(52), px(44)));
                   panel.addView(hrow, new LinearLayout.LayoutParams(-1, -2));
 
@@ -4847,20 +4899,17 @@ jobs:
                   cb1.setOnCheckedChangeListener((v, on) -> R[1].run());
                   cb2.setOnCheckedChangeListener((v, on) -> R[1].run());
 
-                  final Button bSave = new Button(this);
-                  bSave.setText("Зберегти тему");
-                  LinearLayout.LayoutParams svp = new LinearLayout.LayoutParams(-1, px(50));
-                  svp.setMargins(0, px(8), 0, 0);
-                  right.addView(bSave, svp);
                   LinearLayout fb = new LinearLayout(this);
                   fb.setGravity(Gravity.RIGHT);
                   final Button bNo = new Button(this);
                   bNo.setText("Скасувати");
                   final Button bOk = new Button(this);
                   bOk.setText("Застосувати");
-                  fb.addView(bNo, new LinearLayout.LayoutParams(-2, px(54)));
-                  LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(-2, px(54));
-                  okp.setMargins(px(8), 0, 0, 0);
+                  LinearLayout.LayoutParams nop = new LinearLayout.LayoutParams(0, px(54), 1);
+                  nop.setMargins(0, 0, px(4), 0);
+                  fb.addView(bNo, nop);
+                  LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(0, px(54), 1);
+                  okp.setMargins(px(4), 0, 0, 0);
                   fb.addView(bOk, okp);
                   LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(-1, -2);
                   fbp.setMargins(0, px(8), 0, 0);
@@ -4934,7 +4983,16 @@ jobs:
                       int txc = hsvc(c[0]) | 0xFF000000;
                       for (TextView tx : tl) tx.setTextColor(txc);
                       pbg.setColor(0xE6000000 | (dimc(hsvc(c[1]), 0.4f) & 0xFFFFFF));
-                      for (Button bx : new Button[]{bNo, bOk, bOut, bSave, bRst}) {
+                      for (Glyph gx : new Glyph[]{bSave, bRst}) {
+                          GradientDrawable gd = new GradientDrawable();
+                          gd.setColor(hsvc(c[1]) | 0xFF000000);
+                          gd.setCornerRadius(px(12));
+                          gd.setStroke(px(1), txc);
+                          gx.setBackground(gd);
+                          gx.col = txc;
+                          gx.invalidate();
+                      }
+                      for (Button bx : new Button[]{bNo, bOk, bOut}) {
                           GradientDrawable bd = new GradientDrawable();
                           bd.setColor(hsvc(c[1]) | 0xFF000000);
                           bd.setCornerRadius(px(12));
