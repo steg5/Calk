@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 40
-                  versionName "3.21"
+                  versionCode 41
+                  versionName "3.22"
               }
               signingConfigs {
                   debug {
@@ -5883,21 +5883,19 @@ jobs:
                   return d;
               }
 
-              /** Прив'язка до найближчої дороги (у нормалізованих меркаторських координатах). */
-              void trySnap(List<Object[]> vis) {
-                  long nowMs = System.currentTimeMillis();
-                  if (snapRadius <= 0 || !hasFix || !follow || fixSpeed * 3.6 < 5.0) {
-                      snapOk = false;
-                      prevLine = null;
-                      return;
-                  }
-                  if (nowMs - lastSnapMs < 120) return;
-                  lastSnapMs = nowMs;
-                  double px = lonToX(rawLon), py = latToY(rawLat);
-                  double mpu = 40075016.686 * Math.cos(Math.toRadians(rawLat));
-                  double rad = snapRadius / mpu;
-                  double bestSc = 1e18, bqx = 0, bqy = 0;
-                  float[] bestLine = null;
+              // --- прив'язка до дороги: утримання, правий бік, односторонні ---
+              float[] lockLine = null, candLine = null;
+              long candSince = 0;
+              double sBest, sQx, sQy, sLockSc, sLockQx, sLockQy;
+              float[] sLine;
+              boolean sLockOk;
+
+              void scan(List<Object[]> vis, double px, double py, double rad, double mpu, double[] ref, float[] lockLn) {
+                  sBest = 1e18;
+                  sLine = null;
+                  sLockOk = false;
+                  sLockSc = 1e18;
+                  double fdx = Math.sin(Math.toRadians(fixBearing)), fdy = -Math.cos(Math.toRadians(fixBearing));
                   for (Object[] v : vis) {
                       if (v.length < 7) continue;
                       VectorRenderer.TileLabels tl = (VectorRenderer.TileLabels) v[0];
@@ -5905,6 +5903,7 @@ jobs:
                       double n = Math.pow(2, tzz);
                       for (int li = 0; li < tl.snap.size(); li++) {
                           float[] ln = tl.snap.get(li);
+                          int dr = li < tl.snapDir.size() ? tl.snapDir.get(li) : 0;
                           double pen = tl.snapRank.get(li) == 0 ? 6.0 : 0.0;
                           double ax = (tx + ln[0]) / n, ay = (ty + ln[1]) / n;
                           for (int i = 2; i + 1 < ln.length; i += 2) {
@@ -5916,15 +5915,39 @@ jobs:
                                   double d = Math.hypot(px - qx, py - qy);
                                   if (d < rad) {
                                       double sb = Math.toDegrees(Math.atan2(vx, -vy));
-                                      double df = Math.abs(angDiff(sb, fixBearing));
-                                      if (df > 90) df = 180 - df;
-                                      if (df < 40) {
-                                          double sc = d * mpu + df * 0.25 + pen - (ln == prevLine ? 4 : 0);
-                                          if (sc < bestSc) {
-                                              bestSc = sc;
-                                              bqx = qx;
-                                              bqy = qy;
-                                              bestLine = ln;
+                                      double df;
+                                      boolean ok;
+                                      if (dr != 0) {
+                                          df = Math.abs(angDiff(dr > 0 ? sb : sb + 180, fixBearing));
+                                          ok = df < 60;
+                                      } else {
+                                          df = Math.abs(angDiff(sb, fixBearing));
+                                          if (df > 90) df = 180 - df;
+                                          ok = df < 40;
+                                      }
+                                      if (ok) {
+                                          double sc = d * mpu + df * 0.25 + pen;
+                                          if (ln == lockLn) {
+                                              if (sc < sLockSc) {
+                                                  sLockSc = sc;
+                                                  sLockQx = qx;
+                                                  sLockQy = qy;
+                                                  sLockOk = true;
+                                              }
+                                          } else if (ref != null) {
+                                              double cx = qx - ref[0], cy = qy - ref[1];
+                                              double sep = Math.hypot(cx, cy) * mpu;
+                                              if (sep > 1.5 && sep < 60) {
+                                                  double side = cx * (-fdy) + cy * fdx;
+                                                  if (side < 0) sc += 15;
+                                                  else if (lockLn == null) sc -= 20;
+                                              }
+                                          }
+                                          if (sc < sBest) {
+                                              sBest = sc;
+                                              sQx = qx;
+                                              sQy = qy;
+                                              sLine = ln;
                                           }
                                       }
                                   }
@@ -5934,12 +5957,76 @@ jobs:
                           }
                       }
                   }
-                  if (bestLine != null) {
-                      snapLat = yToLat(Math.max(0.001, Math.min(0.999, bqy)));
-                      snapLon = bqx * 360.0 - 180.0;
+              }
+
+              /** Прив'язка до найближчої дороги (у нормалізованих меркаторських координатах). */
+              void trySnap(List<Object[]> vis) {
+                  long nowMs = System.currentTimeMillis();
+                  if (snapRadius <= 0 || !hasFix || !follow || fixSpeed * 3.6 < 5.0) {
+                      snapOk = false;
+                      prevLine = null;
+                      lockLine = null;
+                      candLine = null;
+                      return;
+                  }
+                  if (nowMs - lastSnapMs < 120) return;
+                  lastSnapMs = nowMs;
+                  double px = lonToX(rawLon), py = latToY(rawLat);
+                  double mpu = 40075016.686 * Math.cos(Math.toRadians(rawLat));
+                  double rad = snapRadius / mpu;
+                  float[] chosen = null;
+                  double cqx = 0, cqy = 0;
+                  boolean haveLock = false;
+                  if (lockLine != null) {
+                      scan(vis, px, py, rad, mpu, null, lockLine);
+                      haveLock = sLockOk;
+                      if (haveLock) {
+                          double[] ref = {sLockQx, sLockQy};
+                          scan(vis, px, py, rad, mpu, ref, lockLine);
+                          boolean switched = false;
+                          if (sLine == lockLine || sLine == null) {
+                              candLine = null;
+                          } else if (sBest + 12 < sLockSc) {
+                              if (candLine == sLine) {
+                                  if (nowMs - candSince > 2000) {
+                                      lockLine = sLine;
+                                      candLine = null;
+                                      switched = true;
+                                  }
+                              } else {
+                                  candLine = sLine;
+                                  candSince = nowMs;
+                              }
+                          } else {
+                              candLine = null;
+                          }
+                          chosen = lockLine;
+                          cqx = switched ? sQx : sLockQx;
+                          cqy = switched ? sQy : sLockQy;
+                      }
+                  }
+                  if (!haveLock) {
+                      scan(vis, px, py, rad, mpu, null, null);
+                      if (sLine != null) {
+                          double[] ref = {sQx, sQy};
+                          scan(vis, px, py, rad, mpu, ref, null);
+                      }
+                      if (sLine != null) {
+                          chosen = sLine;
+                          cqx = sQx;
+                          cqy = sQy;
+                          lockLine = sLine;
+                          candLine = null;
+                      } else {
+                          lockLine = null;
+                      }
+                  }
+                  if (chosen != null) {
+                      snapLat = yToLat(Math.max(0.001, Math.min(0.999, cqy)));
+                      snapLon = cqx * 360.0 - 180.0;
                       snapOk = true;
                       snapMs = nowMs;
-                      prevLine = bestLine;
+                      prevLine = chosen;
                   } else {
                       snapOk = false;
                       prevLine = null;
@@ -6596,10 +6683,17 @@ jobs:
                   public List<PointLabel> pts = new ArrayList<PointLabel>();
                   public List<float[]> snap = new ArrayList<float[]>();
                   public List<Integer> snapRank = new ArrayList<Integer>();
+                  public List<Integer> snapDir = new ArrayList<Integer>();
               }
 
               /** Лінії об'єкта в нормалізованих координатах (0..1), напрямок зліва направо. */
+              static boolean flatRev = false;
+
               static List<float[]> lines(Feat f, float sc) {
+                  return lines(f, sc, null);
+              }
+
+              static List<float[]> lines(Feat f, float sc, List<Integer> dirs) {
                   List<float[]> res = new ArrayList<float[]>();
                   List<float[]> pts = new ArrayList<float[]>();
                   int x = 0, y = 0, i = 0;
@@ -6611,20 +6705,28 @@ jobs:
                               x += unzig(g[i++]);
                               y += unzig(g[i++]);
                               if (id == 1 && !pts.isEmpty()) {
+                                  int before = res.size();
                                   flat(pts, res);
+                                  if (dirs != null && res.size() > before) dirs.add(flatRev ? 1 : 0);
                                   pts = new ArrayList<float[]>();
                               }
                               pts.add(new float[]{x * sc, y * sc});
                           }
                       }
                   }
+                  int before2 = res.size();
                   flat(pts, res);
+                  if (dirs != null && res.size() > before2) dirs.add(flatRev ? 1 : 0);
                   return res;
               }
 
               static void flat(List<float[]> pts, List<float[]> out) {
                   if (pts.size() < 2) return;
-                  if (pts.get(pts.size() - 1)[0] < pts.get(0)[0]) java.util.Collections.reverse(pts);
+                  flatRev = false;
+                  if (pts.get(pts.size() - 1)[0] < pts.get(0)[0]) {
+                      java.util.Collections.reverse(pts);
+                      flatRev = true;
+                  }
                   float[] a = new float[pts.size() * 2];
                   for (int i = 0; i < pts.size(); i++) {
                       a[i * 2] = pts.get(i)[0];
@@ -6768,7 +6870,12 @@ jobs:
                               int r = rank(cl);
                               if (r >= 0) byRank.get(r).add(toPath(f, sc));
                               if (r >= 0 && out != null) {
-                                  for (float[] sl : lines(f, 1f / tr.extent)) {
+                                  List<Integer> dirs = new ArrayList<Integer>();
+                                  int owv = (int) Math.signum(f.num("oneway", 0));
+                                  int li2 = 0;
+                                  for (float[] sl : lines(f, 1f / tr.extent, dirs)) {
+                                      int rv = li2 < dirs.size() ? dirs.get(li2) : 0;
+                                      li2++;
                                       float[] q = sl;
                                       if (dz > 0) {
                                           q = new float[sl.length];
@@ -6782,6 +6889,7 @@ jobs:
                                       }
                                       out.snap.add(q);
                                       out.snapRank.add(r);
+                                      out.snapDir.add(owv == 0 ? 0 : (rv == 1 ? -owv : owv));
                                   }
                               }
                           }
