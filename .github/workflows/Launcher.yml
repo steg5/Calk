@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 38
-                  versionName "3.19"
+                  versionCode 39
+                  versionName "3.20"
               }
               signingConfigs {
                   debug {
@@ -1337,17 +1337,17 @@ jobs:
               }
 
               android.graphics.drawable.Drawable blockBg(float r, int base) {
-                  return glowWrap(blockBase(r, base), r, ACC, sp.getInt("bglow", 0));
+                  return outlineWrap(glowWrap(blockBase(r, base), r, ACC, sp.getInt("bglow", 0)), r);
               }
 
               android.graphics.drawable.Drawable btnFlat(float r) {
                   int bc = btnC();
-                  return glowWrap(rounded(bc, r), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0));
+                  return outlineWrap(glowWrap(rounded(bc, r), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0)), r);
               }
 
               android.graphics.drawable.Drawable btnBg(float r) {
                   int bc = btnC();
-                  return glowWrap(blockBase(r, bc), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0));
+                  return outlineWrap(glowWrap(blockBase(r, bc), r, mixC(bc & 0xFFFFFF, 0xFFFFFF, 0.55f), sp.getInt("kglow", 0)), r);
               }
 
               GradientDrawable blockBase(float r, int base) {
@@ -4279,7 +4279,7 @@ jobs:
                   final boolean[] busy = {false};
                   final boolean[] applied = {false};
                   final Runnable[] R = new Runnable[2];
-                  final String[] KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "sglow", "kglow", "bDark", "tDark", "bstyle", "spdc", "btnc"};
+                  final String[] KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "sglow", "kglow", "bDark", "tDark", "bstyle", "spdc", "btnc", "outl", "outW", "outC"};
                   final java.util.Map<String, ?> snap = sp.getAll();
 
                   final java.util.List<TextView> tl = new java.util.ArrayList<TextView>();
@@ -4465,11 +4465,33 @@ jobs:
                   final CheckBox cb3 = new CheckBox(this);
                   cb3.setText("Синхронізувати кольори з програмою Радіо, Передача і Діагностика");
                   cb3.setChecked(sp.getBoolean("sync", true));
-                  for (CheckBox cx : new CheckBox[]{cb1, cb2, cb3}) {
+                  final CheckBox cb4 = new CheckBox(this);
+                  cb4.setText("Контур");
+                  cb4.setChecked(sp.getBoolean("outl", false));
+                  final Button bOut = new Button(this);
+                  bOut.setText("Налаштувати");
+                  for (CheckBox cx : new CheckBox[]{cb1, cb2, cb4, cb3}) {
                       tl.add(cx);
                       cx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 17 * u);
-                      right.addView(cx);
+                      if (cx == cb4) {
+                          LinearLayout orow = new LinearLayout(this);
+                          orow.setGravity(Gravity.CENTER_VERTICAL);
+                          orow.addView(cb4, new LinearLayout.LayoutParams(0, -2, 1));
+                          orow.addView(bOut, new LinearLayout.LayoutParams(-2, px(44)));
+                          right.addView(orow);
+                      } else {
+                          right.addView(cx);
+                      }
                   }
+                  cb4.setOnCheckedChangeListener((v, on) -> {
+                      sp.edit().putBoolean("outl", on).apply();
+                      R[1].run();
+                      if (on) outlineDialog(R[1]);
+                  });
+                  bOut.setOnClickListener(v -> {
+                      if (!cb4.isChecked()) cb4.setChecked(true);
+                      else outlineDialog(R[1]);
+                  });
                   cb1.setOnCheckedChangeListener((v, on) -> R[1].run());
                   cb2.setOnCheckedChangeListener((v, on) -> R[1].run());
 
@@ -4551,7 +4573,7 @@ jobs:
                       int txc = hsvc(c[0]) | 0xFF000000;
                       for (TextView tx : tl) tx.setTextColor(txc);
                       pbg.setColor(0xE6000000 | (dimc(hsvc(c[1]), 0.4f) & 0xFFFFFF));
-                      for (Button bx : new Button[]{bNo, bOk}) {
+                      for (Button bx : new Button[]{bNo, bOk, bOut}) {
                           GradientDrawable bd = new GradientDrawable();
                           bd.setColor(hsvc(c[1]) | 0xFF000000);
                           bd.setCornerRadius(px(12));
@@ -4560,6 +4582,13 @@ jobs:
                           bx.setTextColor(txc);
                           bx.setAllCaps(false);
                           bx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
+                          bx.setPadding(px(10), 0, px(10), 0);
+                          bx.setMinHeight(0);
+                          bx.setMinimumHeight(0);
+                          bx.setMinWidth(0);
+                          bx.setMinimumWidth(0);
+                          bx.setGravity(Gravity.CENTER);
+                          bx.setIncludeFontPadding(false);
                       }
                       busy[0] = false;
                   };
@@ -4634,6 +4663,113 @@ jobs:
                   if (tvSpeed != null) tvSpeed.setText("88");
                   R[0].run();
                   dlg.show();
+              }
+
+              android.graphics.drawable.Drawable outlineWrap(android.graphics.drawable.Drawable d, float r) {
+                  if (!sp.getBoolean("outl", false)) return d;
+                  GradientDrawable ring = new GradientDrawable();
+                  ring.setColor(0);
+                  ring.setCornerRadius(px(r));
+                  ring.setStroke(Math.max(1, px(sp.getInt("outW", 3))), sp.getInt("outC", 0xFFFFFFFF) | 0xFF000000);
+                  return new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{d, ring});
+              }
+
+              void outlineDialog(final Runnable after) {
+                  final Dialog od = new Dialog(this);
+                  od.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  LinearLayout pn = new LinearLayout(this);
+                  pn.setOrientation(LinearLayout.VERTICAL);
+                  pn.setPadding(px(14), px(10), px(14), px(12));
+                  GradientDrawable pg = new GradientDrawable();
+                  pg.setColor(0xEE101010);
+                  pg.setCornerRadius(px(16));
+                  pg.setStroke(px(1), 0x55FFFFFF);
+                  pn.setBackground(pg);
+                  TextView ti = new TextView(this);
+                  ti.setText("Контур: колір і товщина");
+                  ti.setTextColor(0xFFDDDDDD);
+                  ti.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
+                  pn.addView(ti);
+                  final View sample = new View(this);
+                  LinearLayout.LayoutParams smp = new LinearLayout.LayoutParams(-1, px(44));
+                  smp.setMargins(0, px(8), 0, px(8));
+                  pn.addView(sample, smp);
+                  final Runnable upd = () -> {
+                      GradientDrawable sg = new GradientDrawable();
+                      sg.setColor(0x33000000);
+                      sg.setCornerRadius(px(12));
+                      sg.setStroke(Math.max(1, px(sp.getInt("outW", 3))), sp.getInt("outC", 0xFFFFFFFF) | 0xFF000000);
+                      sample.setBackground(sg);
+                  };
+                  upd.run();
+                  final float[] hs = {0, 45, 90, 135, 180, 225, 270, 315};
+                  final float[][] var = {{1f, 1f}, {1f, 0.65f}, {0.5f, 1f}};
+                  for (int r = 0; r < 4; r++) {
+                      LinearLayout rw = new LinearLayout(this);
+                      for (int q = 0; q < 8; q++) {
+                          final int col = r == 0
+                                  ? android.graphics.Color.HSVToColor(new float[]{0, 0, q / 7f})
+                                  : android.graphics.Color.HSVToColor(new float[]{hs[q], var[r - 1][0], var[r - 1][1]});
+                          View sv = new View(this);
+                          GradientDrawable sgd = new GradientDrawable();
+                          sgd.setColor(col);
+                          sgd.setCornerRadius(px(6));
+                          sgd.setStroke(px(1), 0x55FFFFFF);
+                          sv.setBackground(sgd);
+                          sv.setOnClickListener(x -> {
+                              sp.edit().putInt("outC", col | 0xFF000000).apply();
+                              upd.run();
+                              after.run();
+                          });
+                          LinearLayout.LayoutParams lpp = new LinearLayout.LayoutParams(0, px(34), 1);
+                          lpp.setMargins(px(2), px(2), px(2), px(2));
+                          rw.addView(sv, lpp);
+                      }
+                      pn.addView(rw);
+                  }
+                  TextView tw = new TextView(this);
+                  tw.setText("Товщина");
+                  tw.setTextColor(0xFFDDDDDD);
+                  tw.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
+                  tw.setPadding(0, px(8), 0, 0);
+                  pn.addView(tw);
+                  SeekBar ts = new SeekBar(this);
+                  ts.setMax(9);
+                  ts.setProgress(Math.max(0, Math.min(9, sp.getInt("outW", 3) - 1)));
+                  ts.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(SeekBar s, int p, boolean user) {
+                          if (!user) return;
+                          sp.edit().putInt("outW", p + 1).apply();
+                          upd.run();
+                          after.run();
+                      }
+
+                      @Override
+                      public void onStartTrackingTouch(SeekBar s) {
+                      }
+
+                      @Override
+                      public void onStopTrackingTouch(SeekBar s) {
+                      }
+                  });
+                  pn.addView(ts, new LinearLayout.LayoutParams(-1, px(40)));
+                  Button ok = new Button(this);
+                  ok.setText("Готово");
+                  ok.setAllCaps(false);
+                  ok.setPadding(px(10), 0, px(10), 0);
+                  ok.setMinHeight(0);
+                  ok.setMinimumHeight(0);
+                  ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
+                  ok.setOnClickListener(x -> od.dismiss());
+                  pn.addView(ok, new LinearLayout.LayoutParams(-1, px(50)));
+                  od.setContentView(pn);
+                  android.view.Window w2 = od.getWindow();
+                  w2.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                  w2.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                  w2.setLayout(px(480), -2);
+                  w2.setGravity(Gravity.BOTTOM | Gravity.RIGHT);
+                  od.show();
               }
 
               void countMenu() {
