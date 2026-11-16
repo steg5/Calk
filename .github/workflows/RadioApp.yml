@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 26
-                  versionName "3.5"
+                  versionCode 27
+                  versionName "3.6"
               }
               signingConfigs {
                   debug {
@@ -799,7 +799,7 @@ jobs:
                   });
                   box.addView(gsb, new LinearLayout.LayoutParams(-1, dp(40)));
                   final android.widget.CheckBox cb3 = new android.widget.CheckBox(this);
-                  cb3.setText("Синхронізувати кольори з програмою Лаунчер і Передача");
+                  cb3.setText("Синхронізувати кольори з програмою Лаунчер, Передача і Діагностика");
                   cb3.setChecked(uisp.getBoolean("sync", true));
                   box.addView(cb3);
                   final Runnable load = new Runnable() {
