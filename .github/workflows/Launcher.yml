@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 33
-                  versionName "3.14"
+                  versionCode 34
+                  versionName "3.15"
               }
               signingConfigs {
                   debug {
@@ -1200,7 +1200,7 @@ jobs:
                   protected void onDraw(Canvas cv) {
                       float w = getWidth(), h = getHeight(), side = Math.min(w, h) - px(12), s = side * 0.62f;
                       p.setStyle(Paint.Style.FILL);
-                      p.setColor(BTN);
+                      p.setColor(btnC());
                       cv.drawRoundRect(new RectF(w / 2 - side / 2, h / 2 - side / 2, w / 2 + side / 2, h / 2 + side / 2), side * 0.2f, side * 0.2f, p);
                       p.setColor(icCol());
                       cv.translate(w / 2, h / 2);
@@ -1259,6 +1259,16 @@ jobs:
                   g.setColor(color);
                   g.setCornerRadius(px(r));
                   return g;
+              }
+
+              int btnC() {
+                  return sp.contains("btnc") ? (sp.getInt("btnc", BTN) | 0xFF000000) : BTN;
+              }
+
+              Button mbtn(String s, float size) {
+                  Button b = btn(s, size);
+                  b.setBackground(blockBg(16, btnC()));
+                  return b;
               }
 
               Button btn(String s, float size) {
@@ -2023,7 +2033,7 @@ jobs:
                   tvSpeed = text("—", 110, sp.contains("spdc") ? sp.getInt("spdc", ACC) : ACC, true);
                   tvSpeed.setGravity(Gravity.CENTER);
                   speedRow.addView(tvSpeed, lp(-1, -2, 0));
-                  TextView kmh = text("км/год", 20, sp.contains("kmhc") ? sp.getInt("kmhc", DIM) : DIM, false);
+                  TextView kmh = text("км/год", 20, sp.contains("spdc") ? sp.getInt("spdc", ACC) : DIM, false);
                   tvKmh = kmh;
                   kmh.setGravity(Gravity.CENTER);
                   LinearLayout.LayoutParams kmp = lp(-1, -2, 0);
@@ -2054,7 +2064,7 @@ jobs:
 
                   // --- яскравість: квадратна кнопка зверху зліва ---
                   dayNight = new FrameLayout(this);
-                  dayNight.setBackground(rounded(BTN, 16));
+                  dayNight.setBackground(rounded(btnC(), 16));
                   dayNight.setClickable(true);
                   bIcon = new BrightIcon(this);
                   dayNight.addView(bIcon, new FrameLayout.LayoutParams(-1, -1));
@@ -2120,11 +2130,11 @@ jobs:
                   radio.addView(tvFreq, lp(-1, -2, 0));
                   LinearLayout rb = new LinearLayout(this);
                   rb.setOrientation(LinearLayout.HORIZONTAL);
-                  Button rPrev = btn("⏮", 30);
+                  Button rPrev = mbtn("⏮", 30);
                   rPrev.setOnClickListener(v -> tuner.prev());
-                  rPlay = btn("■", 30);
+                  rPlay = mbtn("■", 30);
                   rPlay.setOnClickListener(v -> toggleRadio());
-                  Button rNext = btn("⏭", 30);
+                  Button rNext = mbtn("⏭", 30);
                   rNext.setOnClickListener(v -> tuner.next());
                   for (Button x : new Button[]{rPrev, rPlay, rNext}) {
                       LinearLayout.LayoutParams bp = lp(0, 68, 1);
@@ -2166,11 +2176,11 @@ jobs:
                   aimp.addView(new View(this), lp(-1, 0, 1));
                   LinearLayout ab = new LinearLayout(this);
                   ab.setOrientation(LinearLayout.HORIZONTAL);
-                  Button aPrev = btn("⏮", 30);
+                  Button aPrev = mbtn("⏮", 30);
                   aPrev.setOnClickListener(v -> mediaCmd(0));
-                  aPlay = btn("▶", 30);
+                  aPlay = mbtn("▶", 30);
                   aPlay.setOnClickListener(v -> mediaCmd(1));
-                  Button aNext = btn("⏭", 30);
+                  Button aNext = mbtn("⏭", 30);
                   aNext.setOnClickListener(v -> mediaCmd(2));
                   for (Button x : new Button[]{aPrev, aPlay, aNext}) {
                       LinearLayout.LayoutParams bp = lp(0, 68, 1);
@@ -2218,7 +2228,7 @@ jobs:
                   });
                   mb[3] = hd;
                   FrameLayout nb = new FrameLayout(this);
-                  nb.setBackground(rounded(BTN, 16));
+                  nb.setBackground(rounded(btnC(), 16));
                   nb.setAlpha(0.88f);
                   nb.setClickable(true);
                   nIcon = new BrightIcon(this);
@@ -2702,7 +2712,7 @@ jobs:
               String iconPkg;
               Runnable iconDone;
               static final String[] STD_NAMES = {"Музика", "Радіо", "Файли", "Навігація", "Телефон", "Камера", "Налаштування", "Браузер",
-                      "Відео", "Ігри", "Калькулятор", "Повідомлення", "Годинник", "Галерея", "Авто", "Зірка"};
+                      "Відео", "Ігри", "Калькулятор", "Повідомлення", "Годинник", "Галерея", "Авто", "Зірка", "Carplay", "Total Commander", "Передача", "Діагностика"};
 
               String appName(String pkg, String def) {
                   String n = sp.getString("name_" + pkg, "");
@@ -2738,14 +2748,14 @@ jobs:
               }
 
               Bitmap stdIcon(int n) {
-                  String key = "std:" + n + ":" + ACC + ":" + BTN + ":" + BG1;
+                  String key = "std:" + n + ":" + ACC + ":" + btnC() + ":" + BG1;
                   Bitmap cached = iconCache.get(key);
                   if (cached != null) return cached;
                   int S = 160;
                   Bitmap bm = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888);
                   Canvas c = new Canvas(bm);
                   c.scale(S / 100f, S / 100f);
-                  int tile = blendOver(BTN, BG1 | 0xFF000000);
+                  int tile = blendOver(btnC(), BG1 | 0xFF000000);
                   int ac = ACC | 0xFF000000;
                   Paint bgp = new Paint(Paint.ANTI_ALIAS_FLAG);
                   bgp.setColor(tile);
@@ -2883,6 +2893,57 @@ jobs:
                           c.drawCircle(65, 70, 10, bgp);
                           c.drawCircle(35, 70, 6.5f, f);
                           c.drawCircle(65, 70, 6.5f, f);
+                          break;
+                      case 15:
+                          for (int i = 0; i < 10; i++) {
+                              float rr = i % 2 == 0 ? 30 : 13;
+                              double an = Math.toRadians(-90 + i * 36);
+                              float px_ = 50 + (float) Math.cos(an) * rr, py_ = 52 + (float) Math.sin(an) * rr;
+                              if (i == 0) p.moveTo(px_, py_);
+                              else p.lineTo(px_, py_);
+                          }
+                          p.close();
+                          c.drawPath(p, f);
+                          break;
+                      case 16:
+                          c.drawRoundRect(new RectF(30, 18, 70, 82), 9, 9, sk);
+                          p.moveTo(43, 38);
+                          p.lineTo(43, 62);
+                          p.lineTo(60, 50);
+                          p.close();
+                          c.drawPath(p, f);
+                          break;
+                      case 17:
+                          c.drawRoundRect(new RectF(20, 24, 47, 76), 5, 5, sk);
+                          c.drawRoundRect(new RectF(53, 24, 80, 76), 5, 5, sk);
+                          c.drawLine(26, 38, 41, 38, sk);
+                          c.drawLine(26, 50, 41, 50, sk);
+                          c.drawLine(59, 38, 74, 38, sk);
+                          c.drawLine(59, 50, 74, 50, sk);
+                          break;
+                      case 18:
+                          c.drawLine(24, 38, 72, 38, sk);
+                          p.moveTo(76, 38);
+                          p.lineTo(62, 28);
+                          p.lineTo(62, 48);
+                          p.close();
+                          c.drawPath(p, f);
+                          Path p2 = new Path();
+                          c.drawLine(76, 62, 28, 62, sk);
+                          p2.moveTo(24, 62);
+                          p2.lineTo(38, 52);
+                          p2.lineTo(38, 72);
+                          p2.close();
+                          c.drawPath(p2, f);
+                          break;
+                      case 19:
+                          p.moveTo(18, 54);
+                          p.lineTo(34, 54);
+                          p.lineTo(42, 30);
+                          p.lineTo(54, 74);
+                          p.lineTo(62, 54);
+                          p.lineTo(82, 54);
+                          c.drawPath(p, sk);
                           break;
                       default:
                           for (int i = 0; i < 10; i++) {
@@ -3034,11 +3095,12 @@ jobs:
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   final Dialog dl = themedDialog("Значок: " + appName(e.pkg, e.label), col, 860);
-                  for (int r = 0; r < 2; r++) {
+                  for (int r = 0; r < 3; r++) {
                       LinearLayout row = new LinearLayout(this);
                       row.setGravity(Gravity.CENTER);
                       for (int q = 0; q < 8; q++) {
                           final int n = r * 8 + q;
+                          if (n >= STD_NAMES.length) break;
                           ImageView iv = new ImageView(this);
                           iv.setImageBitmap(stdIcon(n));
                           iv.setOnClickListener(v -> {
@@ -3748,7 +3810,8 @@ jobs:
                       String ss = (String) it[1];
                       if (ss.length() > 1 && Character.isUpperCase(ss.charAt(0)) && !Character.isUpperCase(ss.charAt(1)))
                           ss = Character.toLowerCase(ss.charAt(0)) + ss.substring(1);
-                      TextView sb = text(ss, 19, DIM, false);
+                      TextView sb = text(ss, 19, dimc(DIM, 0.8f), false);
+                      sb.setShadowLayer(0, 0, 0, 0);
                       sb.setGravity(Gravity.CENTER);
                       sb.setSingleLine(true);
                       sb.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -3795,8 +3858,6 @@ jobs:
                   String fname = fp.isEmpty() ? "Стандартний" : new File(fp).getName().replaceAll("\\.[^.]*$", "");
                   group("Вигляд",
                           t("Кольори і стиль", "повзунки, світіння, синхронізація", false, this::themeMenu),
-                          t("Колір швидкості", "цифри", false, () -> colorPick("Колір швидкості", "spdc", ACC)),
-                          t("Колір напису км/год", "напис", false, () -> colorPick("Колір напису км/год", "kmhc", DIM)),
                           t("Шрифт", fname, false, this::fontMenu),
                           t("Прозорість плиток", Math.round((CARD >>> 24) / 2.55f) + " %", false, this::alphaDialog),
                           t("Фон з галереї", "вибрати картинку", false, () -> pickImage(5)),
@@ -4052,67 +4113,6 @@ jobs:
                   return b;
               }
 
-              void colorPick(String title, final String key, int deflt) {
-                  final float[] c = new float[3];
-                  android.graphics.Color.colorToHSV(sp.contains(key) ? sp.getInt(key, deflt) : deflt, c);
-                  LinearLayout box = new LinearLayout(this);
-                  box.setOrientation(LinearLayout.VERTICAL);
-                  box.setPadding(dp(18), dp(8), dp(18), dp(4));
-                  final TextView prev = new TextView(this);
-                  prev.setText("120 км/год");
-                  prev.setTextSize(28);
-                  prev.setGravity(Gravity.CENTER);
-                  prev.setBackgroundColor(0xFF000000);
-                  prev.setPadding(dp(10), dp(16), dp(10), dp(16));
-                  box.addView(prev, new LinearLayout.LayoutParams(-1, -2));
-                  final float[] hc = {c[0], c[1], c[2]};
-                  final Runnable upd = () -> prev.setTextColor(android.graphics.Color.HSVToColor(hc));
-                  String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
-                  int[] mx = {360, 100, 100};
-                  int[] st = {Math.round(c[0]), Math.round(c[1] * 100), Math.round(c[2] * 100)};
-                  for (int k = 0; k < 3; k++) {
-                      final int kk = k;
-                      TextView lb = new TextView(this);
-                      lb.setText(nm[k]);
-                      box.addView(lb);
-                      android.widget.SeekBar sb = new android.widget.SeekBar(this);
-                      sb.setMax(mx[k]);
-                      sb.setProgress(st[k]);
-                      if (k == 0) {
-                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000});
-                          hg.setCornerRadius(dp(6));
-                          sb.setBackground(hg);
-                      }
-                      sb.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-                          @Override
-                          public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
-                              hc[kk] = kk == 0 ? p : p / 100f;
-                              upd.run();
-                          }
-
-                          @Override
-                          public void onStartTrackingTouch(android.widget.SeekBar s) {
-                          }
-
-                          @Override
-                          public void onStopTrackingTouch(android.widget.SeekBar s) {
-                          }
-                      });
-                      box.addView(sb, new LinearLayout.LayoutParams(-1, dp(40)));
-                  }
-                  upd.run();
-                  new AlertDialog.Builder(this).setTitle(title).setView(box)
-                          .setPositiveButton("Застосувати", (d, w) -> {
-                              sp.edit().putInt(key, android.graphics.Color.HSVToColor(hc)).apply();
-                              recreate();
-                          })
-                          .setNeutralButton("За темою", (d, w) -> {
-                              sp.edit().remove(key).apply();
-                              recreate();
-                          })
-                          .setNegativeButton("Скасувати", null).show();
-              }
-
               void themeMenu() {
                   customDialog();
               }
@@ -4120,7 +4120,11 @@ jobs:
               void customDialog() {
                   final float[][] c = {
                           {sp.getFloat("cH", 4), sp.getFloat("cS", 0.95f), sp.getFloat("cV", 0.95f)},
-                          {sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)}};
+                          {sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)},
+                          new float[3], new float[3]};
+                  android.graphics.Color.colorToHSV(sp.contains("spdc") ? sp.getInt("spdc", ACC) : ACC, c[2]);
+                  android.graphics.Color.colorToHSV(btnC(), c[3]);
+                  final boolean[] touched = new boolean[4];
                   final int[] sel = {0};
                   final boolean[] busy = {false};
                   LinearLayout box = new LinearLayout(this);
@@ -4143,9 +4147,17 @@ jobs:
                   final android.widget.RadioButton r2 = new android.widget.RadioButton(this);
                   r2.setText("Червоні");
                   r2.setId(103);
+                  final android.widget.RadioButton r3 = new android.widget.RadioButton(this);
+                  r3.setText("Швидкість");
+                  r3.setId(104);
+                  final android.widget.RadioButton r4 = new android.widget.RadioButton(this);
+                  r4.setText("Кнопки");
+                  r4.setId(105);
                   rg.addView(r0);
                   rg.addView(r1);
                   rg.addView(r2);
+                  rg.addView(r3);
+                  rg.addView(r4);
                   final java.util.List<View> slv = new java.util.ArrayList<View>();
                   box.addView(rg);
                   final String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
@@ -4154,8 +4166,8 @@ jobs:
                   final Runnable upd = new Runnable() {
                       @Override
                       public void run() {
-                          prev.setBackgroundColor(hsvc(c[1]));
-                          prev.setTextColor(hsvc(c[0]));
+                          prev.setBackgroundColor(sel[0] == 3 ? hsvc(c[3]) : hsvc(c[1]));
+                          prev.setTextColor(sel[0] == 2 ? hsvc(c[2]) : hsvc(c[0]));
                       }
                   };
                   for (int k = 0; k < 3; k++) {
@@ -4176,6 +4188,7 @@ jobs:
                           public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
                               if (!user || busy[0]) return;
                               c[sel[0]][kk] = kk == 0 ? (p < 10 ? -1 : p > 370 ? 361 : p - 10) : p / 100f;
+                              touched[sel[0]] = true;
                               upd.run();
                           }
 
@@ -4216,6 +4229,7 @@ jobs:
                                   c[tg][0] = hh;
                                   c[tg][1] = 1f;
                                   c[tg][2] = vv;
+                                  touched[tg] = true;
                                   upd.run();
                               });
                               LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(40), 1);
@@ -4263,7 +4277,7 @@ jobs:
                   });
                   box.addView(gsb, new LinearLayout.LayoutParams(-1, dp(40)));
                   final android.widget.CheckBox cb3 = new android.widget.CheckBox(this);
-                  cb3.setText("Синхронізувати кольори з програмою Радіо і Передача");
+                  cb3.setText("Синхронізувати кольори з програмою Радіо, Передача і Діагностика");
                   cb3.setChecked(sp.getBoolean("sync", true));
                   box.addView(cb3);
                   final Runnable load = new Runnable() {
@@ -4278,10 +4292,11 @@ jobs:
                   };
                   rg.setOnCheckedChangeListener((g, id) -> {
                       boolean isPal = id == 103;
-                      if (!isPal) sel[0] = id == 102 ? 1 : 0;
+                      if (!isPal) sel[0] = id == 102 ? 1 : id == 104 ? 2 : id == 105 ? 3 : 0;
                       for (View sv2 : slv) sv2.setVisibility(isPal ? View.GONE : View.VISIBLE);
                       pal.setVisibility(isPal ? View.VISIBLE : View.GONE);
                       if (!isPal) load.run();
+                      upd.run();
                   });
                   r0.setChecked(true);
                   load.run();
@@ -4293,6 +4308,8 @@ jobs:
                               sp.edit().putInt("glow", gsb.getProgress()).putBoolean("sync", cb3.isChecked()).putInt("bstyle", spn.getSelectedItemPosition()).putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
                                       .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
                                       .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
+                              if (touched[2]) sp.edit().putInt("spdc", hsvc(c[2]) | 0xFF000000).apply();
+                              if (touched[3]) sp.edit().putInt("btnc", hsvc(c[3]) | 0xFF000000).apply();
                               syncOut();
                               recreate();
                           }).setNegativeButton("Скасувати", null).show();
