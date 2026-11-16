@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 35
-                  versionName "3.16"
+                  versionCode 36
+                  versionName "3.17"
               }
               signingConfigs {
                   debug {
@@ -4370,7 +4370,7 @@ jobs:
                   }
 
                   // слайдери
-                  final String[] SN = {"Насиченість", "Яскравість", "Світіння"};
+                  final String[] SN = {"Відтінок", "Яскравість", "Світіння"};
                   final SeekBar[] sk = new SeekBar[3];
                   for (int k = 0; k < 3; k++) {
                       final int kk = k;
@@ -4380,7 +4380,12 @@ jobs:
                       lb.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
                       right.addView(lb);
                       sk[k] = new SeekBar(this);
-                      sk[k].setMax(100);
+                      sk[k].setMax(k == 0 ? 360 : 100);
+                        if (k == 0) {
+                            GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000});
+                            hg.setCornerRadius(px(6));
+                            sk[k].setBackground(hg);
+                        }
                       sk[k].setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                           @Override
                           public void onProgressChanged(SeekBar s, int p, boolean user) {
@@ -4388,7 +4393,8 @@ jobs:
                               if (kk == 2) {
                                   g[sel[0]] = p;
                               } else {
-                                  c[sel[0]][kk + 1] = p / 100f;
+                                  if (kk == 0) c[sel[0]][0] = Math.min(359.9f, p);
+                    else c[sel[0]][2] = p / 100f;
                                   touched[sel[0]] = true;
                               }
                               R[0].run();
@@ -4495,7 +4501,7 @@ jobs:
                       wheel.s = cur[1];
                       wheel.v = cur[2];
                       wheel.invalidate();
-                      sk[0].setProgress(Math.round(cur[1] * 100));
+                      sk[0].setProgress(Math.round(cur[0]));
                       sk[1].setProgress(Math.round(cur[2] * 100));
                       sk[2].setProgress(g[sel[0]]);
                       styleBox.setVisibility(sel[0] == 1 ? View.VISIBLE : View.GONE);
