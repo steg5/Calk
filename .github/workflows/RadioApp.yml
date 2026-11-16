@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 25
-                  versionName "3.4"
+                  versionCode 26
+                  versionName "3.5"
               }
               signingConfigs {
                   debug {
@@ -2039,6 +2039,7 @@ jobs:
               static void load(final Context ctx, final String key, final String display, final String query, final String url, final ImageView iv) {
                   iv.setTag(key);
                   iv.setImageBitmap(letter(display, 128));
+                  if (key.startsWith("m")) new File(android.os.Environment.getExternalStorageDirectory(), "fordradio_logo.png").delete();
                   final String q = (query == null || query.trim().isEmpty()) ? display : query;
                   if ((url == null || url.isEmpty()) && (q == null || q.trim().isEmpty())) return;
                   EX.execute(new Runnable() {
@@ -2077,6 +2078,14 @@ jobs:
                               }
                               if (bm == null) return;
                               final Bitmap fb = bm;
+                              if (key.startsWith("m") && key.equals(iv.getTag())) {
+                                  try {
+                                      FileOutputStream so = new FileOutputStream(new File(android.os.Environment.getExternalStorageDirectory(), "fordradio_logo.png"));
+                                      fb.compress(Bitmap.CompressFormat.PNG, 100, so);
+                                      so.close();
+                                  } catch (Throwable ignored) {
+                                  }
+                              }
                               UI.post(new Runnable() {
                                   @Override
                                   public void run() {
