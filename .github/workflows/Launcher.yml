@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 36
-                  versionName "3.17"
+                  versionCode 37
+                  versionName "3.18"
               }
               signingConfigs {
                   debug {
@@ -3881,7 +3881,7 @@ jobs:
                       String ss = (String) it[1];
                       if (ss.length() > 1 && Character.isUpperCase(ss.charAt(0)) && !Character.isUpperCase(ss.charAt(1)))
                           ss = Character.toLowerCase(ss.charAt(0)) + ss.substring(1);
-                      TextView sb = text(ss, 19, dimc(DIM, 0.8f), false);
+                      TextView sb = text(ss, 19, DIM, false);
                       sb.setShadowLayer(0, 0, 0, 0);
                       sb.setGravity(Gravity.CENTER);
                       sb.setSingleLine(true);
@@ -4294,6 +4294,7 @@ jobs:
                   TextView hd = new TextView(this);
                   hd.setText("≡  Кольори і стиль  (потягніть, щоб пересунути)");
                   hd.setTextColor(0xFFDDDDDD);
+                  tl.add(hd);
                   hd.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
                   hd.setGravity(Gravity.CENTER);
                   hd.setPadding(0, px(8), 0, px(8));
@@ -4372,6 +4373,7 @@ jobs:
                   // слайдери
                   final String[] SN = {"Відтінок", "Яскравість", "Світіння"};
                   final SeekBar[] sk = new SeekBar[3];
+                  final java.util.List<TextView> tl = new java.util.ArrayList<TextView>();
                   for (int k = 0; k < 3; k++) {
                       final int kk = k;
                       TextView lb = new TextView(this);
@@ -4379,6 +4381,8 @@ jobs:
                       lb.setTextColor(0xFFFFFFFF);
                       lb.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
                       right.addView(lb);
+                      tl.add(lb);
+                      if (k == 0) lb.setVisibility(View.GONE);
                       sk[k] = new SeekBar(this);
                       sk[k].setMax(k == 0 ? 360 : 100);
                         if (k == 0) {
@@ -4410,6 +4414,7 @@ jobs:
                           }
                       });
                       right.addView(sk[k], new LinearLayout.LayoutParams(-1, px(40)));
+                      if (k == 0) sk[k].setVisibility(View.GONE);
                   }
 
                   final LinearLayout styleBox = new LinearLayout(this);
@@ -4419,20 +4424,21 @@ jobs:
                   stl.setTextColor(0xFFFFFFFF);
                   stl.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
                   styleBox.addView(stl);
+                  tl.add(stl);
                   final android.widget.Spinner spn = new android.widget.Spinner(this);
                   spn.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, BSN) {
                       @Override
                       public View getView(int pos, View cv, ViewGroup par) {
                           TextView tv = (TextView) super.getView(pos, cv, par);
-                          tv.setTextColor(0xFFFFFFFF);
+                          tv.setTextColor(hsvc(c[0]) | 0xFF000000);
                           return tv;
                       }
 
                       @Override
                       public View getDropDownView(int pos, View cv, ViewGroup par) {
                           TextView tv = (TextView) super.getDropDownView(pos, cv, par);
-                          tv.setTextColor(0xFFFFFFFF);
-                          tv.setBackgroundColor(0xFF222222);
+                          tv.setTextColor(hsvc(c[0]) | 0xFF000000);
+                          tv.setBackgroundColor(dimc(hsvc(c[1]), 0.4f));
                           return tv;
                       }
                   });
@@ -4460,7 +4466,7 @@ jobs:
                   cb3.setText("Синхронізувати кольори з програмою Радіо, Передача і Діагностика");
                   cb3.setChecked(sp.getBoolean("sync", true));
                   for (CheckBox cx : new CheckBox[]{cb1, cb2, cb3}) {
-                      cx.setTextColor(0xFFFFFFFF);
+                      tl.add(cx);
                       cx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 17 * u);
                       right.addView(cx);
                   }
@@ -4474,7 +4480,9 @@ jobs:
                   final Button bOk = new Button(this);
                   bOk.setText("Застосувати");
                   fb.addView(bNo, new LinearLayout.LayoutParams(-2, px(54)));
-                  fb.addView(bOk, new LinearLayout.LayoutParams(-2, px(54)));
+                  LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(-2, px(54));
+                  okp.setMargins(px(8), 0, 0, 0);
+                  fb.addView(bOk, okp);
                   LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(-1, -2);
                   fbp.setMargins(0, px(8), 0, 0);
                   right.addView(fb, fbp);
@@ -4539,6 +4547,19 @@ jobs:
                           float gr = g[i] / 100f * 14 * getResources().getDisplayMetrics().density;
                           if (i == 0 || i == 2) tb[i].setShadowLayer(gr, 0, 0, col);
                           else tb[i].setShadowLayer(0, 0, 0, 0);
+                      }
+                      int txc = hsvc(c[0]) | 0xFF000000;
+                      for (TextView tx : tl) tx.setTextColor(txc);
+                      pbg.setColor(0xE6000000 | (dimc(hsvc(c[1]), 0.4f) & 0xFFFFFF));
+                      for (Button bx : new Button[]{bNo, bOk}) {
+                          GradientDrawable bd = new GradientDrawable();
+                          bd.setColor(hsvc(c[1]) | 0xFF000000);
+                          bd.setCornerRadius(px(12));
+                          bd.setStroke(px(1), txc);
+                          bx.setBackground(bd);
+                          bx.setTextColor(txc);
+                          bx.setAllCaps(false);
+                          bx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 18 * u);
                       }
                       busy[0] = false;
                   };
