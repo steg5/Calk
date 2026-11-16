@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 37
-                  versionName "3.18"
+                  versionCode 38
+                  versionName "3.19"
               }
               signingConfigs {
                   debug {
@@ -4282,6 +4282,7 @@ jobs:
                   final String[] KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "sglow", "kglow", "bDark", "tDark", "bstyle", "spdc", "btnc"};
                   final java.util.Map<String, ?> snap = sp.getAll();
 
+                  final java.util.List<TextView> tl = new java.util.ArrayList<TextView>();
                   final LinearLayout panel = new LinearLayout(this);
                   panel.setOrientation(LinearLayout.VERTICAL);
                   panel.setPadding(px(12), px(6), px(12), px(10));
@@ -4373,7 +4374,6 @@ jobs:
                   // слайдери
                   final String[] SN = {"Відтінок", "Яскравість", "Світіння"};
                   final SeekBar[] sk = new SeekBar[3];
-                  final java.util.List<TextView> tl = new java.util.ArrayList<TextView>();
                   for (int k = 0; k < 3; k++) {
                       final int kk = k;
                       TextView lb = new TextView(this);
