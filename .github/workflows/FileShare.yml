@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.fileshare"
                   minSdk 23
                   targetSdk 26
-                  versionCode 9
-                  versionName "1.8"
+                  versionCode 11
+                  versionName "2.0"
               }
               signingConfigs {
                   debug {
@@ -90,6 +90,8 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.BLUETOOTH"/>
+              <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
               <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
@@ -127,6 +129,14 @@ jobs:
           import android.content.pm.PackageManager;
           import android.database.Cursor;
           import android.graphics.Color;
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.content.Context;
+          import android.view.MotionEvent;
+          import android.view.ViewGroup;
           import android.graphics.Typeface;
           import android.graphics.drawable.GradientDrawable;
           import android.net.Uri;
@@ -251,6 +261,10 @@ jobs:
                       for (int i = 0; i < SYNC_F.length; i++) e.putFloat(SYNC_F[i], Float.parseFloat(p.getProperty(SYNC_F[i], "" + SYNC_FD[i])));
                       e.putInt("bstyle", Integer.parseInt(p.getProperty("bstyle", "0")));
                       e.putInt("glow", Integer.parseInt(p.getProperty("glow", "0")));
+                      e.putInt("bglow", Integer.parseInt(p.getProperty("bglow", "0")));
+                      e.putBoolean("outl_b", p.getProperty("outl_b", "0").equals("1"));
+                      e.putInt("outW_b", Integer.parseInt(p.getProperty("outW_b", "3")));
+                      e.putInt("outC_b", Integer.parseInt(p.getProperty("outC_b", "-1")));
                       e.putBoolean("bDark", p.getProperty("bDark", "1").equals("1"));
                       e.putBoolean("tDark", p.getProperty("tDark", "1").equals("1"));
                       e.putLong("ts", ts).apply();
@@ -268,6 +282,10 @@ jobs:
                       for (int i = 0; i < SYNC_F.length; i++) p.setProperty(SYNC_F[i], "" + sp.getFloat(SYNC_F[i], SYNC_FD[i]));
                       p.setProperty("bstyle", "" + sp.getInt("bstyle", 0));
                       p.setProperty("glow", "" + sp.getInt("glow", 0));
+                      p.setProperty("bglow", "" + sp.getInt("bglow", 0));
+                      p.setProperty("outl_b", sp.getBoolean("outl_b", false) ? "1" : "0");
+                      p.setProperty("outW_b", "" + sp.getInt("outW_b", 3));
+                      p.setProperty("outC_b", "" + sp.getInt("outC_b", -1));
                       p.setProperty("bDark", sp.getBoolean("bDark", true) ? "1" : "0");
                       p.setProperty("tDark", sp.getBoolean("tDark", true) ? "1" : "0");
                       p.setProperty("ts", "" + ts);
@@ -310,6 +328,7 @@ jobs:
               final Handler ui = new Handler(Looper.getMainLooper());
               SharedPreferences sp;
               FileServer server;
+              BtBridge bt;
               EditText etIp, etPin;
               TextView tvLog, tvMy;
               ScrollView logScroll;
@@ -342,7 +361,7 @@ jobs:
                       }
                       if (Math.abs(sz - cur) > 0.5f) x.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sz);
                   });
-                  b.setBackground(styled(BTN, 16, dp(300)));
+                  b.setBackground(blockBg(BTN, 16, dp(300)));
                   if (glowR > 0) b.setShadowLayer(glowR, 0, 0, TXT);
                   return b;
               }
@@ -377,6 +396,7 @@ jobs:
 
                   server = new FileServer(this);
                   server.start(PORT);
+                  if (conn() == 1) startBt();
                   log("Готово. Встанови цю програму на обидва пристрої й тримай її відкритою там, куди відправляєш.");
               }
 
@@ -410,7 +430,7 @@ jobs:
                   hr.addView(tg, tgp);
                   Button thB = btn("Тема", 0);
                   thB.setTextSize(16);
-                  thB.setOnClickListener(v -> themeDialog());
+                  thB.setOnClickListener(v -> customDialog());
                   hr.addView(thB, new LinearLayout.LayoutParams(dp(130), dp(44)));
                   root.addView(hr);
 
@@ -429,14 +449,30 @@ jobs:
                   grp.setOrientation(LinearLayout.VERTICAL);
                   grp.addView(myRow);
 
+                  Button cnB = btn("Тип з'єднання: " + (conn() == 1 ? "Bluetooth" : "Wi-Fi"), 0);
+                  cnB.setTextSize(16);
+                  cnB.setOnClickListener(v -> connDialog());
+                  LinearLayout.LayoutParams cnp = new LinearLayout.LayoutParams(-1, dp(44));
+                  cnp.setMargins(dp(4), dp(8), dp(4), 0);
+                  grp.addView(cnB, cnp);
                   LinearLayout row = new LinearLayout(this);
                   etIp = field("Адреса іншого пристрою", sp.getString("ip", "192.168.11.215"));
                   etPin = field("PIN", sp.getString("pin", "1234"));
                   LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(0, -2, 1);
                   ep.setMargins(dp(4), dp(8), dp(4), dp(4));
-                  row.addView(etIp, new LinearLayout.LayoutParams(ep));
-                  row.addView(etPin, new LinearLayout.LayoutParams(ep));
-                  ((LinearLayout.LayoutParams) etIp.getLayoutParams()).weight = 2;
+                  if (conn() == 1) {
+                      Button dvB = btn("Пристрій: " + sp.getString("btname", "вибрати"), 0);
+                      dvB.setTextSize(16);
+                      dvB.setOnClickListener(v -> btPick());
+                      LinearLayout.LayoutParams dvp = new LinearLayout.LayoutParams(0, dp(44), 2);
+                      dvp.setMargins(dp(4), dp(8), dp(4), dp(4));
+                      row.addView(dvB, dvp);
+                      row.addView(etPin, new LinearLayout.LayoutParams(ep));
+                  } else {
+                      row.addView(etIp, new LinearLayout.LayoutParams(ep));
+                      row.addView(etPin, new LinearLayout.LayoutParams(ep));
+                      ((LinearLayout.LayoutParams) etIp.getLayoutParams()).weight = 2;
+                  }
                   grp.addView(row);
                   if (topOpen) root.addView(grp);
                   View sep = new View(this);
@@ -514,23 +550,6 @@ jobs:
                   showMy();
               }
 
-              void themeDialog() {
-                  String[] it = {"Кольори і стиль…", "Фон: " + (sp.getInt("bgstyle", 0) == 0 ? "градієнт (змінити на однотонний)" : "однотонний (змінити на градієнт)"), "Фон з галереї", "Прибрати фон"};
-                  new AlertDialog.Builder(this).setTitle("Тема").setItems(it, (d, i) -> {
-                      if (i == 0) {
-                          customDialog();
-                      } else if (i == 1) {
-                          sp.edit().putInt("bgstyle", sp.getInt("bgstyle", 0) == 0 ? 1 : 0).apply();
-                          buildUi();
-                      } else if (i == 2) {
-                          imageBrowser(Environment.getExternalStorageDirectory());
-                      } else {
-                          new File(getFilesDir(), "bg.jpg").delete();
-                          buildUi();
-                      }
-                  }).setNegativeButton("Закрити", null).show();
-              }
-
               @Override
               protected void onResume() {
                   super.onResume();
@@ -540,140 +559,234 @@ jobs:
                   }
               }
 
-              void customDialog() {
-                  final float[][] c = {
-                          {sp.getFloat("cH", 4), sp.getFloat("cS", 0.95f), sp.getFloat("cV", 0.95f)},
-                          {sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)}};
-                  final int[] sel = {0};
-                  final boolean[] busy = {false};
-                  LinearLayout box = new LinearLayout(this);
-                  box.setOrientation(LinearLayout.VERTICAL);
-                  box.setPadding(dp(18), dp(8), dp(18), dp(4));
-                  final TextView prev = new TextView(this);
-                  prev.setText("Люкс FM  104.7");
-                  prev.setTextSize(24);
-                  prev.setGravity(Gravity.CENTER);
-                  prev.setPadding(dp(10), dp(16), dp(10), dp(16));
-                  box.addView(prev, new LinearLayout.LayoutParams(-1, -2));
-                  final android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
-                  rg.setOrientation(LinearLayout.HORIZONTAL);
-                  final android.widget.RadioButton r0 = new android.widget.RadioButton(this);
-                  r0.setText("Колір тексту");
-                  r0.setId(101);
-                  final android.widget.RadioButton r1 = new android.widget.RadioButton(this);
-                  r1.setText("Колір блоків");
-                  r1.setId(102);
-                  final android.widget.RadioButton r2 = new android.widget.RadioButton(this);
-                  r2.setText("Червоні");
-                  r2.setId(103);
-                  rg.addView(r0);
-                  rg.addView(r1);
-                  rg.addView(r2);
-                  final java.util.List<View> slv = new java.util.ArrayList<View>();
-                  box.addView(rg);
-                  final String[] nm = {"Відтінок", "Насиченість", "Яскравість"};
-                  final android.widget.SeekBar[] sb = new android.widget.SeekBar[3];
-                  final int[] mx = {380, 100, 100};
-                  final Runnable upd = new Runnable() {
-                      @Override
-                      public void run() {
-                          prev.setBackgroundColor(hsvc(c[1]));
-                          prev.setTextColor(hsvc(c[0]));
+              static final float[][] METAL = {{45, 0.75f, 0.95f}, {0, 0f, 0.80f}, {30, 0.65f, 0.70f}, {20, 0.70f, 0.80f}, {200, 0.06f, 0.85f}, {10, 0.35f, 0.90f}, {210, 0.12f, 0.60f}, {0, 0f, 0.35f}};
+
+              GradientDrawable metalBg(int radiusDp, int rgb, int alpha) {
+                  GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
+                          withA(mixC(rgb, 0xFFFFFF, 0.55f), alpha), withA(rgb, alpha), withA(mixC(rgb, 0x000000, 0.38f), alpha), withA(mixC(rgb, 0xFFFFFF, 0.22f), alpha)});
+                  g.setCornerRadius(dp(radiusDp));
+                  return g;
+              }
+
+              android.graphics.drawable.Drawable glowWrap(android.graphics.drawable.Drawable base, int radiusDp, int col, int g) {
+                  if (g <= 0) return base;
+                  int n = 5;
+                  android.graphics.drawable.Drawable[] ls = new android.graphics.drawable.Drawable[n + 1];
+                  ls[0] = base;
+                  int w = Math.max(1, dp(2));
+                  for (int i = 0; i < n; i++) {
+                      GradientDrawable ring = new GradientDrawable();
+                      ring.setColor(0);
+                      ring.setCornerRadius(Math.max(1, dp(radiusDp) - i * w));
+                      ring.setStroke(w, withA(col, Math.round(255 * (g / 100f) * 0.55f * (1f - i / (float) n))));
+                      ls[i + 1] = ring;
+                  }
+                  android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(ls);
+                  for (int i = 0; i < n; i++) ld.setLayerInset(i + 1, i * w, i * w, i * w, i * w);
+                  return ld;
+              }
+
+              android.graphics.drawable.Drawable outlineWrap(android.graphics.drawable.Drawable d, int radiusDp) {
+                  if (!sp.getBoolean("outl_b", false)) return d;
+                  GradientDrawable ring = new GradientDrawable();
+                  ring.setColor(0);
+                  ring.setCornerRadius(dp(radiusDp));
+                  ring.setStroke(Math.max(1, dp(sp.getInt("outW_b", 3))), sp.getInt("outC_b", -1) | 0xFF000000);
+                  return new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{d, ring});
+              }
+
+              android.graphics.drawable.Drawable blockBg(int base, int radiusDp, float radialPx) {
+                  GradientDrawable core;
+                  if (sp.getInt("met1", -1) >= 0) {
+                      int mc = hsvc(new float[]{sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f)});
+                      core = metalBg(radiusDp, mc & 0xFFFFFF, base >>> 24);
+                  } else {
+                      core = styled(base, radiusDp, radialPx);
+                  }
+                  return outlineWrap(glowWrap(core, radiusDp, ACC, sp.getInt("bglow", 0)), radiusDp);
+              }
+
+              class Wheel extends View {
+                  float h = 0, s = 0, v = 1;
+                  Bitmap bmp;
+                  Runnable cb;
+                  final Paint wp = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  Wheel(Context cx) {
+                      super(cx);
+                  }
+
+                  @Override
+                  protected void onSizeChanged(int w, int hh, int ow, int oh) {
+                      int n = Math.min(w, hh);
+                      if (n <= 0) return;
+                      bmp = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888);
+                      int[] pxs = new int[n * n];
+                      float r = n / 2f;
+                      float[] hv = {0, 0, 1};
+                      for (int y = 0; y < n; y++) {
+                          for (int x = 0; x < n; x++) {
+                              float dx = x + 0.5f - r, dy = y + 0.5f - r;
+                              float d = (float) Math.sqrt(dx * dx + dy * dy);
+                              if (d > r) {
+                                  pxs[y * n + x] = 0;
+                                  continue;
+                              }
+                              float an = (float) Math.toDegrees(Math.atan2(dy, dx));
+                              if (an < 0) an += 360;
+                              hv[0] = an;
+                              hv[1] = d / r;
+                              pxs[y * n + x] = Color.HSVToColor(hv);
+                          }
                       }
+                      bmp.setPixels(pxs, 0, n, 0, 0, n, n);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      if (bmp == null) return;
+                      float n = bmp.getWidth(), r = n / 2f;
+                      cv.drawBitmap(bmp, 0, 0, null);
+                      wp.setStyle(Paint.Style.FILL);
+                      wp.setColor(Color.argb(Math.round((1 - v) * 255), 0, 0, 0));
+                      cv.drawCircle(r, r, r, wp);
+                      double an = Math.toRadians(h);
+                      float mx = r + (float) Math.cos(an) * s * r, my = r + (float) Math.sin(an) * s * r;
+                      wp.setStyle(Paint.Style.STROKE);
+                      wp.setStrokeWidth(dp(4));
+                      wp.setColor(0xFF000000);
+                      cv.drawCircle(mx, my, dp(11), wp);
+                      wp.setStrokeWidth(dp(2));
+                      wp.setColor(0xFFFFFFFF);
+                      cv.drawCircle(mx, my, dp(11), wp);
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(MotionEvent e) {
+                      if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                      float r = getWidth() / 2f;
+                      float dx = e.getX() - r, dy = e.getY() - r;
+                      float d = (float) Math.sqrt(dx * dx + dy * dy);
+                      float an = (float) Math.toDegrees(Math.atan2(dy, dx));
+                      if (an < 0) an += 360;
+                      h = an;
+                      s = Math.min(1f, d / r);
+                      invalidate();
+                      if (cb != null) cb.run();
+                      return true;
+                  }
+              }
+
+              class Glyph extends View {
+                  int col = 0xFFFFFFFF;
+                  final Paint gp = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  Glyph(Context cx) {
+                      super(cx);
+                      setClickable(true);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas cv) {
+                      float s = Math.min(getWidth(), getHeight()) * 0.36f;
+                      cv.translate(getWidth() / 2f, getHeight() / 2f);
+                      gp.setColor(col);
+                      gp.setStyle(Paint.Style.STROKE);
+                      gp.setStrokeWidth(s * 0.16f);
+                      gp.setStrokeCap(Paint.Cap.ROUND);
+                      gp.setStrokeJoin(Paint.Join.ROUND);
+                      cv.drawArc(new RectF(-s * 0.6f, -s * 0.6f, s * 0.6f, s * 0.6f), -60, 300, false, gp);
+                      float ex = (float) Math.cos(Math.toRadians(240)) * 0.6f * s, ey = (float) Math.sin(Math.toRadians(240)) * 0.6f * s;
+                      Path hp = new Path();
+                      hp.moveTo(ex + 0.866f * 0.45f * s, ey - 0.5f * 0.45f * s);
+                      hp.lineTo(ex + 0.5f * 0.35f * s, ey + 0.866f * 0.35f * s);
+                      hp.lineTo(ex - 0.5f * 0.35f * s, ey - 0.866f * 0.35f * s);
+                      hp.close();
+                      gp.setStyle(Paint.Style.FILL);
+                      cv.drawPath(hp, gp);
+                  }
+              }
+
+              float[] hsvIn(float h, float s, float v) {
+                  if (h < 0) return new float[]{0, 0, 0};
+                  if (h > 360) return new float[]{0, 0, 1};
+                  return new float[]{h, s, v};
+              }
+
+              void liveRebuild() {
+                  applyTheme();
+                  buildUi();
+              }
+
+              void outlineDialog(final Runnable after) {
+                  final Dialog od = new Dialog(this);
+                  od.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  LinearLayout pn = new LinearLayout(this);
+                  pn.setOrientation(LinearLayout.VERTICAL);
+                  pn.setPadding(dp(14), dp(10), dp(14), dp(12));
+                  GradientDrawable pg = new GradientDrawable();
+                  pg.setColor(0xEE101010);
+                  pg.setCornerRadius(dp(16));
+                  pg.setStroke(dp(1), 0x55FFFFFF);
+                  pn.setBackground(pg);
+                  TextView ti = new TextView(this);
+                  ti.setText("Контур блоків: колір і товщина");
+                  ti.setTextColor(0xFFDDDDDD);
+                  ti.setTextSize(17);
+                  pn.addView(ti);
+                  final View sample = new View(this);
+                  LinearLayout.LayoutParams smp = new LinearLayout.LayoutParams(-1, dp(44));
+                  smp.setMargins(0, dp(8), 0, dp(8));
+                  pn.addView(sample, smp);
+                  final Runnable upd = () -> {
+                      GradientDrawable sg = new GradientDrawable();
+                      sg.setColor(0x33000000);
+                      sg.setCornerRadius(dp(12));
+                      sg.setStroke(Math.max(1, dp(sp.getInt("outW_b", 3))), sp.getInt("outC_b", -1) | 0xFF000000);
+                      sample.setBackground(sg);
                   };
-                  for (int k = 0; k < 3; k++) {
-                      final int kk = k;
-                      TextView lb = new TextView(this);
-                      lb.setText(nm[k]);
-                      box.addView(lb);
-                      slv.add(lb);
-                      sb[k] = new android.widget.SeekBar(this);
-                      sb[k].setMax(mx[k]);
-                      if (k == 0) {
-                          GradientDrawable hg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFF000000, 0xFFFF0000, 0xFFFFFF00, 0xFF00FF00, 0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000, 0xFFFFFFFF});
-                          hg.setCornerRadius(dp(6));
-                          sb[k].setBackground(hg);
-                      }
-                      sb[k].setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
-                          @Override
-                          public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
-                              if (!user || busy[0]) return;
-                              c[sel[0]][kk] = kk == 0 ? (p < 10 ? -1 : p > 370 ? 361 : p - 10) : p / 100f;
+                  upd.run();
+                  final float[] hs = {0, 45, 90, 135, 180, 225, 270, 315};
+                  final float[][] var = {{1f, 1f}, {1f, 0.65f}, {0.5f, 1f}};
+                  for (int r = 0; r < 4; r++) {
+                      LinearLayout rw = new LinearLayout(this);
+                      for (int q = 0; q < 8; q++) {
+                          final int col = r == 0
+                                  ? Color.HSVToColor(new float[]{0, 0, q / 7f})
+                                  : Color.HSVToColor(new float[]{hs[q], var[r - 1][0], var[r - 1][1]});
+                          View sv = new View(this);
+                          GradientDrawable sgd = new GradientDrawable();
+                          sgd.setColor(col);
+                          sgd.setCornerRadius(dp(6));
+                          sgd.setStroke(dp(1), 0x55FFFFFF);
+                          sv.setBackground(sgd);
+                          sv.setOnClickListener(x -> {
+                              sp.edit().putInt("outC_b", col | 0xFF000000).apply();
                               upd.run();
-                          }
-
-                          @Override
-                          public void onStartTrackingTouch(android.widget.SeekBar s) {
-                          }
-
-                          @Override
-                          public void onStopTrackingTouch(android.widget.SeekBar s) {
-                          }
-                      });
-                      box.addView(sb[k], new LinearLayout.LayoutParams(-1, dp(40)));
-                      slv.add(sb[k]);
-                  }
-                  final LinearLayout pal = new LinearLayout(this);
-                  pal.setOrientation(LinearLayout.VERTICAL);
-                  pal.setVisibility(View.GONE);
-                  final float[] ph = {344, 349, 354, 358, 0, 3, 6};
-                  final float[] pvT = {1f, 0.88f, 0.75f};
-                  final float[] pvB = {0.42f, 0.28f, 0.16f};
-                  for (int tgt = 0; tgt < 2; tgt++) {
-                      final int tg = tgt;
-                      TextView pl = new TextView(this);
-                      pl.setText(tg == 0 ? "Текст: яскраво-червоні" : "Блоки: темно-червоні");
-                      pl.setPadding(0, dp(8), 0, dp(2));
-                      pal.addView(pl);
-                      float[] pv = tg == 0 ? pvT : pvB;
-                      for (final float vv : pv) {
-                          LinearLayout rw = new LinearLayout(this);
-                          for (final float hh : ph) {
-                              View sw = new View(this);
-                              GradientDrawable sgd = new GradientDrawable();
-                              sgd.setColor(android.graphics.Color.HSVToColor(new float[]{hh, 1f, vv}));
-                              sgd.setCornerRadius(dp(8));
-                              sgd.setStroke(dp(1), 0x66FFFFFF);
-                              sw.setBackground(sgd);
-                              sw.setOnClickListener(x -> {
-                                  c[tg][0] = hh;
-                                  c[tg][1] = 1f;
-                                  c[tg][2] = vv;
-                                  upd.run();
-                              });
-                              LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(40), 1);
-                              swp.setMargins(dp(2), dp(2), dp(2), dp(2));
-                              rw.addView(sw, swp);
-                          }
-                          pal.addView(rw);
+                              after.run();
+                          });
+                          LinearLayout.LayoutParams lpp = new LinearLayout.LayoutParams(0, dp(34), 1);
+                          lpp.setMargins(dp(2), dp(2), dp(2), dp(2));
+                          rw.addView(sv, lpp);
                       }
+                      pn.addView(rw);
                   }
-                  box.addView(pal);
-                  final android.widget.CheckBox cb1 = new android.widget.CheckBox(this);
-                  cb1.setText("Затемнювати фон і плитки");
-                  cb1.setChecked(sp.getBoolean("bDark", true));
-                  final android.widget.CheckBox cb2 = new android.widget.CheckBox(this);
-                  cb2.setText("Затемнювати другорядний текст");
-                  cb2.setChecked(sp.getBoolean("tDark", true));
-                  box.addView(cb1);
-                  box.addView(cb2);
-                  TextView stl = new TextView(this);
-                  stl.setText("Стиль блоків");
-                  box.addView(stl);
-                  final android.widget.Spinner spn = new android.widget.Spinner(this);
-                  spn.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, BSN));
-                  spn.setSelection(Math.min(BSN.length - 1, sp.getInt("bstyle", 0)));
-                  box.addView(spn);
-                  TextView gl = new TextView(this);
-                  gl.setText("Світіння тексту");
-                  box.addView(gl);
-                  final android.widget.SeekBar gsb = new android.widget.SeekBar(this);
-                  gsb.setMax(100);
-                  gsb.setProgress(sp.getInt("glow", 0));
-                  gsb.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                  TextView tw = new TextView(this);
+                  tw.setText("Товщина");
+                  tw.setTextColor(0xFFDDDDDD);
+                  tw.setTextSize(16);
+                  tw.setPadding(0, dp(8), 0, 0);
+                  pn.addView(tw);
+                  android.widget.SeekBar ts = new android.widget.SeekBar(this);
+                  ts.setMax(9);
+                  ts.setProgress(Math.max(0, Math.min(9, sp.getInt("outW_b", 3) - 1)));
+                  ts.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
                       @Override
                       public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
-                          prev.setShadowLayer(p / 100f * dp(14), 0, 0, hsvc(c[0]));
+                          if (!user) return;
+                          sp.edit().putInt("outW_b", p + 1).apply();
+                          upd.run();
+                          after.run();
                       }
 
                       @Override
@@ -684,42 +797,485 @@ jobs:
                       public void onStopTrackingTouch(android.widget.SeekBar s) {
                       }
                   });
-                  box.addView(gsb, new LinearLayout.LayoutParams(-1, dp(40)));
-                  final android.widget.CheckBox cb3 = new android.widget.CheckBox(this);
-                  cb3.setText("Синхронізувати кольори з програмою Радіо і Лаунчер");
-                  cb3.setChecked(sp.getBoolean("sync", true));
-                  box.addView(cb3);
-                  final Runnable load = new Runnable() {
-                      @Override
-                      public void run() {
-                          busy[0] = true;
-                          sb[0].setProgress(c[sel[0]][0] < 0 ? 0 : c[sel[0]][0] > 360 ? 380 : Math.round(c[sel[0]][0]) + 10);
-                          sb[1].setProgress(Math.round(c[sel[0]][1] * 100));
-                          sb[2].setProgress(Math.round(c[sel[0]][2] * 100));
-                          busy[0] = false;
+                  pn.addView(ts, new LinearLayout.LayoutParams(-1, dp(40)));
+                  Button ok = new Button(this);
+                  ok.setText("Готово");
+                  ok.setAllCaps(false);
+                  ok.setPadding(dp(10), 0, dp(10), 0);
+                  ok.setMinHeight(0);
+                  ok.setMinimumHeight(0);
+                  ok.setOnClickListener(x -> od.dismiss());
+                  pn.addView(ok, new LinearLayout.LayoutParams(-1, dp(46)));
+                  od.setContentView(pn);
+                  android.view.Window w2 = od.getWindow();
+                  w2.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                  w2.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                  android.util.DisplayMetrics dm2 = getResources().getDisplayMetrics();
+                  w2.setLayout(Math.min(dp(440), dm2.widthPixels - dp(16)), -2);
+                  w2.setGravity(Gravity.BOTTOM | Gravity.RIGHT);
+                  od.show();
+              }
+
+              void customDialog() {
+                  final float[][] c = new float[2][];
+                  c[0] = hsvIn(sp.getFloat("cH", 4), sp.getFloat("cS", 0.95f), sp.getFloat("cV", 0.95f));
+                  c[1] = hsvIn(sp.getFloat("bH", 4), sp.getFloat("bS", 0.9f), sp.getFloat("bV", 0.25f));
+                  final int[] g = {sp.getInt("glow", 0), sp.getInt("bglow", 0)};
+                  final int[] sel = {0};
+                  final boolean[] busy = {false};
+                  final boolean[] applied = {false};
+                  final int[] met = {-1, sp.getInt("met1", -1)};
+                  final Runnable[] R = new Runnable[2];
+                  final Runnable rbLive = () -> liveRebuild();
+                  final Button[] bgBtns = new Button[3];
+                  final String[] KEYS = {"cH", "cS", "cV", "bH", "bS", "bV", "glow", "bglow", "bDark", "tDark", "bstyle", "met1", "outl_b", "outW_b", "outC_b", "bgstyle"};
+                  final java.util.Map<String, ?> snap = sp.getAll();
+                  final java.util.List<TextView> tl = new java.util.ArrayList<TextView>();
+                  android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+                  final boolean wide = dm.widthPixels / dm.density >= 700;
+                  final int panelW = wide ? dp(800) : dm.widthPixels - dp(12);
+
+                  final LinearLayout panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setPadding(dp(12), dp(6), dp(12), dp(10));
+                  final GradientDrawable pbg = new GradientDrawable();
+                  pbg.setColor(0xE60C0C0C);
+                  pbg.setCornerRadius(dp(18));
+                  pbg.setStroke(dp(1), 0x55FFFFFF);
+                  panel.setBackground(pbg);
+
+                  TextView hd = new TextView(this);
+                  hd.setText("≡  Кольори і стиль  (потягніть)");
+                  hd.setTextColor(0xFFDDDDDD);
+                  tl.add(hd);
+                  hd.setTextSize(17);
+                  hd.setGravity(Gravity.CENTER);
+                  hd.setPadding(0, dp(8), 0, dp(8));
+                  LinearLayout hrow = new LinearLayout(this);
+                  hrow.setGravity(Gravity.CENTER_VERTICAL);
+                  hrow.addView(hd, new LinearLayout.LayoutParams(0, -2, 1));
+                  final Glyph bRst = new Glyph(this);
+                  hrow.addView(bRst, new LinearLayout.LayoutParams(dp(52), dp(44)));
+                  panel.addView(hrow, new LinearLayout.LayoutParams(-1, -2));
+
+                  LinearLayout cols = new LinearLayout(this);
+                  cols.setOrientation(wide ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+                  panel.addView(cols, new LinearLayout.LayoutParams(-1, -2));
+                  LinearLayout left = new LinearLayout(this);
+                  left.setOrientation(LinearLayout.VERTICAL);
+                  cols.addView(left, new LinearLayout.LayoutParams(wide ? dp(380) : -1, -2));
+                  LinearLayout right = new LinearLayout(this);
+                  right.setOrientation(LinearLayout.VERTICAL);
+                  LinearLayout.LayoutParams rlp = wide ? new LinearLayout.LayoutParams(0, -2, 1) : new LinearLayout.LayoutParams(-1, -2);
+                  if (wide) rlp.setMargins(dp(14), 0, 0, 0);
+                  cols.addView(right, rlp);
+
+                  final String[] TN = {"Текст", "Блоки"};
+                  final Button[] tb = new Button[2];
+                  LinearLayout tabs = new LinearLayout(this);
+                  for (int i = 0; i < 2; i++) {
+                      final int ii = i;
+                      tb[i] = new Button(this);
+                      tb[i].setAllCaps(false);
+                      tb[i].setText(TN[i]);
+                      tb[i].setSingleLine(true);
+                      tb[i].setPadding(0, 0, 0, 0);
+                      tb[i].setMinHeight(0);
+                      tb[i].setMinimumHeight(0);
+                      tb[i].setTextSize(16);
+                      tb[i].setOnClickListener(v -> {
+                          sel[0] = ii;
+                          R[0].run();
+                      });
+                      LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, dp(48), 1);
+                      tp.setMargins(dp(2), 0, dp(2), 0);
+                      tabs.addView(tb[i], tp);
+                  }
+                  left.addView(tabs, new LinearLayout.LayoutParams(-1, -2));
+
+                  final Wheel wheel = new Wheel(this);
+                  int ws = wide ? dp(236) : Math.min(dp(220), panelW - dp(60));
+                  LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(ws, ws);
+                  wlp.gravity = Gravity.CENTER_HORIZONTAL;
+                  wlp.setMargins(0, dp(10), 0, dp(8));
+                  left.addView(wheel, wlp);
+
+                  final float[] PS = {1f, 0.85f, 0.7f, 0.55f, 0.4f, 0.25f, 0.12f};
+                  final float[] PV = {0.22f, 0.38f, 0.54f, 0.7f, 0.86f, 1f};
+                  final GradientDrawable[] swg = new GradientDrawable[42];
+                  final float[][] swv = new float[42][2];
+                  for (int r = 0; r < 6; r++) {
+                      LinearLayout rw = new LinearLayout(this);
+                      for (int q = 0; q < 7; q++) {
+                          final int idx = r * 7 + q;
+                          View sv = new View(this);
+                          swg[idx] = new GradientDrawable();
+                          swg[idx].setCornerRadius(dp(6));
+                          swg[idx].setStroke(dp(1), 0x55FFFFFF);
+                          sv.setBackground(swg[idx]);
+                          sv.setOnClickListener(v -> {
+                              float[] cur = c[sel[0]];
+                              cur[1] = swv[idx][0];
+                              cur[2] = swv[idx][1];
+                              met[sel[0]] = -1;
+                              R[0].run();
+                              R[1].run();
+                          });
+                          LinearLayout.LayoutParams sp2 = new LinearLayout.LayoutParams(0, dp(30), 1);
+                          sp2.setMargins(dp(2), dp(2), dp(2), dp(2));
+                          rw.addView(sv, sp2);
                       }
-                  };
-                  rg.setOnCheckedChangeListener((g, id) -> {
-                      boolean isPal = id == 103;
-                      if (!isPal) sel[0] = id == 102 ? 1 : 0;
-                      for (View sv2 : slv) sv2.setVisibility(isPal ? View.GONE : View.VISIBLE);
-                      pal.setVisibility(isPal ? View.VISIBLE : View.GONE);
-                      if (!isPal) load.run();
+                      left.addView(rw, new LinearLayout.LayoutParams(-1, -2));
+                  }
+
+                  final GradientDrawable[] mg = new GradientDrawable[8];
+                  LinearLayout mrow = new LinearLayout(this);
+                  for (int i = 0; i < 8; i++) {
+                      final int mi = i;
+                      View mv = new View(this);
+                      int mcol = Color.HSVToColor(METAL[i]) & 0xFFFFFF;
+                      mg[i] = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF000000 | mixC(mcol, 0xFFFFFF, 0.55f), 0xFF000000 | mcol, 0xFF000000 | mixC(mcol, 0x000000, 0.38f), 0xFF000000 | mixC(mcol, 0xFFFFFF, 0.22f)});
+                      mg[i].setCornerRadius(dp(6));
+                      mv.setBackground(mg[i]);
+                      mv.setOnClickListener(x -> {
+                          c[sel[0]] = new float[]{METAL[mi][0], METAL[mi][1], METAL[mi][2]};
+                          met[sel[0]] = mi;
+                          R[0].run();
+                          R[1].run();
+                      });
+                      LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(0, dp(30), 1);
+                      mlp.setMargins(dp(2), dp(6), dp(2), dp(2));
+                      mrow.addView(mv, mlp);
+                  }
+                  left.addView(mrow, new LinearLayout.LayoutParams(-1, -2));
+
+                  final String[] SN = {"Яскравість", "Світіння"};
+                  final android.widget.SeekBar[] sk = new android.widget.SeekBar[2];
+                  for (int k = 0; k < 2; k++) {
+                      final int kk = k;
+                      TextView lb = new TextView(this);
+                      lb.setText(SN[k]);
+                      lb.setTextSize(16);
+                      right.addView(lb);
+                      tl.add(lb);
+                      sk[k] = new android.widget.SeekBar(this);
+                      sk[k].setMax(100);
+                      sk[k].setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                          @Override
+                          public void onProgressChanged(android.widget.SeekBar s, int p, boolean user) {
+                              if (!user || busy[0]) return;
+                              if (kk == 1) g[sel[0]] = p;
+                              else c[sel[0]][2] = p / 100f;
+                              R[0].run();
+                              R[1].run();
+                          }
+
+                          @Override
+                          public void onStartTrackingTouch(android.widget.SeekBar s) {
+                          }
+
+                          @Override
+                          public void onStopTrackingTouch(android.widget.SeekBar s) {
+                          }
+                      });
+                      right.addView(sk[k], new LinearLayout.LayoutParams(-1, dp(40)));
+                  }
+
+                  final LinearLayout styleBox = new LinearLayout(this);
+                  styleBox.setOrientation(LinearLayout.VERTICAL);
+                  TextView stl = new TextView(this);
+                  stl.setText("Стиль блоків");
+                  stl.setTextSize(16);
+                  styleBox.addView(stl);
+                  tl.add(stl);
+                  final android.widget.Spinner spn = new android.widget.Spinner(this);
+                  spn.setAdapter(new android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, BSN) {
+                      @Override
+                      public View getView(int pos, View cv, ViewGroup par) {
+                          TextView tv = (TextView) super.getView(pos, cv, par);
+                          tv.setTextColor(hsvc(c[0]) | 0xFF000000);
+                          return tv;
+                      }
+
+                      @Override
+                      public View getDropDownView(int pos, View cv, ViewGroup par) {
+                          TextView tv = (TextView) super.getDropDownView(pos, cv, par);
+                          tv.setTextColor(hsvc(c[0]) | 0xFF000000);
+                          tv.setBackgroundColor(dimc(hsvc(c[1]), 0.4f));
+                          return tv;
+                      }
                   });
-                  r0.setChecked(true);
-                  load.run();
-                  upd.run();
-                  android.widget.ScrollView svx = new android.widget.ScrollView(this);
-                  svx.addView(box);
-                  new AlertDialog.Builder(this).setTitle("Свій колір").setView(svx)
-                          .setPositiveButton("Застосувати", (d, w) -> {
-                              sp.edit().putInt("glow", gsb.getProgress()).putBoolean("sync", cb3.isChecked()).putInt("bstyle", spn.getSelectedItemPosition()).putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked())
-                                      .putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2])
-                                      .putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]).apply();
-                              syncOut();
-                              applyTheme();
-                              buildUi();
-                          }).setNegativeButton("Скасувати", null).show();
+                  spn.setSelection(Math.min(BSN.length - 1, sp.getInt("bstyle", 0)));
+                  spn.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                      @Override
+                      public void onItemSelected(android.widget.AdapterView<?> par, View v, int pos, long id) {
+                          if (pos != sp.getInt("bstyle", 0)) R[1].run();
+                      }
+
+                      @Override
+                      public void onNothingSelected(android.widget.AdapterView<?> par) {
+                      }
+                  });
+                  styleBox.addView(spn, new LinearLayout.LayoutParams(-1, dp(48)));
+                  right.addView(styleBox);
+
+                  final android.widget.CheckBox cb1 = new android.widget.CheckBox(this);
+                  cb1.setText("Затемнювати фон і плитки");
+                  cb1.setChecked(sp.getBoolean("bDark", true));
+                  final android.widget.CheckBox cb2 = new android.widget.CheckBox(this);
+                  cb2.setText("Затемнювати другорядний текст");
+                  cb2.setChecked(sp.getBoolean("tDark", true));
+                  final android.widget.CheckBox cb3 = new android.widget.CheckBox(this);
+                  cb3.setText("Синхронізувати кольори з програмою Радіо, Лаунчер і Діагностика");
+                  cb3.setChecked(sp.getBoolean("sync", true));
+                  final android.widget.CheckBox cb4 = new android.widget.CheckBox(this);
+                  cb4.setText("Контур");
+                  cb4.setChecked(sp.getBoolean("outl_b", false));
+                  final Button bOut = new Button(this);
+                  bOut.setText("Налаштувати");
+                  final LinearLayout orow = new LinearLayout(this);
+                  for (android.widget.CheckBox cx : new android.widget.CheckBox[]{cb1, cb2, cb4, cb3}) {
+                      tl.add(cx);
+                      cx.setTextSize(15);
+                      if (cx == cb3) {
+                          final Button bgT = new Button(this);
+                          final Button bgG = new Button(this);
+                          final Button bgN = new Button(this);
+                          bgT.setText(sp.getInt("bgstyle", 0) == 0 ? "Фон: градієнт" : "Фон: однотонний");
+                          bgG.setText("Фон з галереї");
+                          bgN.setText("Прибрати фон");
+                          bgT.setOnClickListener(v -> {
+                              sp.edit().putInt("bgstyle", sp.getInt("bgstyle", 0) == 0 ? 1 : 0).apply();
+                              bgT.setText(sp.getInt("bgstyle", 0) == 0 ? "Фон: градієнт" : "Фон: однотонний");
+                              ui.removeCallbacks(rbLive);
+                              ui.postDelayed(rbLive, 150);
+                          });
+                          bgG.setOnClickListener(v -> imageBrowser(Environment.getExternalStorageDirectory()));
+                          bgN.setOnClickListener(v -> {
+                              new File(getFilesDir(), "bg.jpg").delete();
+                              ui.removeCallbacks(rbLive);
+                              ui.postDelayed(rbLive, 150);
+                          });
+                          bgBtns[0] = bgT;
+                          bgBtns[1] = bgG;
+                          bgBtns[2] = bgN;
+                          LinearLayout.LayoutParams bp1 = new LinearLayout.LayoutParams(-1, dp(44));
+                          bp1.setMargins(0, dp(6), 0, 0);
+                          right.addView(bgT, bp1);
+                          LinearLayout bgr = new LinearLayout(this);
+                          LinearLayout.LayoutParams bp2 = new LinearLayout.LayoutParams(0, dp(44), 1);
+                          bp2.setMargins(0, dp(6), dp(4), 0);
+                          bgr.addView(bgG, bp2);
+                          LinearLayout.LayoutParams bp3 = new LinearLayout.LayoutParams(0, dp(44), 1);
+                          bp3.setMargins(dp(4), dp(6), 0, 0);
+                          bgr.addView(bgN, bp3);
+                          right.addView(bgr, new LinearLayout.LayoutParams(-1, -2));
+                          right.addView(cx);
+                      } else if (cx == cb4) {
+                          orow.setGravity(Gravity.CENTER_VERTICAL);
+                          orow.addView(cb4, new LinearLayout.LayoutParams(0, -2, 1));
+                          orow.addView(bOut, new LinearLayout.LayoutParams(-2, dp(40)));
+                          right.addView(orow);
+                      } else {
+                          right.addView(cx);
+                      }
+                  }
+                  cb1.setOnCheckedChangeListener((v, on) -> R[1].run());
+                  cb2.setOnCheckedChangeListener((v, on) -> R[1].run());
+                  cb4.setOnCheckedChangeListener((v, on) -> {
+                      if (busy[0]) return;
+                      sp.edit().putBoolean("outl_b", on).apply();
+                      R[1].run();
+                      if (on) outlineDialog(R[1]);
+                  });
+                  bOut.setOnClickListener(v -> {
+                      if (!cb4.isChecked()) cb4.setChecked(true);
+                      else outlineDialog(R[1]);
+                  });
+
+                  LinearLayout fb = new LinearLayout(this);
+                  final Button bNo = new Button(this);
+                  bNo.setText("Скасувати");
+                  final Button bOk = new Button(this);
+                  bOk.setText("Застосувати");
+                  LinearLayout.LayoutParams nop = new LinearLayout.LayoutParams(0, dp(48), 1);
+                  nop.setMargins(0, 0, dp(4), 0);
+                  fb.addView(bNo, nop);
+                  LinearLayout.LayoutParams okp = new LinearLayout.LayoutParams(0, dp(48), 1);
+                  okp.setMargins(dp(4), 0, 0, 0);
+                  fb.addView(bOk, okp);
+                  LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(-1, -2);
+                  fbp.setMargins(0, dp(8), 0, 0);
+                  right.addView(fb, fbp);
+
+                  R[1] = () -> {
+                      SharedPreferences.Editor ed = sp.edit();
+                      ed.putFloat("cH", c[0][0]).putFloat("cS", c[0][1]).putFloat("cV", c[0][2]);
+                      ed.putFloat("bH", c[1][0]).putFloat("bS", c[1][1]).putFloat("bV", c[1][2]);
+                      ed.putInt("glow", g[0]).putInt("bglow", g[1]);
+                      ed.putBoolean("bDark", cb1.isChecked()).putBoolean("tDark", cb2.isChecked());
+                      ed.putInt("bstyle", spn.getSelectedItemPosition());
+                      ed.putInt("met1", met[1]);
+                      ed.apply();
+                      ui.removeCallbacks(rbLive);
+                      ui.postDelayed(rbLive, 150);
+                  };
+                  R[0] = () -> {
+                      busy[0] = true;
+                      float[] cur = c[sel[0]];
+                      wheel.h = cur[0];
+                      wheel.s = cur[1];
+                      wheel.v = cur[2];
+                      wheel.invalidate();
+                      sk[0].setProgress(Math.round(cur[2] * 100));
+                      sk[1].setProgress(g[sel[0]]);
+                      styleBox.setVisibility(sel[0] == 1 ? View.VISIBLE : View.GONE);
+                      orow.setVisibility(sel[0] == 1 ? View.VISIBLE : View.GONE);
+                      for (int i = 0; i < 8; i++) mg[i].setStroke(dp(met[sel[0]] == i ? 3 : 1), met[sel[0]] == i ? 0xFFFFFFFF : 0x55FFFFFF);
+                      boolean gray = cur[1] < 0.12f;
+                      for (int r = 0; r < 6; r++) {
+                          for (int q = 0; q < 7; q++) {
+                              int idx = r * 7 + q;
+                              float sv, vv;
+                              if (gray) {
+                                  sv = 0;
+                                  vv = idx / 41f;
+                              } else {
+                                  sv = PS[q];
+                                  vv = PV[r];
+                              }
+                              swv[idx][0] = sv;
+                              swv[idx][1] = vv;
+                              swg[idx].setColor(Color.HSVToColor(new float[]{cur[0], sv, vv}));
+                          }
+                      }
+                      int txc = hsvc(c[0]) | 0xFF000000;
+                      for (int i = 0; i < 2; i++) {
+                          int col = Color.HSVToColor(c[i]);
+                          GradientDrawable d = new GradientDrawable();
+                          d.setCornerRadius(dp(12));
+                          d.setColor(i == 1 ? col : 0x66000000);
+                          d.setStroke(dp(i == sel[0] ? 3 : 1), i == sel[0] ? 0xFFFFFFFF : 0x66FFFFFF);
+                          tb[i].setBackground(d);
+                          int tc = col;
+                          if (i == 1) {
+                              float lum = (0.3f * ((col >> 16) & 255) + 0.59f * ((col >> 8) & 255) + 0.11f * (col & 255)) / 255f;
+                              tc = lum > 0.6f ? 0xFF000000 : 0xFFFFFFFF;
+                          }
+                          tb[i].setTextColor(tc);
+                          float gr = g[i] / 100f * dp(14);
+                          if (i == 0) tb[i].setShadowLayer(gr, 0, 0, col);
+                          else tb[i].setShadowLayer(0, 0, 0, 0);
+                      }
+                      for (TextView tx : tl) tx.setTextColor(txc);
+                      pbg.setColor(0xE6000000 | (dimc(hsvc(c[1]), 0.4f) & 0xFFFFFF));
+                      GradientDrawable gd = new GradientDrawable();
+                      gd.setColor(hsvc(c[1]) | 0xFF000000);
+                      gd.setCornerRadius(dp(12));
+                      gd.setStroke(dp(1), txc);
+                      bRst.setBackground(gd);
+                      bRst.col = txc;
+                      bRst.invalidate();
+                      for (Button bx : new Button[]{bNo, bOk, bOut, bgBtns[0], bgBtns[1], bgBtns[2]}) {
+                          GradientDrawable bd = new GradientDrawable();
+                          bd.setColor(hsvc(c[1]) | 0xFF000000);
+                          bd.setCornerRadius(dp(12));
+                          bd.setStroke(dp(1), txc);
+                          bx.setBackground(bd);
+                          bx.setTextColor(txc);
+                          bx.setAllCaps(false);
+                          bx.setTextSize(15);
+                          bx.setPadding(dp(8), 0, dp(8), 0);
+                          bx.setMinHeight(0);
+                          bx.setMinimumHeight(0);
+                          bx.setMinWidth(0);
+                          bx.setMinimumWidth(0);
+                          bx.setGravity(Gravity.CENTER);
+                          bx.setIncludeFontPadding(false);
+                      }
+                      busy[0] = false;
+                  };
+                  wheel.cb = () -> {
+                      float[] cur = c[sel[0]];
+                      cur[0] = wheel.h;
+                      cur[1] = wheel.s;
+                      met[sel[0]] = -1;
+                      R[0].run();
+                      R[1].run();
+                  };
+
+                  final Dialog dlg = new Dialog(this);
+                  dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  ScrollView psv = new ScrollView(this);
+                  psv.addView(panel);
+                  dlg.setContentView(psv);
+                  final android.view.Window win = dlg.getWindow();
+                  win.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                  win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                  win.setLayout(panelW, -2);
+                  dlg.setCanceledOnTouchOutside(false);
+
+                  final float[] dr = new float[4];
+                  hd.setOnTouchListener((v, e) -> {
+                      android.view.WindowManager.LayoutParams wl = win.getAttributes();
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              dr[0] = e.getRawX();
+                              dr[1] = e.getRawY();
+                              dr[2] = wl.x;
+                              dr[3] = wl.y;
+                              break;
+                          case MotionEvent.ACTION_MOVE:
+                              wl.x = (int) (dr[2] + e.getRawX() - dr[0]);
+                              wl.y = (int) (dr[3] + e.getRawY() - dr[1]);
+                              win.setAttributes(wl);
+                              break;
+                          default:
+                              break;
+                      }
+                      return true;
+                  });
+
+                  bRst.setOnClickListener(v -> {
+                      c[0] = new float[]{2f, 0.60f, 0.95f};
+                      c[1] = new float[]{0f, 0.50f, 0.30f};
+                      g[0] = 0;
+                      g[1] = 0;
+                      met[0] = -1;
+                      met[1] = -1;
+                      sp.edit().putBoolean("outl_b", false).putInt("outW_b", 3).putInt("outC_b", -1).apply();
+                      cb1.setChecked(true);
+                      cb2.setChecked(true);
+                      spn.setSelection(0);
+                      R[0].run();
+                      R[1].run();
+                  });
+                  bNo.setOnClickListener(v -> dlg.cancel());
+                  bOk.setOnClickListener(v -> {
+                      applied[0] = true;
+                      sp.edit().putBoolean("sync", cb3.isChecked()).apply();
+                      dlg.dismiss();
+                  });
+                  dlg.setOnDismissListener(d -> {
+                      ui.removeCallbacks(rbLive);
+                      if (applied[0]) {
+                          syncOut();
+                          liveRebuild();
+                          return;
+                      }
+                      SharedPreferences.Editor e = sp.edit();
+                      for (String k : KEYS) {
+                          Object o = snap.get(k);
+                          if (o instanceof Float) e.putFloat(k, (Float) o);
+                          else if (o instanceof Integer) e.putInt(k, (Integer) o);
+                          else if (o instanceof Boolean) e.putBoolean(k, (Boolean) o);
+                          else e.remove(k);
+                      }
+                      e.apply();
+                      liveRebuild();
+                  });
+                  R[0].run();
+                  dlg.show();
               }
 
               void imageBrowser(final File cur) {
@@ -842,6 +1398,7 @@ jobs:
               @Override
               protected void onDestroy() {
                   if (server != null) server.stop();
+                  if (bt != null) bt.stop();
                   super.onDestroy();
               }
 
@@ -868,7 +1425,8 @@ jobs:
               // ---- Host ----
               void showMy() {
                   String p = dir().getAbsolutePath().replace("/storage/emulated/0/", "").replace("/sdcard/", "");
-                  tvMy.setText("Ця адреса: " + myIps() + ":" + PORT + "   |   Папка: " + p);
+                  if (conn() == 1) tvMy.setText("Bluetooth: " + sp.getString("btname", "пристрій не вибрано") + "   |   Папка: " + p);
+                  else tvMy.setText("Ця адреса: " + myIps() + ":" + PORT + "   |   Папка: " + p);
               }
 
               void folderPicker(final File cur) {
@@ -1079,7 +1637,76 @@ jobs:
                   }).start();
               }
 
+              int conn() {
+                  return sp.getInt("conn", 0);
+              }
+
+              void startBt() {
+                  if (bt == null) bt = new BtBridge(PORT, s -> log(s));
+                  bt.setMac(sp.getString("btmac", ""));
+                  bt.start();
+              }
+
+              void stopBt() {
+                  if (bt != null) bt.stop();
+                  bt = null;
+              }
+
+              void connDialog() {
+                  String[] it = {"Wi-Fi (мережа)", "Bluetooth"};
+                  new AlertDialog.Builder(this).setTitle("Тип з'єднання").setSingleChoiceItems(it, conn(), (d, i) -> {
+                      sp.edit().putInt("conn", i).apply();
+                      d.dismiss();
+                      if (i == 1) {
+                          startBt();
+                          android.bluetooth.BluetoothAdapter ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+                          if (ad != null && ad.isEnabled() && sp.getString("btmac", "").isEmpty()) {
+                              java.util.Set<android.bluetooth.BluetoothDevice> bd = ad.getBondedDevices();
+                              if (bd.size() == 1) {
+                                  android.bluetooth.BluetoothDevice one = bd.iterator().next();
+                                  sp.edit().putString("btmac", one.getAddress()).putString("btname", one.getName()).apply();
+                                  bt.setMac(one.getAddress());
+                              } else {
+                                  btPick();
+                              }
+                          } else if (ad != null && !ad.isEnabled()) {
+                              btPick();
+                          }
+                      } else {
+                          stopBt();
+                      }
+                      buildUi();
+                  }).setNegativeButton("Закрити", null).show();
+              }
+
+              void btPick() {
+                  final android.bluetooth.BluetoothAdapter ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+                  if (ad == null) {
+                      toastMsg("На цьому пристрої немає Bluetooth");
+                      return;
+                  }
+                  if (!ad.isEnabled()) {
+                      toastMsg("Увімкніть Bluetooth і сполучіть пристрої");
+                      startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+                      return;
+                  }
+                  final List<android.bluetooth.BluetoothDevice> ds = new ArrayList<android.bluetooth.BluetoothDevice>(ad.getBondedDevices());
+                  String[] nm = new String[ds.size() + 1];
+                  for (int i = 0; i < ds.size(); i++) nm[i] = ds.get(i).getName() + "  (" + ds.get(i).getAddress() + ")";
+                  nm[ds.size()] = "＋  Сполучити новий пристрій…";
+                  new AlertDialog.Builder(this).setTitle("Пристрій Bluetooth").setItems(nm, (d, i) -> {
+                      if (i == ds.size()) {
+                          startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+                      } else {
+                          sp.edit().putString("btmac", ds.get(i).getAddress()).putString("btname", ds.get(i).getName()).apply();
+                          if (bt != null) bt.setMac(ds.get(i).getAddress());
+                          buildUi();
+                      }
+                  }).setNegativeButton("Закрити", null).show();
+              }
+
               String base() {
+                  if (conn() == 1) return "http://127.0.0.1:" + BtBridge.PROXY_PORT;
                   return "http://" + etIp.getText().toString().trim() + ":" + PORT;
               }
 
@@ -1414,6 +2041,198 @@ jobs:
                   } catch (Throwable t) {
                       log("Не вдалось запустити встановлення: " + t);
                   }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/fileshare/BtBridge.java <<'EOF'
+          package com.example.fileshare;
+
+          import android.bluetooth.BluetoothAdapter;
+          import android.bluetooth.BluetoothDevice;
+          import android.bluetooth.BluetoothServerSocket;
+          import android.bluetooth.BluetoothSocket;
+
+          import java.io.Closeable;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.InetAddress;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+          import java.util.UUID;
+
+          /** Міст Bluetooth і локального HTTP: кожне з'єднання іде через окремий RFCOMM-сокет. */
+          final class BtBridge {
+              interface Log {
+                  void log(String s);
+              }
+
+              static final UUID ID = UUID.fromString("8f1c0a52-4b7e-4d27-9a31-5c0f6b7d2e11");
+              static final int PROXY_PORT = 8081;
+
+              private final int httpPort;
+              private final Log lg;
+              private volatile boolean run = false;
+              private volatile String mac = "";
+              private BluetoothServerSocket bss;
+              private ServerSocket proxy;
+
+              BtBridge(int httpPort, Log l) {
+                  this.httpPort = httpPort;
+                  this.lg = l;
+              }
+
+              void setMac(String m) {
+                  mac = m == null ? "" : m;
+              }
+
+              void start() {
+                  if (run) return;
+                  run = true;
+                  final BluetoothAdapter ad = BluetoothAdapter.getDefaultAdapter();
+                  if (ad == null) {
+                      lg.log("Bluetooth: на цьому пристрої немає адаптера");
+                      return;
+                  }
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          while (run) {
+                              try {
+                                  if (!ad.isEnabled()) {
+                                      Thread.sleep(2000);
+                                      continue;
+                                  }
+                                  bss = ad.listenUsingRfcommWithServiceRecord("FordTransfer", ID);
+                                  lg.log("Bluetooth: очікування з'єднань");
+                                  while (run) {
+                                      final BluetoothSocket s = bss.accept();
+                                      new Thread(new Runnable() {
+                                          @Override
+                                          public void run() {
+                                              incoming(s);
+                                          }
+                                      }, "bt-in").start();
+                                  }
+                              } catch (Throwable t) {
+                                  if (run) {
+                                      try {
+                                          if (bss != null) bss.close();
+                                      } catch (Throwable ignored) {
+                                      }
+                                      try {
+                                          Thread.sleep(2000);
+                                      } catch (Throwable ignored) {
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }, "bt-listen").start();
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              proxy = new ServerSocket(PROXY_PORT, 20, InetAddress.getByName("127.0.0.1"));
+                              while (run) {
+                                  final Socket l = proxy.accept();
+                                  new Thread(new Runnable() {
+                                      @Override
+                                      public void run() {
+                                          outgoing(l);
+                                      }
+                                  }, "bt-out").start();
+                              }
+                          } catch (Throwable t) {
+                              if (run) lg.log("Bluetooth-проксі: " + t);
+                          }
+                      }
+                  }, "bt-proxy").start();
+              }
+
+              void stop() {
+                  run = false;
+                  try {
+                      if (bss != null) bss.close();
+                  } catch (Throwable ignored) {
+                  }
+                  try {
+                      if (proxy != null) proxy.close();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private void incoming(BluetoothSocket s) {
+                  try {
+                      Socket loc = new Socket("127.0.0.1", httpPort);
+                      bridge(s, s.getInputStream(), s.getOutputStream(), loc, loc.getInputStream(), loc.getOutputStream());
+                  } catch (Throwable t) {
+                      close(s);
+                  }
+              }
+
+              private void outgoing(Socket l) {
+                  BluetoothSocket s = null;
+                  try {
+                      BluetoothAdapter ad = BluetoothAdapter.getDefaultAdapter();
+                      if (ad == null || !ad.isEnabled()) throw new Exception("Bluetooth вимкнено");
+                      if (mac.isEmpty()) throw new Exception("не вибрано пристрій");
+                      ad.cancelDiscovery();
+                      BluetoothDevice d = ad.getRemoteDevice(mac);
+                      Throwable last = null;
+                      for (int i = 0; i < 3 && s == null; i++) {
+                          BluetoothSocket t = d.createRfcommSocketToServiceRecord(ID);
+                          try {
+                              t.connect();
+                              s = t;
+                          } catch (Throwable e) {
+                              last = e;
+                              close(t);
+                              Thread.sleep(500);
+                          }
+                      }
+                      if (s == null) throw new Exception("не вдалось підключитись (на іншому пристрої відкрита програма Передача з режимом Bluetooth?) " + last);
+                      bridge(s, s.getInputStream(), s.getOutputStream(), l, l.getInputStream(), l.getOutputStream());
+                  } catch (Throwable t) {
+                      lg.log("Bluetooth: " + t.getMessage());
+                      close(l);
+                      close(s);
+                  }
+              }
+
+              private static void close(Closeable c) {
+                  try {
+                      if (c != null) c.close();
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private static void bridge(final Closeable a, InputStream ai, OutputStream ao, final Closeable b, InputStream bi, OutputStream bo) {
+                  copy(ai, bo, a, b);
+                  copy(bi, ao, a, b);
+              }
+
+              private static void copy(final InputStream in, final OutputStream out, final Closeable a, final Closeable b) {
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          byte[] buf = new byte[16384];
+                          try {
+                              int n;
+                              while ((n = in.read(buf)) >= 0) {
+                                  out.write(buf, 0, n);
+                                  out.flush();
+                              }
+                          } catch (Throwable ignored) {
+                          }
+                          try {
+                              Thread.sleep(500);
+                          } catch (Throwable ignored) {
+                          }
+                          close(a);
+                          close(b);
+                      }
+                  }, "bt-copy").start();
               }
           }
           EOF
