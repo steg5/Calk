@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.radioapp"
                   minSdk 23
                   targetSdk 26
-                  versionCode 28
-                  versionName "3.7"
+                  versionCode 29
+                  versionName "3.8"
               }
               signingConfigs {
                   debug {
@@ -137,6 +137,7 @@ jobs:
           import android.view.MotionEvent;
           import android.view.View;
           import android.view.WindowManager;
+          import android.widget.Button;
           import android.widget.EditText;
           import android.widget.FrameLayout;
           import android.widget.ImageView;
