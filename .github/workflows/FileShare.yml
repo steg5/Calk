@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.fileshare"
                   minSdk 23
                   targetSdk 26
-                  versionCode 11
-                  versionName "2.0"
+                  versionCode 12
+                  versionName "2.1"
               }
               signingConfigs {
                   debug {
@@ -464,10 +464,9 @@ jobs:
                       Button dvB = btn("Пристрій: " + sp.getString("btname", "вибрати"), 0);
                       dvB.setTextSize(16);
                       dvB.setOnClickListener(v -> btPick());
-                      LinearLayout.LayoutParams dvp = new LinearLayout.LayoutParams(0, dp(44), 2);
+                      LinearLayout.LayoutParams dvp = new LinearLayout.LayoutParams(0, dp(44), 1);
                       dvp.setMargins(dp(4), dp(8), dp(4), dp(4));
                       row.addView(dvB, dvp);
-                      row.addView(etPin, new LinearLayout.LayoutParams(ep));
                   } else {
                       row.addView(etIp, new LinearLayout.LayoutParams(ep));
                       row.addView(etPin, new LinearLayout.LayoutParams(ep));
@@ -487,10 +486,12 @@ jobs:
                   Button recv = btn("⬇  Прийняти файли", 0);
                   send.setOnClickListener(v -> {
                       save();
+                      if (!netOk()) return;
                       pick();
                   });
                   recv.setOnClickListener(v -> {
                       save();
+                      if (!netOk()) return;
                       listRemote();
                   });
                   LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(70), 1);
@@ -504,10 +505,12 @@ jobs:
                   Button crecv = btn("📋  Прийняти буфер", 0);
                   csend.setOnClickListener(v -> {
                       save();
+                      if (!netOk()) return;
                       clipSend();
                   });
                   crecv.setOnClickListener(v -> {
                       save();
+                      if (!netOk()) return;
                       clipRecv();
                   });
                   r2.addView(csend, lp);
@@ -1330,7 +1333,7 @@ jobs:
                       fo.close();
                       buildUi();
                   } catch (Throwable t) {
-                      log("Не вдалось: " + t);
+                      log("Не вдалось: " + err(t));
                   }
               }
 
@@ -1530,6 +1533,16 @@ jobs:
               @Override
               protected void onActivityResult(int req, int res, Intent data) {
                   super.onActivityResult(req, res, data);
+                  if (req == 77) {
+                      if (res == RESULT_OK) {
+                          startBt();
+                          btAuto(btWantPick);
+                      } else {
+                          toastMsg("Bluetooth не ввімкнено");
+                      }
+                      btWantPick = false;
+                      return;
+                  }
                   if (req == 10 && res == RESULT_OK && data != null) {
                       final java.util.ArrayList<Uri> us = new java.util.ArrayList<Uri>();
                       if (data.getClipData() != null) {
@@ -1607,7 +1620,7 @@ jobs:
                           int rc = c.getResponseCode();
                           log(rc == 200 ? "Буфер передано (" + t.length() + " символів)" : "Помилка передачі: " + rc);
                       } catch (Throwable e) {
-                          log("Помилка: " + e);
+                          log("Помилка: " + err(e));
                       }
                   }).start();
               }
@@ -1632,7 +1645,7 @@ jobs:
                           setClip(t);
                           log(t.isEmpty() ? "Буфер на тому пристрої порожній" : "Буфер прийнято (" + t.length() + " символів)");
                       } catch (Throwable e) {
-                          log("Помилка: " + e);
+                          log("Помилка: " + err(e));
                       }
                   }).start();
               }
@@ -1659,24 +1672,66 @@ jobs:
                       d.dismiss();
                       if (i == 1) {
                           startBt();
-                          android.bluetooth.BluetoothAdapter ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
-                          if (ad != null && ad.isEnabled() && sp.getString("btmac", "").isEmpty()) {
-                              java.util.Set<android.bluetooth.BluetoothDevice> bd = ad.getBondedDevices();
-                              if (bd.size() == 1) {
-                                  android.bluetooth.BluetoothDevice one = bd.iterator().next();
-                                  sp.edit().putString("btmac", one.getAddress()).putString("btname", one.getName()).apply();
-                                  bt.setMac(one.getAddress());
-                              } else {
-                                  btPick();
-                              }
-                          } else if (ad != null && !ad.isEnabled()) {
-                              btPick();
-                          }
+                          btAuto(false);
                       } else {
                           stopBt();
                       }
                       buildUi();
                   }).setNegativeButton("Закрити", null).show();
+              }
+
+              boolean btWantPick = false;
+
+              void btAuto(boolean forcePick) {
+                  android.bluetooth.BluetoothAdapter ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+                  if (ad == null) {
+                      toastMsg("На цьому пристрої немає Bluetooth");
+                      return;
+                  }
+                  if (!ad.isEnabled()) {
+                      btWantPick = forcePick;
+                      startActivityForResult(new Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE), 77);
+                      return;
+                  }
+                  if (sp.getString("btmac", "").isEmpty()) {
+                      java.util.Set<android.bluetooth.BluetoothDevice> bd = ad.getBondedDevices();
+                      if (bd.size() == 1) {
+                          android.bluetooth.BluetoothDevice one = bd.iterator().next();
+                          sp.edit().putString("btmac", one.getAddress()).putString("btname", one.getName()).apply();
+                          if (bt != null) bt.setMac(one.getAddress());
+                          buildUi();
+                      } else {
+                          btPick();
+                      }
+                  } else if (forcePick) {
+                      btPick();
+                  }
+              }
+
+              boolean netOk() {
+                  if (conn() != 1) return true;
+                  android.bluetooth.BluetoothAdapter ad = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+                  if (ad == null) {
+                      toastMsg("На цьому пристрої немає Bluetooth");
+                      return false;
+                  }
+                  if (!ad.isEnabled()) {
+                      toastMsg("Bluetooth вимкнено, увімкніть його");
+                      btAuto(false);
+                      return false;
+                  }
+                  if (sp.getString("btmac", "").isEmpty()) {
+                      toastMsg("Спершу виберіть пристрій Bluetooth");
+                      btPick();
+                      return false;
+                  }
+                  startBt();
+                  return true;
+              }
+
+              String err(Throwable t) {
+                  if (conn() == 1) return "Bluetooth: немає з'єднання. Перевірте, що Bluetooth увімкнено, пристрій вибрано, а на ньому відкрита Передача в режимі Bluetooth";
+                  return t.toString();
               }
 
               void btPick() {
@@ -1686,8 +1741,8 @@ jobs:
                       return;
                   }
                   if (!ad.isEnabled()) {
-                      toastMsg("Увімкніть Bluetooth і сполучіть пристрої");
-                      startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+                      btWantPick = true;
+                      startActivityForResult(new Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE), 77);
                       return;
                   }
                   final List<android.bluetooth.BluetoothDevice> ds = new ArrayList<android.bluetooth.BluetoothDevice>(ad.getBondedDevices());
@@ -1785,7 +1840,7 @@ jobs:
                           progress(key, ttl, 0, Math.max(1, size), true, "Скасовано");
                           log("Скасовано: " + ttl);
                       } else {
-                          progress(key, ttl, 0, Math.max(1, size), true, "Не вдалось: " + t);
+                          progress(key, ttl, 0, Math.max(1, size), true, "Не вдалось: " + err(t));
                           log("Не вдалось відправити: " + t);
                       }
                   }
@@ -1953,7 +2008,7 @@ jobs:
                                       .show();
                           });
                       } catch (Throwable t) {
-                          log("Не вдалось підключитись: " + t);
+                          log("Не вдалось підключитись: " + err(t));
                       }
                   }).start();
               }
@@ -2005,8 +2060,8 @@ jobs:
                           progress(key, ttl, 0, Math.max(1, tot), true, "Скасовано");
                           log("Скасовано: " + ttl);
                       } else {
-                          progress(key, ttl, 0, Math.max(1, tot), true, "Не вдалось: " + t);
-                          log("Не вдалось прийняти: " + t);
+                          progress(key, ttl, 0, Math.max(1, tot), true, "Не вдалось: " + err(t));
+                          log("Не вдалось прийняти: " + err(t));
                       }
                   }
               }
@@ -2361,7 +2416,7 @@ jobs:
                       Uri u = Uri.parse("http://x" + p[1]);
                       String path = u.getPath() == null ? "/" : u.getPath();
                       String pin = u.getQueryParameter("pin");
-                      if (pin == null || !pin.equals(host.pin())) {
+                      if (!s.getInetAddress().isLoopbackAddress() && (pin == null || !pin.equals(host.pin()))) {
                           reply(out, 403, "text/plain; charset=utf-8", "Невірний PIN".getBytes("UTF-8"));
                           host.log("Відхилено запит: невірний PIN");
                           return;
