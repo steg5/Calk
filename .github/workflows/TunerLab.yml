@@ -3,8 +3,6 @@ name: CarProbe
 on:
   workflow_dispatch:
   push:
-    paths:
-      - '.github/workflows/CarProbe_v2.yml'
 
 jobs:
   build:
@@ -64,8 +62,8 @@ jobs:
                   applicationId "com.example.carprobe"
                   minSdk 23
                   targetSdk 26
-                  versionCode 2
-                  versionName "1.1"
+                  versionCode 7
+                  versionName "1.6"
               }
               signingConfigs {
                   debug {
@@ -115,19 +113,17 @@ jobs:
           import android.app.Activity;
           import android.content.ClipData;
           import android.content.ClipboardManager;
-          import android.content.ComponentName;
           import android.content.Context;
-          import android.content.Intent;
-          import android.content.ServiceConnection;
+          import android.database.Cursor;
           import android.graphics.Typeface;
-          import android.os.Binder;
+          import android.net.Uri;
           import android.os.Bundle;
           import android.os.Handler;
           import android.os.HandlerThread;
-          import android.os.IBinder;
           import android.os.Looper;
-          import android.os.Parcel;
+          import android.os.Message;
           import android.os.SystemClock;
+          import android.provider.Settings;
           import android.view.View;
           import android.view.WindowManager;
           import android.widget.Button;
@@ -136,90 +132,86 @@ jobs:
           import android.widget.TextView;
           import android.widget.Toast;
 
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.lang.reflect.InvocationTargetException;
+          import java.lang.reflect.Method;
           import java.util.ArrayList;
           import java.util.Arrays;
           import java.util.HashMap;
           import java.util.Locale;
           import java.util.Map;
           import java.util.TreeMap;
+          import java.util.TreeSet;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
 
           public class MainActivity extends Activity {
 
-              static final String PKG = "com.tw.carinfoservice";
-              static final String SVC = "com.tw.carinfoservice.CarServiceAidl";
-              static final String CBD = "com.tw.carinfoservice.CarServiceCallBack";
-              static final String[] ACTIONS = {
-                      "com.tw.carinfoservice.CarService.Bind",
-                      "com.tw.car.CarService.Bind",
-                      "com.tw.carapps.CarService.Bind"
+              static final String TW = "android.tw.john.TWUtil";
+              static final String[] MARKS = {
+                      "ФАРИ ВКЛ", "ФАРИ ВИКЛ", "ДАЛЬНЄ", "ЛІВИЙ ПОВОРОТ", "ПРАВИЙ ПОВОРОТ", "АВАРІЙКА",
+                      "РУЧНИК ВКЛ", "РУЧНИК ВИКЛ", "ЗАДНЯ ВКЛ", "ЗАДНЯ ВИКЛ", "ГАЗ", "ГАЛЬМО"
               };
+              static final Pattern PROP = Pattern.compile("^\\[(.*?)\\]: \\[(.*)\\]$");
 
-              // Геттери без побічних ефектів: код, назва, тип (F float, I int, IA int[], FA float[], R сирі слова)
-              static final TreeMap<Integer, String[]> G = new TreeMap<>();
-              static void g(int c, String n, String t) { G.put(c, new String[]{n, t}); }
-              static {
-                  g(4, "Напруга", "F");
-                  g(5, "Фари", "I");
-                  g(7, "get7", "IA");
-                  g(8, "get8", "IA");
-                  g(10, "Витрата", "R");
-                  g(12, "get12", "I");
-                  g(13, "get13", "I");
-                  g(14, "Ручник", "R");
-                  g(15, "get15", "I");
-                  g(16, "get16", "I");
-                  g(22, "get22", "FA");
-                  g(23, "get23", "F");
-                  g(29, "get29", "F");
-                  g(32, "get32", "F");
-                  g(33, "get33", "I");
-                  g(35, "get35", "I");
-                  g(40, "get40", "I");
-                  g(41, "get41", "I");
-                  g(42, "get42", "I");
-                  g(43, "get43", "IA");
-                  g(51, "get51", "IA");
-                  g(55, "get55", "FA");
-                  g(58, "Радар", "IA");
+              static class Grp {
+                  int n;
+                  int chg;
+                  String last = "";
+              }
+
+              static class Group {
+                  String name;
+                  short[] ids;
+                  Object tw;
+                  boolean on;
+                  Button btn;
+                  Handler h;
               }
 
               final Object lock = new Object();
               final Handler ui = new Handler(Looper.getMainLooper());
               HandlerThread ht;
               Handler bg;
-              final Binder cb = new Cb();
-              volatile IBinder svc;
-              volatile boolean registered;
-              boolean bound;
-              int actIdx = 0;
               final long t0 = SystemClock.elapsedRealtime();
 
-              String statusText = "Запуск...";
-              String getText = "";
-              final TreeMap<Integer, String> cbLast = new TreeMap<>();
-              final HashMap<Integer, Integer> cbAll = new HashMap<>();
-              final HashMap<Integer, Integer> cbChg = new HashMap<>();
+              final ArrayList<Group> groupsList = new ArrayList<>();
+              final TreeMap<String, Grp> msgs = new TreeMap<>();
               final ArrayList<String> logLines = new ArrayList<>();
+              final ArrayList<String> sysLines = new ArrayList<>();
+              String statusText = "Готово.";
+              String diagText = "";
+              int total = 0;
+              volatile boolean watch = true;
+              int cS, cSec, cG, cP, snaps, diffsTotal;
+              long lastSnapAt = 0;
+              HashMap<String, String> prev = null;
+              Button btnWatch;
 
-              TextView tvStatus, tvGet, tvCb, tvLog;
+              TextView tvStatus, tvDiag, tvMsgs, tvLog, tvSys;
 
-              final ServiceConnection conn = new ServiceConnection() {
-                  @Override
-                  public void onServiceConnected(ComponentName name, IBinder b) {
-                      svc = b;
-                      String d = "?";
-                      try { d = b.getInterfaceDescriptor(); } catch (Throwable e) { d = "err " + e; }
-                      setStatus("Зв'язок є, дескриптор: " + d);
-                      registerCb();
+              void addGroup(String name, int... ids) {
+                  Group g = new Group();
+                  g.name = name;
+                  g.ids = new short[ids.length];
+                  for (int i = 0; i < ids.length; i++) g.ids[i] = (short) ids[i];
+                  groupsList.add(g);
+              }
+
+              class H extends Handler {
+                  final String g;
+
+                  H(String g) {
+                      super(Looper.getMainLooper());
+                      this.g = g;
                   }
 
                   @Override
-                  public void onServiceDisconnected(ComponentName name) {
-                      svc = null;
-                      registered = false;
-                      setStatus("Сервіс відключився");
+                  public void handleMessage(Message m) {
+                      onMsg(g, m);
                   }
-              };
+              }
 
               @Override
               protected void onCreate(Bundle s) {
@@ -229,49 +221,92 @@ jobs:
                   ht.start();
                   bg = new Handler(ht.getLooper());
 
+                  addGroup("0x1xx", 0x104, 0x106, 0x107, 0x10a, 0x112);
+                  addGroup("0x2xx", 0x201, 0x202, 0x203, 0x204, 0x205, 0x20b, 0x20c);
+                  addGroup("0x3xx", 0x301, 0x302, 0x304);
+                  addGroup("0x4-5xx", 0x404, 0x501, 0x505, 0x506, 0x507, 0x508, 0x509, 0x50e);
+                  addGroup("0x9xxx", 0x9e00, 0x9f00, 0x9e11, 0x9f10, 0x9f1b, 0x9f1c);
+
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(20, 12, 20, 12);
+                  root.setPadding(20, 8, 20, 8);
 
                   LinearLayout bar = new LinearLayout(this);
                   bar.setOrientation(LinearLayout.HORIZONTAL);
-                  bar.addView(btn("Копіювати все", new View.OnClickListener() {
+                  bar.addView(btn("Копіювати все", 14, new View.OnClickListener() {
                       public void onClick(View v) { copyAll(); }
-                  }));
-                  bar.addView(btn("Очистити лог", new View.OnClickListener() {
-                      public void onClick(View v) { clearLog(); }
-                  }));
-                  bar.addView(btn("Інша дія / перепідключити", new View.OnClickListener() {
-                      public void onClick(View v) { reconnect(true); }
-                  }));
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  bar.addView(btn("Очистити", 14, new View.OnClickListener() {
+                      public void onClick(View v) { clearAll(); }
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  bar.addView(btn("ВКЛ ВСІ групи", 14, new View.OnClickListener() {
+                      public void onClick(View v) { startAll(); }
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  bar.addView(btn("СТОП усе", 14, new View.OnClickListener() {
+                      public void onClick(View v) { stopAll(); }
+                  }), new LinearLayout.LayoutParams(0, -2, 1f));
+                  btnWatch = btn("Система: ВКЛ", 14, new View.OnClickListener() {
+                      public void onClick(View v) { toggleWatch(); }
+                  });
+                  bar.addView(btnWatch, new LinearLayout.LayoutParams(0, -2, 1f));
                   root.addView(bar);
 
-                  tvStatus = tv(14, true);
+                  LinearLayout gl = new LinearLayout(this);
+                  gl.setOrientation(LinearLayout.HORIZONTAL);
+                  for (final Group g : groupsList) {
+                      g.h = new H(g.name);
+                      g.btn = btn("▶ " + g.name, 12, new View.OnClickListener() {
+                          public void onClick(View v) { toggle(g); }
+                      });
+                      gl.addView(g.btn, new LinearLayout.LayoutParams(0, -2, 1f));
+                  }
+                  root.addView(gl);
+
+                  for (int row = 0; row < 2; row++) {
+                      LinearLayout mk = new LinearLayout(this);
+                      mk.setOrientation(LinearLayout.HORIZONTAL);
+                      for (int i = row * 6; i < row * 6 + 6; i++) {
+                          final String name = MARKS[i];
+                          mk.addView(btn(name, 12, new View.OnClickListener() {
+                              public void onClick(View v) { addMark(name); }
+                          }), new LinearLayout.LayoutParams(0, -2, 1f));
+                      }
+                      root.addView(mk);
+                  }
+
+                  tvStatus = tv(13, true);
                   root.addView(tvStatus);
 
                   ScrollView sv = new ScrollView(this);
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  col.addView(head("== ГЕТТЕРИ (раз на секунду) =="));
-                  tvGet = tv(13, false);
-                  col.addView(tvGet);
-                  col.addView(head("== КОЛБЕК: останнє значення по кодах =="));
-                  tvCb = tv(13, false);
-                  col.addView(tvCb);
-                  col.addView(head("== КОЛБЕК: лог змін (нові зверху) =="));
+                  col.addView(head("== ЗМІНИ В СИСТЕМІ (налаштування і властивості), нові зверху =="));
+                  tvSys = tv(12, false);
+                  col.addView(tvSys);
+                  col.addView(head("== ПОВІДОМЛЕННЯ MCU: останнє по what =="));
+                  tvMsgs = tv(13, false);
+                  col.addView(tvMsgs);
+                  col.addView(head("== ЛОГ MCU І МІТОК (нові зверху) =="));
                   tvLog = tv(12, false);
                   col.addView(tvLog);
+                  col.addView(head("== ДІАГНОСТИКА TWUtil =="));
+                  tvDiag = tv(11, false);
+                  col.addView(tvDiag);
                   sv.addView(col);
                   root.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
                   setContentView(root);
 
-                  connect();
+                  diagText = diag();
+                  ui.postDelayed(ticker, 1000);
+                  bg.postDelayed(watcher, 1500);
                   refresh();
               }
 
-              Button btn(String t, View.OnClickListener l) {
+              Button btn(String t, float sp, View.OnClickListener l) {
                   Button b = new Button(this);
                   b.setText(t);
+                  b.setTextSize(sp);
+                  b.setPadding(4, 4, 4, 4);
                   b.setOnClickListener(l);
                   return b;
               }
@@ -295,250 +330,351 @@ jobs:
                   refresh();
               }
 
-              void connect() {
-                  String a = ACTIONS[actIdx % ACTIONS.length];
-                  Intent i = new Intent(a);
-                  i.setComponent(new ComponentName(PKG, PKG + ".CarService"));
+              String diag() {
+                  StringBuilder sb = new StringBuilder();
                   try {
-                      bound = bindService(i, conn, Context.BIND_AUTO_CREATE);
-                      setStatus("bindService=" + bound + "  дія: " + a);
+                      Class<?> c = Class.forName(TW);
+                      sb.append("клас ").append(TW).append(": є\n");
+                      for (Method m : c.getDeclaredMethods()) {
+                          if (!java.lang.reflect.Modifier.isPublic(m.getModifiers())) continue;
+                          sb.append("  ").append(m.getName()).append("(");
+                          Class<?>[] p = m.getParameterTypes();
+                          for (int i = 0; i < p.length; i++) {
+                              if (i > 0) sb.append(",");
+                              sb.append(p[i].getSimpleName());
+                          }
+                          sb.append(")\n");
+                      }
                   } catch (Throwable e) {
-                      bound = false;
-                      setStatus("bindService помилка: " + e + "  дія: " + a);
+                      sb.append("клас ").append(TW).append(": ").append(e).append("\n");
+                  }
+                  return sb.toString();
+              }
+
+              Object call(Object o, String name, Class<?>[] types, Object[] args) throws Exception {
+                  Method m = o.getClass().getMethod(name, types);
+                  return m.invoke(o, args);
+              }
+
+              static Throwable root(Throwable e) {
+                  if (e instanceof InvocationTargetException && e.getCause() != null) return e.getCause();
+                  return e;
+              }
+
+              void toggle(final Group g) {
+                  if (g.on) stopGroup(g);
+                  else startGroup(g);
+              }
+
+              void startAll() {
+                  for (Group g : groupsList) {
+                      if (!g.on) startGroup(g);
                   }
               }
 
-              void reconnect(final boolean nextAction) {
-                  bg.removeCallbacksAndMessages(null);
+              void startGroup(final Group g) {
                   bg.post(new Runnable() {
                       public void run() {
-                          unregisterCb();
-                          ui.post(new Runnable() {
-                              public void run() {
-                                  if (bound) {
-                                      try { unbindService(conn); } catch (Throwable e) { }
-                                      bound = false;
-                                  }
-                                  svc = null;
-                                  if (nextAction) actIdx++;
-                                  connect();
+                          if (g.on) return;
+                          try {
+                              Object tw = Class.forName(TW).getConstructor().newInstance();
+                              Object r = call(tw, "open", new Class<?>[]{short[].class}, new Object[]{g.ids});
+                              if (r instanceof Integer && ((Integer) r) != 0) {
+                                  setStatus(g.name + ": open повернув " + r + " (не запущено)");
+                                  return;
                               }
+                              call(tw, "start", new Class<?>[]{}, new Object[]{});
+                              call(tw, "addHandler", new Class<?>[]{String.class, Handler.class},
+                                      new Object[]{"CP_" + g.name, g.h});
+                              g.tw = tw;
+                              g.on = true;
+                              setStatus(g.name + ": слухаю");
+                              ui.post(new Runnable() {
+                                  public void run() { g.btn.setText("■ " + g.name); }
+                              });
+                          } catch (Throwable e) {
+                              setStatus(g.name + ": помилка " + root(e));
+                          }
+                      }
+                  });
+              }
+
+              void stopGroup(final Group g) {
+                  bg.post(new Runnable() {
+                      public void run() {
+                          Object tw = g.tw;
+                          if (tw != null) {
+                              try {
+                                  call(tw, "removeHandler", new Class<?>[]{String.class}, new Object[]{"CP_" + g.name});
+                              } catch (Throwable e) { }
+                              try { call(tw, "stop", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                              try { call(tw, "close", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                          }
+                          g.tw = null;
+                          g.on = false;
+                          setStatus(g.name + ": зупинено");
+                          ui.post(new Runnable() {
+                              public void run() { g.btn.setText("▶ " + g.name); }
                           });
                       }
                   });
               }
 
-              void registerCb() {
-                  bg.post(new Runnable() {
-                      public void run() {
-                          IBinder s = svc;
-                          if (s == null) return;
-                          Parcel d = Parcel.obtain();
-                          Parcel r = Parcel.obtain();
-                          try {
-                              d.writeInterfaceToken(SVC);
-                              d.writeStrongBinder(cb);
-                              s.transact(1, d, r, 0);
-                              r.readException();
-                              registered = true;
-                              setStatus("Колбек зареєстровано (код 1). Чекаю дані...");
-                              bg.removeCallbacks(poll);
-                              bg.post(poll);
-                          } catch (Throwable e) {
-                              setStatus("Помилка реєстрації колбека: " + e);
-                          } finally {
-                              d.recycle();
-                              r.recycle();
-                          }
-                      }
-                  });
-              }
-
-              void unregisterCb() {
-                  IBinder s = svc;
-                  if (s == null || !registered) return;
-                  Parcel d = Parcel.obtain();
-                  Parcel r = Parcel.obtain();
-                  try {
-                      d.writeInterfaceToken(SVC);
-                      d.writeStrongBinder(cb);
-                      s.transact(2, d, r, 0);
-                  } catch (Throwable e) {
-                  } finally {
-                      d.recycle();
-                      r.recycle();
-                      registered = false;
+              void stopAll() {
+                  for (Group g : groupsList) {
+                      if (g.on) stopGroup(g);
                   }
               }
 
-              final Runnable poll = new Runnable() {
+              void toggleWatch() {
+                  watch = !watch;
+                  if (watch) prev = null;
+                  btnWatch.setText(watch ? "Система: ВКЛ" : "Система: ВИКЛ");
+                  setStatus("Стеження за системою: " + (watch ? "увімкнено" : "вимкнено"));
+              }
+
+              // ---------- стеження за налаштуваннями та властивостями ----------
+
+              final Runnable watcher = new Runnable() {
                   public void run() {
-                      if (svc == null) return;
-                      StringBuilder sb = new StringBuilder();
-                      for (Map.Entry<Integer, String[]> e : G.entrySet()) {
-                          String[] v = e.getValue();
-                          sb.append(String.format(Locale.US, "%2d %-8s %s\n", e.getKey(), v[0], call(e.getKey(), v[1])));
+                      if (watch) {
+                          try {
+                              HashMap<String, String> cur = snap();
+                              if (prev != null) diff(prev, cur);
+                              prev = cur;
+                          } catch (Throwable e) {
+                          }
                       }
-                      synchronized (lock) { getText = sb.toString(); }
-                      refresh();
-                      bg.postDelayed(this, 1000);
+                      bg.postDelayed(this, 2000);
                   }
               };
 
-              String call(int code, String type) {
-                  IBinder s = svc;
-                  if (s == null) return "-";
-                  Parcel d = Parcel.obtain();
-                  Parcel r = Parcel.obtain();
-                  try {
-                      d.writeInterfaceToken(SVC);
-                      s.transact(code, d, r, 0);
-                      r.readException();
-                      if (type.equals("F")) return String.valueOf(r.readFloat());
-                      if (type.equals("I")) return String.valueOf(r.readInt());
-                      if (type.equals("IA")) return Arrays.toString(r.createIntArray());
-                      if (type.equals("FA")) return Arrays.toString(r.createFloatArray());
-                      return words(r, 8);
-                  } catch (Throwable e) {
-                      return "ERR " + e.getClass().getSimpleName() + ": " + e.getMessage();
-                  } finally {
-                      d.recycle();
-                      r.recycle();
-                  }
-              }
-
-              // перші n слів парсела: int та, якщо схоже, float
-              static String words(Parcel p, int max) {
-                  int pos = p.dataPosition();
-                  int n = Math.min(p.dataAvail() / 4, max);
-                  StringBuilder sb = new StringBuilder();
-                  for (int i = 0; i < n; i++) {
-                      int v = p.readInt();
-                      sb.append(v);
-                      int ex = (v >>> 23) & 0xff;
-                      if (ex >= 100 && ex <= 160) {
-                          sb.append("~").append(String.format(Locale.US, "%.2f", Float.intBitsToFloat(v)));
-                      }
-                      sb.append(' ');
-                  }
-                  p.setDataPosition(pos);
-                  return sb.toString().trim();
-              }
-
-              static String strings(Parcel p) {
-                  StringBuilder sb = new StringBuilder();
-                  try {
-                      int pos = p.dataPosition();
-                      byte[] all = p.marshall();
-                      p.setDataPosition(pos);
-                      for (int i = pos; i + 8 <= all.length; i += 4) {
-                          int len = (all[i] & 0xff) | ((all[i + 1] & 0xff) << 8)
-                                  | ((all[i + 2] & 0xff) << 16) | ((all[i + 3] & 0xff) << 24);
-                          if (len < 2 || len > 40 || i + 4 + len * 2 > all.length) continue;
-                          StringBuilder t = new StringBuilder();
-                          boolean ok = true;
-                          for (int k = 0; k < len; k++) {
-                              int c = (all[i + 4 + k * 2] & 0xff) | ((all[i + 5 + k * 2] & 0xff) << 8);
-                              if (c < 0x20 || c == 0x7f || c > 0x2fff) { ok = false; break; }
-                              t.append((char) c);
-                          }
-                          if (ok) sb.append(" \"").append(t).append("\"");
-                      }
-                  } catch (Throwable e) {
-                  }
-                  return sb.toString();
-              }
-
-              class Cb extends Binder {
-                  @Override
-                  protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) {
-                      if (code == INTERFACE_TRANSACTION) {
-                          if (reply != null) reply.writeString(CBD);
-                          return true;
-                      }
-                      String p;
-                      try {
-                          try { data.enforceInterface(CBD); } catch (Throwable e) { }
-                          p = words(data, 12) + strings(data);
-                      } catch (Throwable e) {
-                          p = "? " + e;
-                      }
-                      record(code, p);
-                      if (reply != null && (flags & FLAG_ONEWAY) == 0) reply.writeNoException();
-                      return true;
-                  }
-              }
-
-              void record(int code, String p) {
+              HashMap<String, String> snap() {
+                  HashMap<String, String> m = new HashMap<>();
+                  int a = readSettings(m, "S:", Settings.System.CONTENT_URI);
+                  int b = readSettings(m, "SEC:", Settings.Secure.CONTENT_URI);
+                  int c = readSettings(m, "G:", Settings.Global.CONTENT_URI);
+                  int d = readProps(m);
                   synchronized (lock) {
-                      Integer a = cbAll.get(code);
-                      cbAll.put(code, a == null ? 1 : a + 1);
-                      String old = cbLast.get(code);
-                      if (old == null || !old.equals(p)) {
-                          cbLast.put(code, p);
-                          Integer c = cbChg.get(code);
-                          cbChg.put(code, c == null ? 1 : c + 1);
-                          double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
-                          logLines.add(String.format(Locale.US, "[%6.1f] cb#%d: %s", t, code, p));
-                          if (logLines.size() > 400) logLines.remove(0);
+                      cS = a;
+                      cSec = b;
+                      cG = c;
+                      cP = d;
+                      snaps++;
+                      lastSnapAt = SystemClock.elapsedRealtime();
+                  }
+                  return m;
+              }
+
+              int readSettings(HashMap<String, String> m, String pre, Uri uri) {
+                  Cursor c = null;
+                  int n = 0;
+                  try {
+                      c = getContentResolver().query(uri, new String[]{"name", "value"}, null, null, null);
+                      if (c != null) {
+                          while (c.moveToNext()) {
+                              m.put(pre + c.getString(0), c.getString(1));
+                              n++;
+                          }
                       }
+                  } catch (Throwable e) {
+                      n = -1;
+                  } finally {
+                      if (c != null) c.close();
+                  }
+                  return n;
+              }
+
+              int readProps(HashMap<String, String> m) {
+                  Process p = null;
+                  int n = 0;
+                  try {
+                      p = Runtime.getRuntime().exec(new String[]{"getprop"});
+                      BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                      String l;
+                      while ((l = br.readLine()) != null) {
+                          Matcher mt = PROP.matcher(l);
+                          if (mt.matches()) {
+                              m.put("P:" + mt.group(1), mt.group(2));
+                              n++;
+                          }
+                      }
+                      br.close();
+                  } catch (Throwable e) {
+                      n = -1;
+                  } finally {
+                      if (p != null) p.destroy();
+                  }
+                  return n;
+              }
+
+              static boolean noisy(String k) {
+                  return k.contains("boottime") || k.contains("uptime") || k.contains("init.svc_debug_pid");
+              }
+
+              static String cut(String s) {
+                  if (s == null) return "null";
+                  return s.length() > 80 ? s.substring(0, 80) + "..." : s;
+              }
+
+              void diff(HashMap<String, String> a, HashMap<String, String> b) {
+                  TreeSet<String> keys = new TreeSet<>();
+                  keys.addAll(a.keySet());
+                  keys.addAll(b.keySet());
+                  double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+                  boolean any = false;
+                  synchronized (lock) {
+                      for (String k : keys) {
+                          if (noisy(k)) continue;
+                          String x = a.get(k);
+                          String y = b.get(k);
+                          if (x == null && y == null) continue;
+                          if (x != null && x.equals(y)) continue;
+                          sysLines.add(String.format(Locale.US, "[%6.1f] %s: %s -> %s", t, k, x == null ? "(нема)" : cut(x), y == null ? "(видалено)" : cut(y)));
+                          any = true;
+                      }
+                      while (sysLines.size() > 500) sysLines.remove(0);
+                      if (any) diffsTotal++;
+                  }
+                  if (any) refresh();
+              }
+
+              // ---------- повідомлення MCU ----------
+
+              static String hex(byte[] b, int max) {
+                  StringBuilder sb = new StringBuilder();
+                  int n = Math.min(b.length, max);
+                  for (int i = 0; i < n; i++) sb.append(String.format("%02X ", b[i] & 0xff));
+                  if (b.length > max) sb.append("...");
+                  return sb.toString().trim() + " [" + b.length + "]";
+              }
+
+              static String desc(Object o) {
+                  if (o == null) return "-";
+                  if (o instanceof byte[]) return "bytes " + hex((byte[]) o, 48);
+                  if (o instanceof int[]) return "int[] " + Arrays.toString((int[]) o);
+                  if (o instanceof short[]) return "short[] " + Arrays.toString((short[]) o);
+                  if (o instanceof String) return "\"" + o + "\"";
+                  String s = String.valueOf(o);
+                  if (s.length() > 80) s = s.substring(0, 80) + "...";
+                  return o.getClass().getSimpleName() + " " + s;
+              }
+
+              void onMsg(String grp, Message m) {
+                  String key = String.format(Locale.US, "%04X", m.what);
+                  String val = "a1=" + m.arg1 + " a2=" + m.arg2 + " obj=" + desc(m.obj);
+                  synchronized (lock) {
+                      total++;
+                      Grp g = msgs.get(key);
+                      if (g == null) {
+                          g = new Grp();
+                          msgs.put(key, g);
+                      }
+                      g.n++;
+                      boolean same = g.last.equals(val);
+                      if (!same) {
+                          g.last = val;
+                          g.chg++;
+                      }
+                      double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+                      logLines.add(String.format(Locale.US, "[%6.1f] %s %s: %s%s", t, grp, key, val, same ? "  (повтор)" : ""));
+                      while (logLines.size() > 1500) logLines.remove(0);
                   }
                   refresh();
               }
 
-              String buildCb() {
+              void addMark(String name) {
+                  double t = (SystemClock.elapsedRealtime() - t0) / 1000.0;
+                  String line = String.format(Locale.US, "[%6.1f] ===== МІТКА: %s =====", t, name);
+                  synchronized (lock) {
+                      logLines.add(line);
+                      sysLines.add(line);
+                  }
+                  refresh();
+              }
+
+              String buildMsgs() {
                   StringBuilder sb = new StringBuilder();
                   synchronized (lock) {
-                      for (Map.Entry<Integer, String> e : cbLast.entrySet()) {
-                          int c = e.getKey();
-                          sb.append(String.format(Locale.US, "cb#%-3d всього=%d змін=%d\n     %s\n",
-                                  c, cbAll.get(c), cbChg.get(c), e.getValue()));
+                      for (Map.Entry<String, Grp> e : msgs.entrySet()) {
+                          Grp g = e.getValue();
+                          sb.append(String.format(Locale.US, "what=%s  всього=%d змін=%d\n   %s\n",
+                                  e.getKey(), g.n, g.chg, g.last));
                       }
                   }
                   return sb.length() == 0 ? "(поки нічого не прийшло)" : sb.toString();
               }
 
-              String buildLog() {
+              static String rev(ArrayList<String> l, int max) {
                   StringBuilder sb = new StringBuilder();
-                  synchronized (lock) {
-                      int from = Math.max(0, logLines.size() - 150);
-                      for (int i = logLines.size() - 1; i >= from; i--) sb.append(logLines.get(i)).append('\n');
-                  }
+                  int from = Math.max(0, l.size() - max);
+                  for (int i = l.size() - 1; i >= from; i--) sb.append(l.get(i)).append('\n');
                   return sb.toString();
+              }
+
+              String buildLog() {
+                  synchronized (lock) { return rev(logLines, 500); }
+              }
+
+              String buildSys() {
+                  synchronized (lock) {
+                      String r = rev(sysLines, 250);
+                      return r.length() == 0 ? "(змін поки немає)" : r;
+                  }
+              }
+
+              String buildStatus() {
+                  StringBuilder on = new StringBuilder();
+                  for (Group g : groupsList) {
+                      if (g.on) on.append(g.name).append(' ');
+                  }
+                  synchronized (lock) {
+                      String ago = lastSnapAt == 0 ? "ще не було"
+                              : String.format(Locale.US, "%.0f с тому", (SystemClock.elapsedRealtime() - lastSnapAt) / 1000.0);
+                      return statusText + "\nУвімкнено: " + (on.length() == 0 ? "нічого" : on.toString())
+                              + "| повідомлень: " + total
+                              + "\nСтеження: ключів S=" + cS + " SEC=" + cSec + " G=" + cG + " P=" + cP
+                              + ", знімків=" + snaps + ", останній " + ago + ", змін=" + diffsTotal;
+                  }
               }
 
               final Runnable doRefresh = new Runnable() {
                   public void run() {
                       if (tvStatus == null) return;
-                      String st, gt;
-                      synchronized (lock) { st = statusText; gt = getText; }
-                      tvStatus.setText(st);
-                      tvGet.setText(gt);
-                      tvCb.setText(buildCb());
+                      tvStatus.setText(buildStatus());
+                      tvDiag.setText(diagText);
+                      tvMsgs.setText(buildMsgs());
                       tvLog.setText(buildLog());
+                      tvSys.setText(buildSys());
+                  }
+              };
+
+              final Runnable ticker = new Runnable() {
+                  public void run() {
+                      doRefresh.run();
+                      ui.postDelayed(this, 1000);
                   }
               };
 
               void refresh() {
                   ui.removeCallbacks(doRefresh);
-                  ui.postDelayed(doRefresh, 150);
+                  ui.postDelayed(doRefresh, 200);
               }
 
-              void clearLog() {
+              void clearAll() {
                   synchronized (lock) {
+                      msgs.clear();
                       logLines.clear();
-                      cbLast.clear();
-                      cbAll.clear();
-                      cbChg.clear();
+                      sysLines.clear();
+                      total = 0;
                   }
                   refresh();
               }
 
               void copyAll() {
-                  String st, gt;
-                  synchronized (lock) { st = statusText; gt = getText; }
-                  String all = st + "\n\n== ГЕТТЕРИ ==\n" + gt + "\n== КОЛБЕК ==\n" + buildCb()
-                          + "\n== ЛОГ ==\n" + buildLog();
+                  String all = buildStatus() + "\n\n== ЗМІНИ В СИСТЕМІ ==\n" + buildSys()
+                          + "\n== ПОВІДОМЛЕННЯ MCU ==\n" + buildMsgs() + "\n== ЛОГ ==\n" + buildLog()
+                          + "\n== ДІАГНОСТИКА ==\n" + diagText;
                   ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                   cm.setPrimaryClip(ClipData.newPlainText("carprobe", all));
                   Toast.makeText(this, "Скопійовано", Toast.LENGTH_SHORT).show();
@@ -547,10 +683,15 @@ jobs:
               @Override
               protected void onDestroy() {
                   super.onDestroy();
-                  final IBinder s = svc;
-                  try { unregisterCb(); } catch (Throwable e) { }
-                  if (bound) {
-                      try { unbindService(conn); } catch (Throwable e) { }
+                  ui.removeCallbacks(ticker);
+                  bg.removeCallbacks(watcher);
+                  for (Group g : groupsList) {
+                      Object tw = g.tw;
+                      if (tw != null) {
+                          try { call(tw, "removeHandler", new Class<?>[]{String.class}, new Object[]{"CP_" + g.name}); } catch (Throwable e) { }
+                          try { call(tw, "stop", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                          try { call(tw, "close", new Class<?>[]{}, new Object[]{}); } catch (Throwable e) { }
+                      }
                   }
                   ht.quit();
               }
@@ -562,7 +703,12 @@ jobs:
       - name: Build
         run: gradle assembleDebug --no-daemon
 
+      - name: Check APK
+        run: |
+          AAPT=$(ls $ANDROID_HOME/build-tools/*/aapt | tail -1)
+          $AAPT dump badging app/build/outputs/apk/debug/app-debug.apk | grep -E "^package:" || true
+
       - uses: actions/upload-artifact@v4
         with:
-          name: CarProbe
+          name: CarProbe-v7-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
