@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 2
-                  versionName "2.0"
+                  versionCode 3
+                  versionName "3.0"
               }
               signingConfigs {
                   debug {
@@ -292,7 +292,7 @@ jobs:
               public boolean canPass(int p) {
                   if (over || p != cur) return false;
                   if (pendDraw > 0) return false;
-                  return pendSkip || drawn;
+                  return pendSkip || (drawn && !anyPlayable(p));
               }
 
               private boolean hasCounterD2(int p) {
@@ -921,7 +921,7 @@ jobs:
 
               // Повертає текст помилки або null
               public String removePlayer(int i) {
-                  if (i <= 0 || i >= ps.size()) return "Цього гравця не можна видалити";
+                  if (i < 0 || i >= ps.size() || ps.get(i) == me) return "Цього гравця не можна видалити";
                   P p = ps.get(i);
                   if (inGame) {
                       if (ps.size() <= 2) return "Має лишитись щонайменше 2 гравці";
@@ -1212,7 +1212,8 @@ jobs:
                       P q = ps.get(i);
                       if (i > 0) sb.append(';');
                       sb.append(q.name).append('~').append(q.avatar).append('~').append(q.photo).append('~')
-                          .append(q.bot ? 1 : 0).append('~').append(q.level).append('~').append(q.replaced ? 1 : 0);
+                          .append(q.bot ? 1 : 0).append('~').append(q.level).append('~').append(q.replaced ? 1 : 0)
+                          .append('~').append(q == me ? 1 : 0);
                   }
                   return sb.toString();
               }
@@ -1519,27 +1520,44 @@ jobs:
               public final int leaf;
               public final int bg;
               public final int text;
+              public final int style;
 
-              private Theme(String title, int[] col, int black, int leaf, int bg, int text) {
+              private Theme(String title, int[] col, int black, int leaf, int bg, int text, int style) {
                   this.title = title;
                   this.col = col;
                   this.black = black;
                   this.leaf = leaf;
                   this.bg = bg;
                   this.text = text;
+                  this.style = style;
               }
 
+              // стилі: 0 листок, 1 плоска, 2 овал (ретро), 3 неон, 4 мінімал
               public static final Theme[] ALL = {
                   new Theme("Класична",
                       new int[]{0xFFE1352B, 0xFFF2B300, 0xFF1E8A3C, 0xFF3D9AE8},
-                      0xFF14141A, 0xFFFFFFFF, 0xFF1B5E3A, 0xFFFFFFFF),
-                  new Theme("Темна",
-                      new int[]{0xFFB3261E, 0xFFC79A00, 0xFF2E7D32, 0xFF1565C0},
-                      0xFF000000, 0xFFE0E0E0, 0xFF121417, 0xFFEDEDED),
-                  new Theme("Пастельна",
-                      new int[]{0xFFF28B82, 0xFFFDD663, 0xFF81C995, 0xFF8AB4F8},
-                      0xFF4A4A5A, 0xFFFFFFFF, 0xFFF3ECE2, 0xFF3A3A48)
+                      0xFF14141A, 0xFFFFFFFF, 0xFF1B5E3A, 0xFFFFFFFF, 0),
+                  new Theme("Сучасна",
+                      new int[]{0xFFE53935, 0xFFFFB300, 0xFF43A047, 0xFF1E88E5},
+                      0xFF263238, 0xFFFFFFFF, 0xFF1B5E3A, 0xFFFFFFFF, 1),
+                  new Theme("Ретро",
+                      new int[]{0xFFD32F2F, 0xFFF9A825, 0xFF2E7D32, 0xFF1565C0},
+                      0xFF1A1A1A, 0xFFFFF8E1, 0xFF1B5E3A, 0xFFFFFFFF, 2),
+                  new Theme("Неон",
+                      new int[]{0xFFFF1744, 0xFFFFEA00, 0xFF00E676, 0xFF00B0FF},
+                      0xFF0B0B14, 0xFFFFFFFF, 0xFF121417, 0xFFFFFFFF, 3),
+                  new Theme("Мінімал",
+                      new int[]{0xFFE57373, 0xFFFFB74D, 0xFF81C784, 0xFF64B5F6},
+                      0xFF37474F, 0xFFFAF3E6, 0xFFF3ECE2, 0xFF3A3A48, 4)
               };
+
+              // кольори гравців (жовтий лишається для колоди)
+              private static final int[] PCOL = {0xFFFF7043, 0xFF26C6DA, 0xFF9CCC65, 0xFFEC407A, 0xFFB388FF, 0xFFFFA726};
+
+              public static int pcol(int i) {
+                  if (i < 0) i = 0;
+                  return PCOL[i % PCOL.length];
+              }
 
               public static Theme get(int i) {
                   if (i < 0) i = 0;
@@ -1563,6 +1581,7 @@ jobs:
               private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
               private final Paint txt = new Paint(Paint.ANTI_ALIAS_FLAG);
               private final Path leaf = new Path();
+              private final Path path2 = new Path();
               private final RectF rf = new RectF();
               public Theme th;
 
@@ -1602,6 +1621,199 @@ jobs:
               }
 
               public void draw(Canvas c, Card k, float x, float y, float w, float h, boolean dim) {
+                  if (th.style == 0) {
+                      drawClassic(c, k, x, y, w, h);
+                  } else {
+                      drawStyled(c, k, x, y, w, h);
+                  }
+                  if (dim) {
+                      float rad = w * 0.10f;
+                      fill.setStyle(Paint.Style.FILL);
+                      fill.setColor(0x77000000);
+                      rf.set(x, y, x + w, y + h);
+                      c.drawRoundRect(rf, rad, rad, fill);
+                  }
+              }
+
+              private String symbol(Card k) {
+                  if (k.v <= 9) return String.valueOf(k.v);
+                  if (k.v == Engine.SKIP) return "S";
+                  if (k.v == Engine.REV) return "R";
+                  if (k.v == Engine.D2) return "D";
+                  return null;
+              }
+
+              private void quarters(Canvas c, float l, float t, float r, float b) {
+                  float mx = (l + r) / 2f, my = (t + b) / 2f;
+                  fill.setStyle(Paint.Style.FILL);
+                  fill.setColor(th.col[0]);
+                  c.drawRect(l, t, mx, my, fill);
+                  fill.setColor(th.col[3]);
+                  c.drawRect(mx, t, r, my, fill);
+                  fill.setColor(th.col[1]);
+                  c.drawRect(l, my, mx, b, fill);
+                  fill.setColor(th.col[2]);
+                  c.drawRect(mx, my, r, b, fill);
+              }
+
+              private void plain(Canvas c, String s, float x, float base, float size, int color, boolean shadow) {
+                  txt.setTextSize(size);
+                  txt.setTextAlign(Paint.Align.CENTER);
+                  txt.setStyle(Paint.Style.FILL);
+                  if (shadow) {
+                      txt.setColor(0x66000000);
+                      c.drawText(s, x + size * 0.05f, base + size * 0.05f, txt);
+                  }
+                  txt.setColor(color);
+                  c.drawText(s, x, base, txt);
+              }
+
+              // стилі 1..4: плоска, ретро-овал, неон, мінімал
+              private void drawStyled(Canvas c, Card k, float x, float y, float w, float h) {
+                  boolean wild = k.v >= Engine.WILD;
+                  int base = wild ? th.black : th.col[k.c];
+                  float cx = x + w / 2f, cy = y + h / 2f;
+                  String sym = symbol(k);
+                  int st = th.style;
+                  float rad = w * 0.10f;
+                  int cornerColor = 0xFFFFFFFF;
+                  boolean cornerOutline = true;
+                  if (st == 1) {
+                      body(c, x, y, w, h, base);
+                      if (sym != null) {
+                          plain(c, sym, cx, cy + h * 0.17f, h * 0.5f, 0xFFFFFFFF, true);
+                      } else {
+                          float r = w * 0.30f;
+                          c.save();
+                          path2.reset();
+                          rf.set(cx - r, cy - r, cx + r, cy + r);
+                          path2.addRoundRect(rf, new float[]{r, r, r, r, r, r, r, r}, Path.Direction.CW);
+                          c.clipPath(path2);
+                          quarters(c, cx - r, cy - r, cx + r, cy + r);
+                          c.restore();
+                          if (k.v == Engine.D4) plain(c, "+4", cx, cy + h * 0.06f, h * 0.2f, 0xFFFFFFFF, true);
+                      }
+                  } else if (st == 2) {
+                      body(c, x, y, w, h, base);
+                      c.save();
+                      c.rotate(-35f, cx, cy);
+                      float ow = w * 0.92f, oh = h * 0.5f;
+                      rf.set(cx - ow / 2f, cy - oh / 2f, cx + ow / 2f, cy + oh / 2f);
+                      path2.reset();
+                      path2.addRoundRect(rf, new float[]{oh / 2f, oh / 2f, oh / 2f, oh / 2f, oh / 2f, oh / 2f, oh / 2f, oh / 2f}, Path.Direction.CW);
+                      if (wild) {
+                          c.save();
+                          c.clipPath(path2);
+                          quarters(c, cx - ow / 2f, cy - oh / 2f, cx + ow / 2f, cy + oh / 2f);
+                          c.restore();
+                      } else {
+                          fill.setStyle(Paint.Style.FILL);
+                          fill.setColor(th.leaf);
+                          c.drawPath(path2, fill);
+                      }
+                      c.restore();
+                      if (sym != null) {
+                          plain(c, sym, cx, cy + h * 0.14f, h * 0.38f, th.col[k.c], false);
+                      } else if (k.v == Engine.D4) {
+                          outlined(c, "+4", cx, cy + h * 0.07f, h * 0.2f, 0xFFFFFFFF, Paint.Align.CENTER, false);
+                      }
+                  } else if (st == 3) {
+                      fill.setStyle(Paint.Style.FILL);
+                      fill.setColor(0xFFF8F8F8);
+                      rf.set(x, y, x + w, y + h);
+                      c.drawRoundRect(rf, rad, rad, fill);
+                      fill.setColor(th.black);
+                      rf.set(x + w * 0.03f, y + w * 0.03f, x + w * 0.97f, y + h - w * 0.03f);
+                      c.drawRoundRect(rf, rad * 0.8f, rad * 0.8f, fill);
+                      int neon = wild ? 0xFFFFFFFF : th.col[k.c];
+                      fill.setStyle(Paint.Style.STROKE);
+                      fill.setStrokeWidth(w * 0.05f);
+                      fill.setColor(neon);
+                      rf.set(x + w * 0.09f, y + w * 0.09f, x + w * 0.91f, y + h - w * 0.09f);
+                      c.drawRoundRect(rf, rad * 0.6f, rad * 0.6f, fill);
+                      cornerColor = neon;
+                      cornerOutline = false;
+                      if (sym != null) {
+                          float size = h * 0.46f;
+                          txt.setTextSize(size);
+                          txt.setTextAlign(Paint.Align.CENTER);
+                          txt.setStyle(Paint.Style.STROKE);
+                          txt.setStrokeWidth(size * 0.16f);
+                          txt.setColor((neon & 0x00FFFFFF) | 0x55000000);
+                          c.drawText(sym, cx, cy + h * 0.15f, txt);
+                          plain(c, sym, cx, cy + h * 0.15f, size, neon, false);
+                      } else {
+                          float r = w * 0.27f;
+                          fill.setStrokeWidth(w * 0.09f);
+                          int[] order = {0, 3, 2, 1};
+                          rf.set(cx - r, cy - r, cx + r, cy + r);
+                          for (int i = 0; i < 4; i++) {
+                              fill.setColor(th.col[order[i]]);
+                              c.drawArc(rf, -90f + i * 90f + 6f, 78f, false, fill);
+                          }
+                          if (k.v == Engine.D4) plain(c, "+4", cx, cy + h * 0.06f, h * 0.18f, 0xFFFFFFFF, false);
+                      }
+                      fill.setStyle(Paint.Style.FILL);
+                  } else {
+                      fill.setStyle(Paint.Style.FILL);
+                      fill.setColor(0xFFDDDDDD);
+                      rf.set(x, y, x + w, y + h);
+                      c.drawRoundRect(rf, rad, rad, fill);
+                      fill.setColor(th.leaf);
+                      rf.set(x + w * 0.02f, y + w * 0.02f, x + w * 0.98f, y + h - w * 0.02f);
+                      c.drawRoundRect(rf, rad * 0.9f, rad * 0.9f, fill);
+                      int edge = wild ? th.black : th.col[k.c];
+                      fill.setStyle(Paint.Style.STROKE);
+                      fill.setStrokeWidth(w * 0.07f);
+                      fill.setColor(edge);
+                      rf.set(x + w * 0.07f, y + w * 0.07f, x + w * 0.93f, y + h - w * 0.07f);
+                      c.drawRoundRect(rf, rad * 0.7f, rad * 0.7f, fill);
+                      fill.setStyle(Paint.Style.FILL);
+                      cornerColor = edge;
+                      cornerOutline = false;
+                      if (sym != null) {
+                          plain(c, sym, cx, cy + h * 0.16f, h * 0.48f, edge, false);
+                      } else {
+                          float r = w * 0.26f;
+                          c.save();
+                          path2.reset();
+                          rf.set(cx - r, cy - r, cx + r, cy + r);
+                          path2.addRoundRect(rf, new float[]{r, r, r, r, r, r, r, r}, Path.Direction.CW);
+                          c.clipPath(path2);
+                          quarters(c, cx - r, cy - r, cx + r, cy + r);
+                          c.restore();
+                          if (k.v == Engine.D4) plain(c, "+4", cx, cy + h * 0.06f, h * 0.18f, 0xFFFFFFFF, true);
+                      }
+                  }
+                  styledCorner(c, k, x, y, w, h, cornerColor, cornerOutline);
+                  c.save();
+                  c.rotate(180f, cx, cy);
+                  styledCorner(c, k, x, y, w, h, cornerColor, cornerOutline);
+                  c.restore();
+              }
+
+              private void styledCorner(Canvas c, Card k, float x, float y, float w, float h, int color, boolean outline) {
+                  String s;
+                  float size;
+                  if (k.v <= 9) {
+                      s = String.valueOf(k.v);
+                      size = h * 0.11f;
+                  } else {
+                      s = Engine.label(k);
+                      size = h * 0.082f;
+                  }
+                  if (outline) {
+                      outlined(c, s, x + w * 0.1f, y + h * 0.15f, size, color, Paint.Align.LEFT, false);
+                  } else {
+                      txt.setTextSize(size);
+                      txt.setTextAlign(Paint.Align.LEFT);
+                      txt.setStyle(Paint.Style.FILL);
+                      txt.setColor(color);
+                      c.drawText(s, x + w * 0.1f, y + h * 0.15f, txt);
+                  }
+              }
+
+              private void drawClassic(Canvas c, Card k, float x, float y, float w, float h) {
                   boolean wildCard = k.v >= Engine.WILD;
                   body(c, x, y, w, h, wildCard ? th.black : th.col[k.c]);
                   float lx = x + w * 0.09f, ly = y + h * 0.21f, lr = x + w * 0.91f, lb = y + h * 0.83f;
@@ -1662,12 +1874,6 @@ jobs:
                   c.rotate(180f, x + w / 2f, y + h / 2f);
                   corner(c, k, x, y, w, h);
                   c.restore();
-                  if (dim) {
-                      float rad = w * 0.10f;
-                      fill.setColor(0x77000000);
-                      rf.set(x, y, x + w, y + h);
-                      c.drawRoundRect(rf, rad, rad, fill);
-                  }
               }
 
               private void corner(Canvas c, Card k, float x, float y, float w, float h) {
@@ -2084,6 +2290,8 @@ jobs:
           import android.view.View;
           import android.view.ViewConfiguration;
 
+          import java.util.HashMap;
+
           public class TableView extends View {
               public interface Listener {
                   void onPlay(Card k);
@@ -2099,6 +2307,12 @@ jobs:
 
               public Listener listener;
               public boolean micOk;
+              public boolean hint = true;
+              private int bgId;
+              private static final int TXT = 0xFFFFFFFF;
+              private final HashMap<String, Long> fresh = new HashMap<String, Long>();
+              private String crossEnc;
+              private long crossUntil;
               private Theme th;
               private final CardPainter painter;
               private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -2153,6 +2367,11 @@ jobs:
                   invalidate();
               }
 
+              public void setBg(int id) {
+                  bgId = id;
+                  invalidate();
+              }
+
               public void setPlayers(String[] names, int[] avatars, String[] photos, boolean[] bots, int me) {
                   this.n = names.length;
                   this.names = names;
@@ -2172,6 +2391,23 @@ jobs:
               }
 
               public void setState(GState s) {
+                  GState old = g;
+                  if (old != null && !old.over && s != null && !s.over && s.hand.size() > old.hand.size()) {
+                      HashMap<String, Integer> cnt = new HashMap<String, Integer>();
+                      for (Card k : old.hand) {
+                          Integer v = cnt.get(k.enc());
+                          cnt.put(k.enc(), v == null ? 1 : v + 1);
+                      }
+                      long until = System.currentTimeMillis() + 2600;
+                      for (Card k : s.hand) {
+                          Integer v = cnt.get(k.enc());
+                          if (v != null && v > 0) {
+                              cnt.put(k.enc(), v - 1);
+                          } else {
+                              fresh.put(k.enc(), until);
+                          }
+                      }
+                  }
                   g = s;
                   invalidate();
               }
@@ -2195,7 +2431,7 @@ jobs:
                   avR = u * 0.65f;
                   hCw = u * 1.6f;
                   hCh = hCw * 1.5f;
-                  hRaise = u * 0.3f;
+                  hRaise = u * 0.26f;
                   hTop = H - u * 0.15f - hCh;
                   areaL = u * 2.6f;
                   areaR = W - u * 2.9f;
@@ -2215,9 +2451,10 @@ jobs:
                       if (scroll > maxScroll) scroll = maxScroll;
                       hStart = areaL - scroll;
                   }
-                  ph = u * 1.7f;
+                  float pTop = u * 3.5f, pBot = hTop - hRaise - u * 0.08f;
+                  ph = Math.min(u * 1.6f, pBot - pTop);
                   pw = ph * 0.667f;
-                  cyP = (u * 3.85f + hTop - hRaise) / 2f;
+                  cyP = (pTop + pBot) / 2f;
                   deckX = W / 2f - pw * 0.9f;
                   discX = W / 2f + pw * 0.9f;
                   if (n > 0 && sx.length == n && me < n) {
@@ -2275,7 +2512,7 @@ jobs:
               protected void onDraw(Canvas c) {
                   int W = getWidth(), H = getHeight();
                   calc(W, H);
-                  c.drawColor(th.bg);
+                  Bg.draw(c, W, H, bgId);
                   if (g == null || n == 0 || sx.length != n || g.counts == null || g.counts.length < n
                           || g.totals == null || g.totals.length < n) return;
                   long now = System.currentTimeMillis();
@@ -2296,12 +2533,16 @@ jobs:
                       c.drawRoundRect(rf, u * 0.15f, u * 0.15f, p);
                       anim = true;
                   }
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(0xBB000000);
+                  rf.set(deckX - u * 0.42f, cyP + ph / 2f - u * 0.55f, deckX + u * 0.42f, cyP + ph / 2f - u * 0.15f);
+                  c.drawRoundRect(rf, u * 0.2f, u * 0.2f, p);
                   tp.setStyle(Paint.Style.FILL);
                   tp.setAlpha(255);
                   tp.setTextAlign(Paint.Align.CENTER);
                   tp.setTextSize(u * 0.28f);
-                  tp.setColor(th.text);
-                  c.drawText(String.valueOf(g.deck), deckX, cyP + ph / 2f + u * 0.34f, tp);
+                  tp.setColor(TXT);
+                  c.drawText(String.valueOf(g.deck), deckX, cyP + ph / 2f - u * 0.24f, tp);
                   painter.draw(c, g.top, discX - pw / 2f, cyP - ph / 2f, pw, ph, false);
                   if (g.pend > 0) {
                       p.setStyle(Paint.Style.FILL);
@@ -2317,7 +2558,7 @@ jobs:
                   c.drawCircle(colX, cyP, u * 0.36f, p);
                   p.setStyle(Paint.Style.STROKE);
                   p.setStrokeWidth(u * 0.06f);
-                  p.setColor(th.text);
+                  p.setColor(TXT);
                   c.drawCircle(colX, cyP, u * 0.36f, p);
                   if (n > 2) drawDir(c, deckX - pw / 2f - u * 0.8f, cyP, u * 0.36f, g.dir >= 0);
 
@@ -2327,18 +2568,48 @@ jobs:
                   float tw = tp.measureText(g.msg);
                   if (tw > W * 0.8f) msgSize = msgSize * (W * 0.8f) / tw;
                   tp.setTextSize(msgSize);
-                  tp.setColor(th.text);
+                  tp.setColor(TXT);
                   tp.setTextAlign(Paint.Align.CENTER);
-                  c.drawText(g.msg, W / 2f, u * 3.65f, tp);
+                  c.drawText(g.msg, W / 2f, u * 3.3f, tp);
 
                   // рука
                   c.save();
                   c.clipRect(areaL - u * 0.1f, 0, areaR + u * 0.1f, H);
                   for (int i = 0; i < g.hand.size(); i++) {
                       boolean lg = g.legal.get(i);
+                      boolean lit = myTurn && (lg || !hint);
+                      boolean up = myTurn && lg && hint;
                       float x = hStart + i * hStep;
-                      float y = hTop - (myTurn && lg ? hRaise : 0);
-                      painter.draw(c, g.hand.get(i), x, y, hCw, hCh, !(myTurn && lg));
+                      float y = hTop - (up ? hRaise : 0);
+                      Card hc = g.hand.get(i);
+                      painter.draw(c, hc, x, y, hCw, hCh, !lit);
+                      Long fu = fresh.get(hc.enc());
+                      if (fu != null) {
+                          if (fu > now) {
+                              float a = Math.min(1f, (fu - now) / 600f);
+                              p.setStyle(Paint.Style.STROKE);
+                              p.setStrokeWidth(u * 0.09f);
+                              p.setColor((((int) (255 * a)) << 24) | 0x0000E5FF);
+                              rf.set(x, y, x + hCw, y + hCh);
+                              c.drawRoundRect(rf, hCw * 0.1f, hCw * 0.1f, p);
+                              anim = true;
+                          } else {
+                              fresh.remove(hc.enc());
+                          }
+                      }
+                      if (crossEnc != null && crossEnc.equals(hc.enc()) && crossUntil > now) {
+                          float cr = u * 0.3f;
+                          float ccx = x + hCw - cr - u * 0.05f, ccy = y + cr + u * 0.05f;
+                          p.setStyle(Paint.Style.FILL);
+                          p.setColor(0xFFD50000);
+                          c.drawCircle(ccx, ccy, cr, p);
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setStrokeWidth(u * 0.07f);
+                          p.setColor(0xFFFFFFFF);
+                          c.drawLine(ccx - cr * 0.45f, ccy - cr * 0.45f, ccx + cr * 0.45f, ccy + cr * 0.45f, p);
+                          c.drawLine(ccx + cr * 0.45f, ccy - cr * 0.45f, ccx - cr * 0.45f, ccy + cr * 0.45f, p);
+                          anim = true;
+                      }
                   }
                   c.restore();
 
@@ -2388,7 +2659,7 @@ jobs:
                   p.setStyle(Paint.Style.STROKE);
                   p.setStrokeWidth(u * 0.09f);
                   p.setStrokeCap(Paint.Cap.ROUND);
-                  p.setColor(th.text);
+                  p.setColor(TXT);
                   rf.set(cx - r, cy - r, cx + r, cy + r);
                   float start = cw ? -120f : -60f;
                   float sweep = cw ? 250f : -250f;
@@ -2423,10 +2694,11 @@ jobs:
                   if (active) {
                       p.setStyle(Paint.Style.STROKE);
                       p.setStrokeWidth(u * 0.07f);
-                      p.setColor(0xFFFFD54F);
+                      int pc = Theme.pcol(idx);
+                      p.setColor(pc);
                       c.drawCircle(cx, cy, avR * 1.12f, p);
                       p.setStrokeWidth(u * 0.16f);
-                      p.setColor((((int) (40 + 150 * pulse)) << 24) | 0x00FFD54F);
+                      p.setColor((((int) (40 + 150 * pulse)) << 24) | (pc & 0x00FFFFFF));
                       c.drawCircle(cx, cy, avR * 1.12f + u * 0.06f + u * 0.1f * (float) pulse, p);
                       anim = true;
                   }
@@ -2434,22 +2706,33 @@ jobs:
                   tp.setStyle(Paint.Style.FILL);
                   tp.setAlpha(255);
                   tp.setTextAlign(Paint.Align.CENTER);
-                  tp.setColor(th.text);
+                  tp.setColor(TXT);
                   tp.setTextSize(u * 0.3f);
-                  String nm = cut(names[idx], 12) + (bots[idx] ? " (бот)" : "");
-                  c.drawText(nm, cx, cy + avR + u * 0.38f, tp);
+                  String nm = cut(names[idx], 12);
+                  tp.setColor(Theme.pcol(idx));
+                  c.drawText(nm, cx, cy + avR + u * 0.4f, tp);
+                  tp.setColor(TXT);
                   if (mine) {
                       if (active) {
-                          tp.setColor(0xFFFFD54F);
-                          c.drawText("Ваш хід!", cx, cy + avR + u * 0.76f, tp);
+                          tp.setColor(Theme.pcol(idx));
+                          c.drawText("Ваш хід!", cx, cy + avR + u * 0.8f, tp);
                       }
                   } else {
-                      float by = cy + avR + u * 0.76f;
-                      painter.back(c, cx - u * 0.5f, by - u * 0.36f, u * 0.3f, u * 0.45f);
-                      tp.setTextAlign(Paint.Align.LEFT);
-                      tp.setColor(th.text);
+                      String cnum = String.valueOf(g.counts[idx]);
                       tp.setTextSize(u * 0.34f);
-                      c.drawText(String.valueOf(g.counts[idx]), cx - u * 0.1f, by, tp);
+                      float cwid = tp.measureText(cnum);
+                      float bx, by;
+                      if (cy < u * 2.5f) {
+                          bx = cx + avR + u * 0.45f;
+                          by = cy + u * 0.15f;
+                      } else {
+                          bx = cx - (u * 0.3f + u * 0.2f + cwid) / 2f;
+                          by = cy + avR + u * 1.2f;
+                      }
+                      painter.back(c, bx, by - u * 0.4f, u * 0.3f, u * 0.45f);
+                      tp.setTextAlign(Paint.Align.LEFT);
+                      tp.setColor(TXT);
+                      c.drawText(cnum, bx + u * 0.5f, by, tp);
                   }
                   if (micOk && !bots[idx]) {
                       float mx = cx + avR * 0.9f, my = cy + avR * 0.8f;
@@ -2575,9 +2858,16 @@ jobs:
                   }
                   for (int i = g.hand.size() - 1; i >= 0; i--) {
                       float cx = hStart + i * hStep;
-                      float top = g.legal.get(i) ? hTop - hRaise : hTop;
+                      float top = (g.legal.get(i) && hint) ? hTop - hRaise : hTop;
                       if (x >= cx && x <= cx + hCw && y >= top && y <= hTop + hCh) {
-                          if (g.legal.get(i)) listener.onPlay(g.hand.get(i));
+                          if (g.legal.get(i)) {
+                              listener.onPlay(g.hand.get(i));
+                          } else {
+                              crossEnc = g.hand.get(i).enc();
+                              crossUntil = System.currentTimeMillis() + 1200;
+                              invalidate();
+                              postInvalidateDelayed(1300);
+                          }
                           return;
                       }
                   }
@@ -2622,7 +2912,6 @@ jobs:
           import android.widget.LinearLayout;
           import android.widget.ScrollView;
           import android.widget.SeekBar;
-          import android.widget.Switch;
           import android.widget.TextView;
           import android.widget.Toast;
 
@@ -2655,11 +2944,13 @@ jobs:
               protected int themeId;
               protected boolean autoPass;
               protected boolean showDraw = true;
+              protected boolean hint = true;
+              protected int bgId;
               protected int botDelay = 1800;
               protected String cid = "";
 
               private EditText etNick;
-              private LinearLayout avatarBox, themeBox, histBox;
+              private LinearLayout avatarBox, themeBox, bgBox;
               private Preview preview;
 
               @Override
@@ -2672,6 +2963,8 @@ jobs:
                   themeId = sp.getInt("theme", 0);
                   autoPass = sp.getBoolean("auto", false);
                   showDraw = sp.getBoolean("showDraw", true);
+                  hint = sp.getBoolean("hint", true);
+                  bgId = sp.getInt("bg", 0);
                   botDelay = sp.getInt("botDelay", 1800);
                   cid = sp.getString("cid", "");
                   if (cid.length() == 0) {
@@ -2698,7 +2991,7 @@ jobs:
 
               protected void savePrefs() {
                   sp.edit().putString("nick", nick).putInt("avatar", avatar).putString("photo", photo)
-                      .putInt("theme", themeId).putBoolean("auto", autoPass).putBoolean("showDraw", showDraw)
+                      .putInt("theme", themeId).putBoolean("auto", autoPass).putBoolean("showDraw", showDraw).putBoolean("hint", hint).putInt("bg", bgId)
                       .putInt("botDelay", botDelay).commit();
               }
 
@@ -2826,18 +3119,28 @@ jobs:
                   themeBox.setOrientation(LinearLayout.HORIZONTAL);
                   box.addView(themeBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                   preview = new Preview(this);
-                  box.addView(preview, lp(ViewGroup.LayoutParams.MATCH_PARENT, 2.4f, 0.08f));
+                  box.addView(preview, lp(ViewGroup.LayoutParams.MATCH_PARENT, 2.8f, 0.08f));
 
-                  box.addView(toggle("Автоматично пасувати, якщо немає ходу", autoPass, new CompoundButton.OnCheckedChangeListener() {
-                      public void onCheckedChanged(CompoundButton b, boolean on) {
+                  box.addView(tv("Фон столу", 0.3f, 0xFFB0BEC5, false));
+                  bgBox = new LinearLayout(this);
+                  bgBox.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(bgBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  box.addView(onOff("Автоматично пасувати, якщо немає ходу", autoPass, new Toggle() {
+                      public void set(boolean on) {
                           autoPass = on;
                       }
-                  }), lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.15f));
-                  box.addView(toggle("Кнопка «Добрати» (добирати можна і дотиком до колоди)", showDraw, new CompoundButton.OnCheckedChangeListener() {
-                      public void onCheckedChanged(CompoundButton b, boolean on) {
+                  }));
+                  box.addView(onOff("Кнопка «Добрати» (добирати можна і дотиком до колоди)", showDraw, new Toggle() {
+                      public void set(boolean on) {
                           showDraw = on;
                       }
-                  }), lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.15f));
+                  }));
+                  box.addView(onOff("Автопідсвічування потрібних карт", hint, new Toggle() {
+                      public void set(boolean on) {
+                          hint = on;
+                      }
+                  }));
 
                   if (hostMode()) {
                       final TextView lbl = tv("", 0.34f, WHITE, false);
@@ -2862,11 +3165,6 @@ jobs:
                       box.addView(sb, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
                   }
 
-                  box.addView(tv("Історія", 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.1f));
-                  histBox = new LinearLayout(this);
-                  histBox.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(histBox);
-
                   box.addView(btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
                       public void onClick(View v) {
                           dlg.dismiss();
@@ -2875,7 +3173,7 @@ jobs:
 
                   refreshAvatars();
                   refreshThemes();
-                  refreshHist();
+                  refreshBgs();
                   dlg.setContentView(sv);
                   if (dlg.getWindow() != null) {
                       dlg.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
@@ -2890,7 +3188,7 @@ jobs:
                           etNick = null;
                           avatarBox = null;
                           themeBox = null;
-                          histBox = null;
+                          bgBox = null;
                           preview = null;
                           onSettingsClosed();
                       }
@@ -2899,21 +3197,99 @@ jobs:
                   box.requestFocus();
               }
 
-              private Switch toggle(String text, boolean on, CompoundButton.OnCheckedChangeListener l) {
-                  Switch sw = new Switch(this);
-                  sw.setText(text);
-                  sw.setTextColor(WHITE);
-                  sw.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.34f * u);
-                  sw.setChecked(on);
-                  sw.setOnCheckedChangeListener(l);
-                  return sw;
+              protected interface Toggle {
+                  void set(boolean on);
+              }
+
+              private LinearLayout onOff(String text, boolean init, final Toggle cb) {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.addView(tv(text, 0.32f, WHITE, false), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.04f));
+                  final LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  col.addView(row, new LinearLayout.LayoutParams(px(6f), ViewGroup.LayoutParams.WRAP_CONTENT));
+                  fillOnOff(row, init, cb);
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  p.topMargin = px(0.12f);
+                  col.setLayoutParams(p);
+                  return col;
+              }
+
+              private void fillOnOff(final LinearLayout row, boolean on, final Toggle cb) {
+                  row.removeAllViews();
+                  for (int k = 0; k < 2; k++) {
+                      final boolean val = k == 0;
+                      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.8f), 1f);
+                      p.setMargins(px(0.04f), px(0.04f), px(0.04f), px(0.04f));
+                      row.addView(btn(val ? "Увімк." : "Вимк.", on == val ? (val ? 0xFF2E7D32 : 0xFFC62828) : 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              cb.set(val);
+                              fillOnOff(row, val, cb);
+                          }
+                      }), p);
+                  }
+              }
+
+              private void refreshBgs() {
+                  if (bgBox == null) return;
+                  bgBox.removeAllViews();
+                  int per = 4;
+                  LinearLayout row = null;
+                  for (int i = 0; i < Bg.NAMES.length; i++) {
+                      if (i % per == 0) {
+                          row = new LinearLayout(this);
+                          row.setOrientation(LinearLayout.HORIZONTAL);
+                          bgBox.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                      }
+                      final int id = i;
+                      BgPreview v = new BgPreview(this, id);
+                      v.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View x) {
+                              bgId = id;
+                              refreshBgs();
+                          }
+                      });
+                      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(1.5f), 1f);
+                      p.setMargins(px(0.06f), px(0.06f), px(0.06f), px(0.06f));
+                      row.addView(v, p);
+                  }
+              }
+
+              private class BgPreview extends View {
+                  private final int id;
+                  private final android.graphics.Paint pp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+                  BgPreview(Context c, int id) {
+                      super(c);
+                      this.id = id;
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      int w = getWidth(), h = getHeight();
+                      c.save();
+                      Bg.drawDirect(c, w, h, id);
+                      c.restore();
+                      pp.setTextAlign(android.graphics.Paint.Align.CENTER);
+                      pp.setTextSize(h * 0.26f);
+                      pp.setTypeface(Typeface.DEFAULT_BOLD);
+                      pp.setStyle(android.graphics.Paint.Style.FILL);
+                      pp.setColor(WHITE);
+                      c.drawText(Bg.NAMES[id], w / 2f, h * 0.62f, pp);
+                      if (id == bgId) {
+                          pp.setStyle(android.graphics.Paint.Style.STROKE);
+                          pp.setStrokeWidth(h * 0.07f);
+                          pp.setColor(0xFFFFD54F);
+                          c.drawRect(0, 0, w, h, pp);
+                      }
+                  }
               }
 
               private void refreshAvatars() {
                   if (avatarBox == null) return;
                   avatarBox.removeAllViews();
                   int total = Avatars.EMO.length + (photo.length() > 8 ? 1 : 0);
-                  int perRow = 7;
+                  int perRow = 6;
                   LinearLayout row = null;
                   for (int i = 0; i < total; i++) {
                       if (i % perRow == 0) {
@@ -2931,18 +3307,24 @@ jobs:
                               refreshAvatars();
                           }
                       });
-                      row.addView(av, lp(1.1f, 1.1f, 0.04f));
+                      row.addView(av, lp(1.5f, 1.5f, 0.05f));
                   }
               }
 
               private void refreshThemes() {
                   if (themeBox == null) return;
                   themeBox.removeAllViews();
+                  LinearLayout row = null;
                   for (int i = 0; i < Theme.ALL.length; i++) {
+                      if (i % 3 == 0) {
+                          row = new LinearLayout(this);
+                          row.setOrientation(LinearLayout.HORIZONTAL);
+                          themeBox.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                      }
                       final int id = i;
                       LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.9f), 1f);
                       p.setMargins(px(0.05f), px(0.05f), px(0.05f), px(0.05f));
-                      themeBox.addView(btn(Theme.ALL[i].title, themeId == i ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                      row.addView(btn(Theme.ALL[i].title, themeId == i ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
                           public void onClick(View v) {
                               themeId = id;
                               refreshThemes();
@@ -2964,7 +3346,7 @@ jobs:
                   protected void onDraw(Canvas c) {
                       Theme t = Theme.get(themeId);
                       painter.th = t;
-                      c.drawColor(t.bg);
+                      Bg.drawDirect(c, getWidth(), getHeight(), bgId);
                       float h = getHeight() * 0.92f;
                       float w = h * 0.667f;
                       int k = cards.length + 1;
@@ -3056,67 +3438,7 @@ jobs:
                   }
               }
 
-              private void refreshHist() {
-                  if (histBox == null) return;
-                  histBox.removeAllViews();
-                  try {
-                      final JSONArray arr = new JSONArray(sp.getString("hist", "[]"));
-                      if (arr.length() == 0) {
-                          histBox.addView(tv("Історія порожня", 0.34f, 0xFFB0BEC5, false));
-                          return;
-                      }
-                      SimpleDateFormat fmt = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
-                      for (int i = 0; i < arr.length(); i++) {
-                          final int idx = i;
-                          JSONObject o = arr.getJSONObject(i);
-                          LinearLayout row = new LinearLayout(this);
-                          row.setOrientation(LinearLayout.HORIZONTAL);
-                          row.setGravity(Gravity.CENTER_VERTICAL);
-                          row.setBackground(bg(0xFF2C3A41, 0.2f));
-                          row.setPadding(px(0.3f), px(0.1f), px(0.2f), px(0.1f));
-                          LinearLayout col = new LinearLayout(this);
-                          col.setOrientation(LinearLayout.VERTICAL);
-                          col.addView(tv(fmt.format(new Date(o.getLong("t"))), 0.26f, 0xFFB0BEC5, false));
-                          col.addView(tv("Програв: " + o.getString("loser") + " — " + o.getInt("pts"), 0.32f, WHITE, true));
-                          row.addView(col, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-                          row.addView(btn("Видалити", 0xFFC62828, new View.OnClickListener() {
-                              public void onClick(View v) {
-                                  deleteHist(idx);
-                              }
-                          }), lp(2.2f, 0.75f, 0.04f));
-                          histBox.addView(row, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
-                      }
-                      histBox.addView(btn("Стерти всю історію", 0xFFB71C1C, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              new AlertDialog.Builder(BaseActivity.this).setTitle("Стерти всю історію?")
-                                  .setPositiveButton("Так", new android.content.DialogInterface.OnClickListener() {
-                                      public void onClick(android.content.DialogInterface d, int w) {
-                                          sp.edit().putString("hist", "[]").commit();
-                                          refreshHist();
-                                      }
-                                  }).setNegativeButton("Ні", null).show();
-                          }
-                      }), lp(5f, 0.9f, 0.08f));
-                  } catch (Exception e) {
-                      histBox.addView(tv("Історія порожня", 0.34f, 0xFFB0BEC5, false));
-                  }
-              }
-
-              private void deleteHist(int idx) {
-                  try {
-                      JSONArray old = new JSONArray(sp.getString("hist", "[]"));
-                      JSONArray neu = new JSONArray();
-                      for (int i = 0; i < old.length(); i++) {
-                          if (i != idx) neu.put(old.get(i));
-                      }
-                      sp.edit().putString("hist", neu.toString()).commit();
-                  } catch (Exception e) {
-                      // ignore
-                  }
-                  refreshHist();
-              }
-
-              protected View buildHistory() {
+              protected View buildHistory(final Runnable after) {
                   LinearLayout list = new LinearLayout(this);
                   list.setOrientation(LinearLayout.VERTICAL);
                   try {
@@ -3138,13 +3460,46 @@ jobs:
                               sb.append(ns.getString(j)).append(": ").append(ts.getInt(j));
                           }
                           card.addView(tv(sb.toString(), 0.3f, 0xFFCFD8DC, false));
+                          final int idx = i;
+                          card.addView(btn("Видалити", 0xFFC62828, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  deleteHist(idx);
+                                  after.run();
+                              }
+                          }), lp(2.4f, 0.75f, 0.05f));
                           list.addView(card, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.1f));
                       }
-                      if (arr.length() == 0) list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
+                      if (arr.length() == 0) {
+                          list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
+                      } else {
+                          list.addView(btn("Стерти всю історію", 0xFFB71C1C, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  new AlertDialog.Builder(BaseActivity.this).setTitle("Стерти всю історію?")
+                                      .setPositiveButton("Так", new android.content.DialogInterface.OnClickListener() {
+                                          public void onClick(android.content.DialogInterface d, int w) {
+                                              sp.edit().putString("hist", "[]").commit();
+                                              after.run();
+                                          }
+                                      }).setNegativeButton("Ні", null).show();
+                              }
+                          }), lp(5f, 0.9f, 0.08f));
+                      }
                   } catch (Exception e) {
                       list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
                   }
                   return list;
+              }
+              private void deleteHist(int idx) {
+                  try {
+                      JSONArray old = new JSONArray(sp.getString("hist", "[]"));
+                      JSONArray neu = new JSONArray();
+                      for (int i = 0; i < old.length(); i++) {
+                          if (i != idx) neu.put(old.get(i));
+                      }
+                      sp.edit().putString("hist", neu.toString()).commit();
+                  } catch (Exception e) {
+                      // ignore
+                  }
               }
           }
           EOF
@@ -3162,6 +3517,9 @@ jobs:
           import android.media.ToneGenerator;
           import android.os.Bundle;
           import android.os.Vibrator;
+          import android.text.SpannableString;
+          import android.text.Spanned;
+          import android.text.style.ForegroundColorSpan;
           import android.view.Gravity;
           import android.view.View;
           import android.view.ViewGroup;
@@ -3182,8 +3540,8 @@ jobs:
               private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
               private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
               private static final int REQ_MIC = 21;
-              private static final String[] LEVELS = {"Легкий", "Середній", "Складний"};
-              private static final String[] LEVELS_SHORT = {"Легк", "Серед", "Склад"};
+              private static final String[] LEVELS = {"Аматор", "Студент", "Геній"};
+              private static final String[] LEVELS_SHORT = LEVELS;
 
               private FrameLayout root;
               private int screen;
@@ -3268,6 +3626,8 @@ jobs:
                       showMenu();
                   } else if (screen == S_GAME && table != null) {
                       table.setTheme(Theme.get(themeId));
+                      table.hint = hint;
+                      table.setBg(bgId);
                       applyState();
                   }
               }
@@ -3477,22 +3837,22 @@ jobs:
                   prof.addView(av, lp(1.2f, 1.2f, 0.05f));
                   prof.addView(tv(nick, 0.45f, WHITE, true), lp(WRAP, WRAP, 0.1f));
                   col.addView(prof, lp(WRAP, WRAP, 0.05f));
-                  col.addView(btn("Створити кімнату", 0xFFE53935, new View.OnClickListener() {
+                  col.addView(btn("Створити кімнату", 0xFFC2552F, new View.OnClickListener() {
                       public void onClick(View v) {
                           createRoom();
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
-                  col.addView(btn("Приєднатися", 0xFF1E88E5, new View.OnClickListener() {
+                  col.addView(btn("Приєднатися", 0xFF2B7A9B, new View.OnClickListener() {
                       public void onClick(View v) {
                           showJoin();
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
-                  col.addView(btn("Історія ігор", 0xFF43A047, new View.OnClickListener() {
+                  col.addView(btn("Історія ігор", 0xFFC98B1F, new View.OnClickListener() {
                       public void onClick(View v) {
                           showHistory();
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
-                  col.addView(btn("Налаштування", 0xFF8E24AA, new View.OnClickListener() {
+                  col.addView(btn("Налаштування", 0xFF7A4E9C, new View.OnClickListener() {
                       public void onClick(View v) {
                           showSettings();
                       }
@@ -3509,7 +3869,11 @@ jobs:
                   col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
                   col.addView(tv("Історія ігор", 0.5f, WHITE, true));
                   ScrollView sv = new ScrollView(this);
-                  sv.addView(buildHistory());
+                  sv.addView(buildHistory(new Runnable() {
+                      public void run() {
+                          showHistory();
+                      }
+                  }));
                   col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
                   col.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
@@ -3665,7 +4029,8 @@ jobs:
                   Avatars.AvatarView av = new Avatars.AvatarView(this);
                   av.set(pi(p[1]), p[2], false);
                   row.addView(av, lp(1.0f, 1.0f, 0.05f));
-                  String label = p[0] + (idx == 0 ? " (хост)" : "") + (bot ? " (бот)" : "") + (idx == me ? " — ви" : "");
+                  final boolean hostRow = p.length > 6 && p[6].equals("1");
+                  String label = bot ? p[0] : (p[0] + (hostRow ? " - господар" : " - гість"));
                   row.addView(tv(label, 0.38f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
                   if (isHost) {
                       row.addView(btn("↑", 0xFF455A64, new View.OnClickListener() {
@@ -3678,7 +4043,7 @@ jobs:
                               if (host != null) hostErr(host.moveSeat(idx, 1));
                           }
                       }), lp(0.9f, 0.8f, 0.03f));
-                      if (idx > 0) {
+                      if (!hostRow) {
                           row.addView(btn(bot ? "Прибрати" : "Видалити", 0xFFC62828, new View.OnClickListener() {
                               public void onClick(View v) {
                                   if (host != null) hostErr(host.removePlayer(idx));
@@ -3695,7 +4060,7 @@ jobs:
                                   public void onClick(View v) {
                                       if (host != null) host.setLevel(idx, lk);
                                   }
-                              }), lp(1.5f, 0.8f, 0.03f));
+                              }), lp(2.2f, 0.8f, 0.03f));
                           }
                       }
                   }
@@ -3739,6 +4104,8 @@ jobs:
                   root.removeAllViews();
                   root.setBackgroundColor(0xFF000000);
                   table = new TableView(this, Theme.get(themeId));
+                  table.hint = hint;
+                  table.setBg(bgId);
                   table.micOk = getPackageManager().hasSystemFeature(PackageManager.FEATURE_MICROPHONE);
                   table.listener = new TableView.Listener() {
                       public void onPlay(Card k) {
@@ -4066,7 +4433,7 @@ jobs:
               private void showBotMenu(final int idx) {
                   LinearLayout box = new LinearLayout(this);
                   box.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(tv("Бот " + pname(idx) + ": рівень", 0.4f, WHITE, true), lp(WRAP, WRAP, 0.08f));
+                  box.addView(tv(pname(idx) + ": рівень", 0.4f, WHITE, true), lp(WRAP, WRAP, 0.08f));
                   final Dialog[] dd = new Dialog[1];
                   int cur = pi(players.get(idx)[4]);
                   for (int k = 0; k < 3; k++) {
@@ -4132,7 +4499,21 @@ jobs:
                       String[] ls = data.split("\\^");
                       for (int i = ls.length - 1; i >= 0; i--) {
                           boolean head = ls[i].startsWith("—");
-                          list.addView(tv(ls[i], 0.32f, head ? 0xFFFFD54F : 0xFFE0E0E0, head), lp(WRAP, WRAP, 0.03f));
+                          TextView lt = tv(ls[i], 0.32f, head ? 0xFFFFD54F : 0xFFE0E0E0, head);
+                          SpannableString ss = new SpannableString(ls[i]);
+                          for (int j = 0; j < players.size(); j++) {
+                              String nm = pname(j);
+                              if (nm.length() == 0) continue;
+                              int from = 0;
+                              while (true) {
+                                  int at = ls[i].indexOf(nm, from);
+                                  if (at < 0) break;
+                                  ss.setSpan(new ForegroundColorSpan(Theme.pcol(j)), at, at + nm.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                  from = at + nm.length();
+                              }
+                          }
+                          lt.setText(ss);
+                          list.addView(lt, lp(WRAP, WRAP, 0.03f));
                       }
                   }
                   box.addView(sv, new LinearLayout.LayoutParams(MATCH, px(5.2f)));
@@ -4198,28 +4579,32 @@ jobs:
                   return t;
               }
 
-              private View trow(int idx, String name, String a, String b, String c, int color, boolean bold) {
+              private View hcell(String s2, int color, boolean bold, float size) {
+                  TextView t = tv(s2, size, color, bold);
+                  t.setGravity(Gravity.CENTER);
+                  t.setSingleLine(true);
+                  t.setPadding(px(0.05f), px(0.08f), px(0.05f), px(0.08f));
+                  return t;
+              }
+
+              private String cutName(String s2, int max) {
+                  return s2.length() > max ? s2.substring(0, max - 1) + "…" : s2;
+              }
+
+              private LinearLayout trowT(String label, String[] vals, int[] colors, boolean bold) {
                   LinearLayout out = new LinearLayout(this);
                   out.setOrientation(LinearLayout.VERTICAL);
                   LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   row.setGravity(Gravity.CENTER_VERTICAL);
-                  if (idx >= 0 && idx < players.size()) {
-                      String[] p = players.get(idx);
-                      Avatars.AvatarView av = new Avatars.AvatarView(this);
-                      av.set(pi(p[1]), p[2], false);
-                      row.addView(av, lp(0.9f, 0.9f, 0.04f));
-                  } else {
-                      row.addView(new View(this), lp(0.98f, 0.5f, 0.04f));
+                  TextView l = (TextView) hcell(label, 0xFFB0BEC5, true, 0.3f);
+                  l.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                  l.setPadding(px(0.15f), px(0.12f), px(0.05f), px(0.12f));
+                  row.addView(l, new LinearLayout.LayoutParams(0, WRAP, 1.7f));
+                  for (int i = 0; i < vals.length; i++) {
+                      row.addView(divider());
+                      row.addView(hcell(vals[i], colors[i], bold, 0.4f), new LinearLayout.LayoutParams(0, WRAP, 1f));
                   }
-                  row.addView(divider());
-                  row.addView(cell(name, color, bold, false), new LinearLayout.LayoutParams(0, WRAP, 3f));
-                  row.addView(divider());
-                  row.addView(cell(a, color, bold, true), new LinearLayout.LayoutParams(0, WRAP, 1.4f));
-                  row.addView(divider());
-                  row.addView(cell(b, color, bold, true), new LinearLayout.LayoutParams(0, WRAP, 1.4f));
-                  row.addView(divider());
-                  row.addView(cell(c, color, bold, true), new LinearLayout.LayoutParams(0, WRAP, 1.4f));
                   out.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
                   View line = new View(this);
                   line.setBackgroundColor(0x66FFFFFF);
@@ -4231,14 +4616,37 @@ jobs:
                   LinearLayout t = new LinearLayout(this);
                   t.setOrientation(LinearLayout.VERTICAL);
                   t.setBackground(bg(0xFF2C3A41, 0.15f));
-                  t.addView(trow(-1, "Гравець", "Партія", "Всього", "Перемог", 0xFFB0BEC5, true));
                   int n = Math.min(players.size(), tot == null ? 0 : tot.length);
+                  LinearLayout head = new LinearLayout(this);
+                  head.setOrientation(LinearLayout.HORIZONTAL);
+                  head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1.7f));
                   for (int i = 0; i < n; i++) {
-                      boolean w = i == winner;
-                      int col = w ? 0xFFFFD54F : (i == me ? 0xFF80DEEA : WHITE);
-                      t.addView(trow(i, (w ? "★ " : "") + pname(i), String.valueOf(at(pts, i)), String.valueOf(at(tot, i)),
-                          String.valueOf(at(wins, i)), col, w || i == me));
+                      head.addView(divider());
+                      LinearLayout cc = new LinearLayout(this);
+                      cc.setOrientation(LinearLayout.VERTICAL);
+                      cc.setGravity(Gravity.CENTER_HORIZONTAL);
+                      String[] p = players.get(i);
+                      Avatars.AvatarView av = new Avatars.AvatarView(this);
+                      av.set(pi(p[1]), p[2], false);
+                      cc.addView(av, lp(1.0f, 1.0f, 0.04f));
+                      cc.addView(hcell((i == winner ? "★ " : "") + cutName(pname(i), 8), Theme.pcol(i), true, 0.26f));
+                      head.addView(cc, new LinearLayout.LayoutParams(0, WRAP, 1f));
                   }
+                  t.addView(head, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  View line = new View(this);
+                  line.setBackgroundColor(0x66FFFFFF);
+                  t.addView(line, new LinearLayout.LayoutParams(MATCH, Math.max(1, px(0.02f))));
+                  String[] w = new String[n], r = new String[n], a = new String[n];
+                  int[] cols = new int[n];
+                  for (int i = 0; i < n; i++) {
+                      w[i] = String.valueOf(at(wins, i));
+                      r[i] = String.valueOf(at(pts, i));
+                      a[i] = String.valueOf(at(tot, i));
+                      cols[i] = i == winner ? 0xFFFFD54F : WHITE;
+                  }
+                  t.addView(trowT("Перемоги", w, cols, false));
+                  t.addView(trowT("Партія", r, cols, false));
+                  t.addView(trowT("Всього", a, cols, true));
                   return t;
               }
 
