@@ -1,0 +1,3049 @@
+name: Uno_Gryntsiv
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/Uno_Gryntsiv_v1.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/unogryntsiv app/src/main/res/drawable
+          echo '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' | base64 -d > debug.keystore
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'UnoGryntsiv'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.unogryntsiv'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.unogryntsiv"
+                  minSdk 23
+                  targetSdk 26
+                  versionCode 1
+                  versionName "1.0"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          tasks.withType(JavaCompile).configureEach {
+              options.encoding = 'UTF-8'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+              <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+              <application
+                  android:label="Uno Gryntsiv"
+                  android:icon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:usesCleartextTraffic="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+                      android:windowSoftInputMode="stateHidden|adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Card.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          public class Card {
+              // c: 0 червоний, 1 жовтий, 2 зелений, 3 синій, 4 дикий
+              // v: 0-9 цифри, 10 skip, 11 reverse, 12 draw two, 13 wild, 14 draw four
+              public final int c;
+              public final int v;
+
+              public Card(int c, int v) {
+                  this.c = c;
+                  this.v = v;
+              }
+
+              public int points() {
+                  if (v <= 9) return v;
+                  if (v <= 12) return 20;
+                  return 50;
+              }
+
+              public boolean same(Card o) {
+                  return o != null && o.c == c && o.v == v;
+              }
+
+              public String enc() {
+                  return c + ":" + v;
+              }
+
+              public static Card dec(String s) {
+                  String[] p = s.split(":");
+                  return new Card(Integer.parseInt(p[0]), Integer.parseInt(p[1]));
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Engine.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Random;
+
+          public class Engine {
+              public static final int SKIP = 10, REV = 11, D2 = 12, WILD = 13, D4 = 14;
+              public static final String[] COLORS = {"червоний", "жовтий", "зелений", "синій"};
+
+              public final int n;
+              public final String[] names;
+              public final ArrayList<ArrayList<Card>> hands = new ArrayList<ArrayList<Card>>();
+              public final ArrayList<Card> deck = new ArrayList<Card>();
+              public final ArrayList<Card> disc = new ArrayList<Card>();
+              private final Random rnd = new Random();
+              public int cur;
+              public int dir = 1;
+              public int curColor;
+              public int pendDraw;
+              public boolean pendFour;
+              public boolean pendSkip;
+              public boolean drawn;
+              public boolean over;
+              public int winner = -1;
+              public int[] roundPts;
+              public String msg = "";
+              private final StringBuilder log = new StringBuilder();
+
+              public Engine(String[] names, int starter) {
+                  this.names = names;
+                  this.n = names.length;
+                  for (int c = 0; c < 4; c++) {
+                      deck.add(new Card(c, 0));
+                      for (int v = 1; v <= 12; v++) {
+                          deck.add(new Card(c, v));
+                          deck.add(new Card(c, v));
+                      }
+                  }
+                  for (int i = 0; i < 4; i++) {
+                      deck.add(new Card(4, WILD));
+                      deck.add(new Card(4, D4));
+                  }
+                  Collections.shuffle(deck, rnd);
+                  for (int i = 0; i < n; i++) hands.add(new ArrayList<Card>());
+                  for (int r = 0; r < 7; r++) {
+                      for (int i = 0; i < n; i++) hands.get(i).add(deck.remove(deck.size() - 1));
+                  }
+                  while (true) {
+                      Card k = deck.remove(deck.size() - 1);
+                      if (k.v <= 9) {
+                          disc.add(k);
+                          curColor = k.c;
+                          break;
+                      }
+                      deck.add(0, k);
+                  }
+                  cur = starter;
+              }
+
+              public Card top() {
+                  return disc.get(disc.size() - 1);
+              }
+
+              private int next(int p) {
+                  return ((p + dir) % n + n) % n;
+              }
+
+              private void say(String s) {
+                  if (log.length() > 0) log.append(". ");
+                  log.append(s);
+              }
+
+              private Card draw1() {
+                  if (deck.isEmpty() && disc.size() > 1) {
+                      Card t = disc.remove(disc.size() - 1);
+                      deck.addAll(disc);
+                      disc.clear();
+                      disc.add(t);
+                      Collections.shuffle(deck, rnd);
+                      say("Колоду перетасовано");
+                  }
+                  if (deck.isEmpty()) return null;
+                  return deck.remove(deck.size() - 1);
+              }
+
+              private int give(int p, int cnt) {
+                  int got = 0;
+                  for (int i = 0; i < cnt; i++) {
+                      Card k = draw1();
+                      if (k == null) break;
+                      hands.get(p).add(k);
+                      got++;
+                  }
+                  return got;
+              }
+
+              private boolean colorMatchExists(int p) {
+                  Card t = top();
+                  for (Card k : hands.get(p)) {
+                      if (k.v < WILD && (k.c == curColor || k.v == t.v)) return true;
+                  }
+                  return false;
+              }
+
+              public boolean canPlay(int p, Card k) {
+                  if (over || p != cur) return false;
+                  if (pendDraw > 0) return k.v == D2 && (!pendFour || k.c == curColor);
+                  if (pendSkip) return k.v == SKIP && k.c == curColor;
+                  if (k.v == WILD) return true;
+                  if (k.v == D4) return !colorMatchExists(p);
+                  return k.c == curColor || k.v == top().v;
+              }
+
+              public boolean anyPlayable(int p) {
+                  for (Card k : hands.get(p)) {
+                      if (canPlay(p, k)) return true;
+                  }
+                  return false;
+              }
+
+              public boolean canDraw(int p) {
+                  if (over || p != cur) return false;
+                  if (pendDraw > 0) return true;
+                  if (pendSkip || drawn) return false;
+                  return !anyPlayable(p);
+              }
+
+              public boolean canPass(int p) {
+                  if (over || p != cur) return false;
+                  if (pendDraw > 0) return false;
+                  return pendSkip || drawn;
+              }
+
+              private boolean hasCounterD2(int p) {
+                  for (Card k : hands.get(p)) {
+                      if (k.v == D2 && (!pendFour || k.c == curColor)) return true;
+                  }
+                  return false;
+              }
+
+              private boolean hasCounterSkip(int p) {
+                  for (Card k : hands.get(p)) {
+                      if (k.v == SKIP && k.c == curColor) return true;
+                  }
+                  return false;
+              }
+
+              // Автоматично розв'язує штраф або пропуск, якщо в гравця немає чим відповісти
+              private void settle() {
+                  for (int guard = 0; guard < 20; guard++) {
+                      if (pendDraw > 0) {
+                          if (hasCounterD2(cur)) return;
+                          int got = give(cur, pendDraw);
+                          say(names[cur] + " добирає " + got + " і пропускає хід");
+                          pendDraw = 0;
+                          pendFour = false;
+                          drawn = false;
+                          cur = next(cur);
+                      } else if (pendSkip) {
+                          if (hasCounterSkip(cur)) return;
+                          say(names[cur] + " пропускає хід");
+                          pendSkip = false;
+                          drawn = false;
+                          cur = next(cur);
+                      } else {
+                          return;
+                      }
+                  }
+              }
+
+              public static String label(Card k) {
+                  if (k.v <= 9) return String.valueOf(k.v);
+                  if (k.v == SKIP) return "Skip";
+                  if (k.v == REV) return "Reverse";
+                  if (k.v == D2) return "Draw two";
+                  if (k.v == WILD) return "Wild";
+                  return "Draw four";
+              }
+
+              public String play(int p, Card k, int color) {
+                  if (!canPlay(p, k)) return "illegal";
+                  ArrayList<Card> h = hands.get(p);
+                  int idx = -1;
+                  for (int i = 0; i < h.size(); i++) {
+                      if (h.get(i).same(k)) {
+                          idx = i;
+                          break;
+                      }
+                  }
+                  if (idx < 0) return "nocard";
+                  if (k.v >= WILD && (color < 0 || color > 3)) return "nocolor";
+                  log.setLength(0);
+                  Card played = h.remove(idx);
+                  disc.add(played);
+                  curColor = k.v >= WILD ? color : k.c;
+                  drawn = false;
+                  String s = names[p] + ": " + label(k);
+                  if (k.v >= WILD) s += " (" + COLORS[color] + ")";
+                  say(s);
+                  if (k.v == D2) {
+                      pendDraw += 2;
+                      pendFour = false;
+                  } else if (k.v == D4) {
+                      pendDraw += 4;
+                      pendFour = true;
+                  } else if (k.v == SKIP) {
+                      pendSkip = true;
+                  } else if (k.v == REV) {
+                      dir = -dir;
+                  }
+                  if (h.isEmpty()) {
+                      over = true;
+                      winner = p;
+                      if (pendDraw > 0) {
+                          int q = next(p);
+                          int got = give(q, pendDraw);
+                          say(names[q] + " добирає " + got);
+                          pendDraw = 0;
+                      }
+                      pendSkip = false;
+                      roundPts = new int[n];
+                      for (int i = 0; i < n; i++) {
+                          int sum = 0;
+                          for (Card c : hands.get(i)) sum += c.points();
+                          roundPts[i] = sum;
+                      }
+                      roundPts[p] = 0;
+                      say(names[p] + " виграє партію");
+                      msg = log.toString();
+                      return null;
+                  }
+                  if (k.v == REV && n == 2) {
+                      say(names[p] + " ходить ще раз");
+                  } else {
+                      cur = next(p);
+                  }
+                  settle();
+                  msg = log.toString();
+                  return null;
+              }
+
+              public String draw(int p) {
+                  if (!canDraw(p)) return "illegal";
+                  log.setLength(0);
+                  if (pendDraw > 0) {
+                      int got = give(p, pendDraw);
+                      say(names[p] + " добирає " + got + " і пропускає хід");
+                      pendDraw = 0;
+                      pendFour = false;
+                      drawn = false;
+                      cur = next(p);
+                      settle();
+                  } else {
+                      give(p, 1);
+                      drawn = true;
+                      say(names[p] + " добирає карту");
+                  }
+                  msg = log.toString();
+                  return null;
+              }
+
+              public String pass(int p) {
+                  if (!canPass(p)) return "illegal";
+                  log.setLength(0);
+                  say(names[p] + " пасує");
+                  pendSkip = false;
+                  drawn = false;
+                  cur = next(p);
+                  settle();
+                  msg = log.toString();
+                  return null;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Link.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import java.io.BufferedReader;
+          import java.io.BufferedWriter;
+          import java.io.IOException;
+          import java.io.InputStreamReader;
+          import java.io.OutputStreamWriter;
+          import java.net.Socket;
+          import java.util.concurrent.LinkedBlockingQueue;
+
+          public abstract class Link {
+              public abstract void send(String line);
+
+              public void close() {
+              }
+
+              public interface LineSink {
+                  void onLine(String line);
+
+                  void onClosed();
+              }
+
+              private static final String END = "\u0000END";
+
+              public static class SocketLink extends Link {
+                  private final Socket s;
+                  private final LinkedBlockingQueue<String> q = new LinkedBlockingQueue<String>();
+                  private volatile boolean closed;
+
+                  public SocketLink(Socket sock) {
+                      this.s = sock;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  BufferedWriter w = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(), "UTF-8"));
+                                  while (true) {
+                                      String m = q.take();
+                                      if (END.equals(m)) break;
+                                      w.write(m);
+                                      w.write("\n");
+                                      w.flush();
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                              try {
+                                  s.close();
+                              } catch (IOException e) {
+                                  // ignore
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void send(String line) {
+                      if (!closed) q.offer(line);
+                  }
+
+                  public void close() {
+                      if (closed) return;
+                      closed = true;
+                      q.offer(END);
+                  }
+
+                  public void readLoop(final LineSink sink) {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+                                  String line;
+                                  while ((line = r.readLine()) != null) {
+                                      sink.onLine(line);
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                              sink.onClosed();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Discovery.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.content.Context;
+          import android.net.wifi.WifiManager;
+
+          import java.net.DatagramPacket;
+          import java.net.DatagramSocket;
+          import java.net.InetAddress;
+          import java.net.InetSocketAddress;
+          import java.net.InterfaceAddress;
+          import java.net.NetworkInterface;
+          import java.util.ArrayList;
+          import java.util.Enumeration;
+          import java.util.concurrent.ConcurrentHashMap;
+
+          public class Discovery {
+              public static final int PORT = 45455;
+
+              public static class Room {
+                  public String name, ip;
+                  public int port, count;
+                  public boolean inGame;
+                  public long seen;
+              }
+
+              // Хост розсилає оголошення кімнати
+              public static class Announcer {
+                  private volatile boolean run;
+                  private final String name;
+                  private final int tcpPort;
+                  public volatile int count = 1;
+                  public volatile boolean inGame;
+
+                  public Announcer(String name, int tcpPort) {
+                      this.name = name.replace("|", " ");
+                      this.tcpPort = tcpPort;
+                  }
+
+                  public void start() {
+                      run = true;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              DatagramSocket ds = null;
+                              try {
+                                  ds = new DatagramSocket();
+                                  ds.setBroadcast(true);
+                                  while (run) {
+                                      String msg = "UNO1|" + name + "|" + tcpPort + "|" + count + "|" + (inGame ? 1 : 0);
+                                      byte[] b = msg.getBytes("UTF-8");
+                                      ArrayList<InetAddress> targets = broadcastAddresses();
+                                      for (InetAddress a : targets) {
+                                          try {
+                                              ds.send(new DatagramPacket(b, b.length, a, PORT));
+                                          } catch (Exception e) {
+                                              // ignore
+                                          }
+                                      }
+                                      Thread.sleep(1500);
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              } finally {
+                                  if (ds != null) ds.close();
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void stop() {
+                      run = false;
+                  }
+              }
+
+              static ArrayList<InetAddress> broadcastAddresses() {
+                  ArrayList<InetAddress> list = new ArrayList<InetAddress>();
+                  try {
+                      Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
+                      while (en != null && en.hasMoreElements()) {
+                          NetworkInterface ni = en.nextElement();
+                          if (!ni.isUp() || ni.isLoopback()) continue;
+                          for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                              InetAddress b = ia.getBroadcast();
+                              if (b != null && !list.contains(b)) list.add(b);
+                          }
+                      }
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  try {
+                      InetAddress all = InetAddress.getByName("255.255.255.255");
+                      if (!list.contains(all)) list.add(all);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  return list;
+              }
+
+              // Гравець слухає оголошення кімнат
+              public static class Listener {
+                  public final ConcurrentHashMap<String, Room> rooms = new ConcurrentHashMap<String, Room>();
+                  private volatile boolean run;
+                  private DatagramSocket ds;
+                  private WifiManager.MulticastLock lock;
+                  private final Context ctx;
+
+                  public Listener(Context ctx) {
+                      this.ctx = ctx.getApplicationContext();
+                  }
+
+                  public void start() {
+                      try {
+                          WifiManager wm = (WifiManager) ctx.getSystemService(Context.WIFI_SERVICE);
+                          if (wm != null) {
+                              lock = wm.createMulticastLock("unogryntsiv");
+                              lock.setReferenceCounted(false);
+                              lock.acquire();
+                          }
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      run = true;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  ds = new DatagramSocket(null);
+                                  ds.setReuseAddress(true);
+                                  ds.bind(new InetSocketAddress(PORT));
+                                  ds.setBroadcast(true);
+                                  ds.setSoTimeout(1000);
+                                  byte[] buf = new byte[512];
+                                  while (run) {
+                                      try {
+                                          DatagramPacket p = new DatagramPacket(buf, buf.length);
+                                          ds.receive(p);
+                                          String s = new String(p.getData(), 0, p.getLength(), "UTF-8");
+                                          String[] f = s.split("\\|", -1);
+                                          if (f.length < 5 || !f[0].equals("UNO1")) continue;
+                                          Room r = new Room();
+                                          r.name = f[1];
+                                          r.ip = p.getAddress().getHostAddress();
+                                          r.port = Integer.parseInt(f[2]);
+                                          r.count = Integer.parseInt(f[3]);
+                                          r.inGame = f[4].equals("1");
+                                          r.seen = System.currentTimeMillis();
+                                          rooms.put(r.ip + ":" + r.port, r);
+                                      } catch (java.net.SocketTimeoutException e) {
+                                          // чекаємо далі
+                                      }
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              } finally {
+                                  if (ds != null) ds.close();
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void stop() {
+                      run = false;
+                      try {
+                          if (ds != null) ds.close();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      try {
+                          if (lock != null && lock.isHeld()) lock.release();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Host.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import java.net.InetSocketAddress;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+          import java.util.ArrayList;
+          import java.util.Random;
+
+          public class Host {
+              public static final int PORT = 45454;
+              private static final String[] BOT_NAMES = {"Бот Макс", "Бот Ліза", "Бот Тимко", "Бот Оля", "Бот Дан"};
+
+              private static class P {
+                  String name = "Гравець";
+                  int avatar;
+                  String photo = "-";
+                  boolean bot;
+                  Link link;
+                  int total;
+              }
+
+              private final ArrayList<P> ps = new ArrayList<P>();
+              private final Handler h = new Handler(Looper.getMainLooper());
+              private final Random rnd = new Random();
+              private ServerSocket server;
+              private Discovery.Announcer ann;
+              private Engine eng;
+              private boolean inGame;
+              private boolean stopped;
+              private int limit = 300;
+              private int starter;
+              private int botCounter;
+              private final P me = new P();
+              private final String roomName;
+
+              private final Runnable botRun = new Runnable() {
+                  public void run() {
+                      botAct();
+                  }
+              };
+
+              public Host(String name, int avatar, String photo, Link toUi) {
+                  me.name = clean(name);
+                  me.avatar = avatar;
+                  me.photo = (photo == null || photo.length() == 0) ? "-" : photo;
+                  me.link = toUi;
+                  ps.add(me);
+                  roomName = "Кімната: " + me.name;
+              }
+
+              public String start() {
+                  try {
+                      server = new ServerSocket();
+                      server.setReuseAddress(true);
+                      server.bind(new InetSocketAddress(PORT));
+                  } catch (Exception e) {
+                      return "Не вдалося відкрити порт " + PORT;
+                  }
+                  Thread t = new Thread(new Runnable() {
+                      public void run() {
+                          while (!stopped) {
+                              try {
+                                  Socket s = server.accept();
+                                  s.setTcpNoDelay(true);
+                                  final Link.SocketLink l = new Link.SocketLink(s);
+                                  l.readLoop(new Link.LineSink() {
+                                      public void onLine(final String line) {
+                                          h.post(new Runnable() {
+                                              public void run() {
+                                                  handle(l, line);
+                                              }
+                                          });
+                                      }
+
+                                      public void onClosed() {
+                                          h.post(new Runnable() {
+                                              public void run() {
+                                                  dropped(l);
+                                              }
+                                          });
+                                      }
+                                  });
+                              } catch (Exception e) {
+                                  if (stopped) break;
+                              }
+                          }
+                      }
+                  });
+                  t.setDaemon(true);
+                  t.start();
+                  ann = new Discovery.Announcer(roomName, PORT);
+                  ann.start();
+                  h.post(new Runnable() {
+                      public void run() {
+                          broadcastLobby();
+                      }
+                  });
+                  return null;
+              }
+
+              public void stop() {
+                  stopped = true;
+                  h.removeCallbacks(botRun);
+                  if (ann != null) ann.stop();
+                  try {
+                      if (server != null) server.close();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  for (P p : ps) {
+                      if (p != me && p.link != null) p.link.close();
+                  }
+              }
+
+              // команди від самого хоста (локальний гравець)
+              public void handleLocal(String line) {
+                  handle(me.link, line);
+              }
+
+              public void setLimit(int v) {
+                  limit = v;
+                  broadcastLobby();
+              }
+
+              public int getLimit() {
+                  return limit;
+              }
+
+              public void addBot() {
+                  if (inGame || ps.size() >= 5) return;
+                  P b = new P();
+                  b.bot = true;
+                  b.name = BOT_NAMES[botCounter++ % BOT_NAMES.length];
+                  b.avatar = rnd.nextInt(12);
+                  ps.add(b);
+                  broadcastLobby();
+              }
+
+              public void removePlayer(int i) {
+                  if (inGame || i <= 0 || i >= ps.size()) return;
+                  P p = ps.get(i);
+                  if (!p.bot) return;
+                  ps.remove(i);
+                  broadcastLobby();
+              }
+
+              public void startMatch() {
+                  if (inGame || ps.size() < 2) return;
+                  inGame = true;
+                  for (P p : ps) p.total = 0;
+                  starter = rnd.nextInt(ps.size());
+                  broadcastLobby();
+                  newRound();
+              }
+
+              public void nextRound() {
+                  if (inGame && eng != null && eng.over) newRound();
+              }
+
+              private static String clean(String s) {
+                  if (s == null) s = "";
+                  s = s.replace("|", " ").replace("~", " ").replace(";", " ").replace("\n", " ").replace("\r", " ").trim();
+                  if (s.length() > 14) s = s.substring(0, 14);
+                  if (s.length() == 0) s = "Гравець";
+                  return s;
+              }
+
+              private static int pi(String s) {
+                  try {
+                      return Integer.parseInt(s.trim());
+                  } catch (Exception e) {
+                      return 0;
+                  }
+              }
+
+              private P find(Link l) {
+                  for (P p : ps) {
+                      if (p.link == l) return p;
+                  }
+                  return null;
+              }
+
+              private void handle(Link l, String line) {
+                  if (stopped) return;
+                  String[] f = line.split("\\|", -1);
+                  P p = find(l);
+                  if (f[0].equals("HELLO")) {
+                      if (p != null) return;
+                      if (inGame || ps.size() >= 5) {
+                          l.send("FULL");
+                          l.close();
+                          return;
+                      }
+                      p = new P();
+                      p.name = clean(f.length > 1 ? f[1] : "");
+                      p.avatar = f.length > 2 ? pi(f[2]) : 0;
+                      String ph = f.length > 3 ? f[3] : "-";
+                      p.photo = (ph.length() == 0 || ph.length() > 30000) ? "-" : ph;
+                      p.link = l;
+                      ps.add(p);
+                      broadcastLobby();
+                      return;
+                  }
+                  if (p == null) return;
+                  int i = ps.indexOf(p);
+                  if (f[0].equals("BYE")) {
+                      dropped(l);
+                      l.close();
+                  } else if (f[0].equals("EMO")) {
+                      if (f.length < 2) return;
+                      String m = "EMO|" + i + "|" + pi(f[1]);
+                      for (P q : ps) {
+                          if (q.link != null) q.link.send(m);
+                      }
+                  } else if (f[0].equals("PLAY")) {
+                      if (!inGame || eng == null || eng.over || f.length < 3) return;
+                      try {
+                          Card k = Card.dec(f[1]);
+                          if (eng.play(i, k, pi(f[2])) == null) after();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                  } else if (f[0].equals("DRAW")) {
+                      if (!inGame || eng == null || eng.over) return;
+                      if (eng.draw(i) == null) after();
+                  } else if (f[0].equals("PASS")) {
+                      if (!inGame || eng == null || eng.over) return;
+                      if (eng.pass(i) == null) after();
+                  }
+              }
+
+              private void dropped(Link l) {
+                  P p = find(l);
+                  if (p == null || p == me) return;
+                  p.link = null;
+                  if (inGame) {
+                      p.bot = true;
+                      broadcastLobby();
+                      if (eng != null && !eng.over) botTick();
+                  } else {
+                      ps.remove(p);
+                      broadcastLobby();
+                  }
+              }
+
+              private void broadcastLobby() {
+                  if (ann != null) {
+                      ann.count = ps.size();
+                      ann.inGame = inGame;
+                  }
+                  for (int i = 0; i < ps.size(); i++) {
+                      P p = ps.get(i);
+                      if (p.link != null) p.link.send(lobbyMsg(i));
+                  }
+              }
+
+              private String lobbyMsg(int who) {
+                  StringBuilder sb = new StringBuilder("LOBBY|");
+                  sb.append(who).append('|').append(limit).append('|').append(inGame ? 1 : 0).append('|');
+                  for (int i = 0; i < ps.size(); i++) {
+                      P q = ps.get(i);
+                      if (i > 0) sb.append(';');
+                      sb.append(q.name).append('~').append(q.avatar).append('~').append(q.photo).append('~').append(q.bot ? 1 : 0);
+                  }
+                  return sb.toString();
+              }
+
+              private void newRound() {
+                  String[] names = new String[ps.size()];
+                  for (int i = 0; i < names.length; i++) names[i] = ps.get(i).name;
+                  eng = new Engine(names, starter);
+                  h.removeCallbacks(botRun);
+                  broadcastState();
+                  botTick();
+              }
+
+              private void after() {
+                  if (eng.over) {
+                      roundEnd();
+                      return;
+                  }
+                  broadcastState();
+                  botTick();
+              }
+
+              private void roundEnd() {
+                  int n = ps.size();
+                  boolean matchOver = false;
+                  for (int i = 0; i < n; i++) {
+                      ps.get(i).total += eng.roundPts[i];
+                      if (ps.get(i).total >= limit) matchOver = true;
+                  }
+                  starter = eng.winner;
+                  int loser = -1;
+                  int max = -1;
+                  if (matchOver) {
+                      for (int i = 0; i < n; i++) {
+                          if (ps.get(i).total > max) {
+                              max = ps.get(i).total;
+                              loser = i;
+                          }
+                      }
+                  }
+                  broadcastState();
+                  StringBuilder sb = new StringBuilder("RES|");
+                  sb.append(matchOver ? 1 : 0).append('|').append(loser).append('|').append(eng.winner).append('|');
+                  for (int i = 0; i < n; i++) {
+                      if (i > 0) sb.append(',');
+                      sb.append(eng.roundPts[i]);
+                  }
+                  sb.append('|');
+                  for (int i = 0; i < n; i++) {
+                      if (i > 0) sb.append(',');
+                      sb.append(ps.get(i).total);
+                  }
+                  String res = sb.toString();
+                  for (P p : ps) {
+                      if (p.link != null) p.link.send(res);
+                  }
+                  if (matchOver) inGame = false;
+                  h.removeCallbacks(botRun);
+              }
+
+              private void broadcastState() {
+                  for (int i = 0; i < ps.size(); i++) {
+                      P p = ps.get(i);
+                      if (p.link != null) p.link.send(stateMsg(i));
+                  }
+              }
+
+              private String stateMsg(int i) {
+                  Engine e = eng;
+                  int n = ps.size();
+                  StringBuilder sb = new StringBuilder("STATE|");
+                  sb.append(e.cur).append('|').append(e.dir).append('|').append(e.top().enc()).append('|');
+                  sb.append(e.curColor).append('|').append(e.deck.size()).append('|').append(e.pendDraw).append('|');
+                  sb.append(e.pendSkip ? 1 : 0).append('|').append(e.canDraw(i) ? 1 : 0).append('|');
+                  sb.append(e.canPass(i) ? 1 : 0).append('|');
+                  ArrayList<Card> hand = e.hands.get(i);
+                  for (int j = 0; j < hand.size(); j++) {
+                      if (j > 0) sb.append(',');
+                      sb.append(hand.get(j).enc());
+                  }
+                  sb.append('|');
+                  for (int j = 0; j < hand.size(); j++) {
+                      if (j > 0) sb.append(',');
+                      sb.append(e.canPlay(i, hand.get(j)) ? 1 : 0);
+                  }
+                  sb.append('|');
+                  for (int j = 0; j < n; j++) {
+                      if (j > 0) sb.append(',');
+                      sb.append(e.hands.get(j).size());
+                  }
+                  sb.append('|');
+                  for (int j = 0; j < n; j++) {
+                      if (j > 0) sb.append(',');
+                      sb.append(ps.get(j).total);
+                  }
+                  sb.append('|').append(e.msg.replace("|", " ")).append('|').append(e.over ? 1 : 0);
+                  return sb.toString();
+              }
+
+              // ---------- боти ----------
+              private void botTick() {
+                  h.removeCallbacks(botRun);
+                  if (eng != null && !eng.over && eng.cur < ps.size() && ps.get(eng.cur).bot) {
+                      h.postDelayed(botRun, 1100);
+                  }
+              }
+
+              private void botAct() {
+                  if (stopped || eng == null || eng.over) return;
+                  int p = eng.cur;
+                  if (!ps.get(p).bot) return;
+                  ArrayList<Card> legal = new ArrayList<Card>();
+                  for (Card k : eng.hands.get(p)) {
+                      if (eng.canPlay(p, k)) legal.add(k);
+                  }
+                  if (!legal.isEmpty()) {
+                      Card pick = choose(legal);
+                      int col = pick.v >= Engine.WILD ? bestColor(p, pick) : pick.c;
+                      eng.play(p, pick, col);
+                  } else if (eng.canDraw(p)) {
+                      eng.draw(p);
+                  } else if (eng.canPass(p)) {
+                      eng.pass(p);
+                  } else {
+                      return;
+                  }
+                  after();
+              }
+
+              private Card choose(ArrayList<Card> legal) {
+                  Card best = null;
+                  for (Card k : legal) {
+                      if (k.v >= Engine.WILD) continue;
+                      if (best == null || k.points() > best.points() || (k.points() == best.points() && rnd.nextBoolean())) best = k;
+                  }
+                  if (best != null) return best;
+                  for (Card k : legal) {
+                      if (k.v == Engine.WILD) return k;
+                  }
+                  return legal.get(0);
+              }
+
+              private int bestColor(int p, Card played) {
+                  int[] cnt = new int[4];
+                  for (Card k : eng.hands.get(p)) {
+                      if (k.v < Engine.WILD) cnt[k.c]++;
+                  }
+                  int best = rnd.nextInt(4);
+                  int bc = 0;
+                  for (int c = 0; c < 4; c++) {
+                      if (cnt[c] > bc) {
+                          bc = cnt[c];
+                          best = c;
+                      }
+                  }
+                  return best;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Client.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import java.net.InetSocketAddress;
+          import java.net.Socket;
+
+          public class Client {
+              public interface Cb {
+                  void onLine(String line);
+
+                  void onClosed();
+
+                  void onFail();
+              }
+
+              private final Handler h = new Handler(Looper.getMainLooper());
+              private volatile Link.SocketLink link;
+              private volatile boolean closed;
+
+              public void connect(final String ip, final int port, final String hello, final Cb cb) {
+                  Thread t = new Thread(new Runnable() {
+                      public void run() {
+                          try {
+                              Socket s = new Socket();
+                              s.connect(new InetSocketAddress(ip, port), 4000);
+                              s.setTcpNoDelay(true);
+                              Link.SocketLink l = new Link.SocketLink(s);
+                              link = l;
+                              l.send(hello);
+                              l.readLoop(new Link.LineSink() {
+                                  public void onLine(final String line) {
+                                      h.post(new Runnable() {
+                                          public void run() {
+                                              if (!closed) cb.onLine(line);
+                                          }
+                                      });
+                                  }
+
+                                  public void onClosed() {
+                                      h.post(new Runnable() {
+                                          public void run() {
+                                              if (!closed) cb.onClosed();
+                                          }
+                                      });
+                                  }
+                              });
+                          } catch (Exception e) {
+                              h.post(new Runnable() {
+                                  public void run() {
+                                      if (!closed) cb.onFail();
+                                  }
+                              });
+                          }
+                      }
+                  });
+                  t.setDaemon(true);
+                  t.start();
+              }
+
+              public void send(String line) {
+                  Link l = link;
+                  if (l != null) l.send(line);
+              }
+
+              public void close() {
+                  closed = true;
+                  Link l = link;
+                  if (l != null) {
+                      l.send("BYE");
+                      l.close();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Theme.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          public class Theme {
+              public final String title;
+              public final int[] col;
+              public final int black;
+              public final int leaf;
+              public final int bg;
+              public final int text;
+
+              private Theme(String title, int[] col, int black, int leaf, int bg, int text) {
+                  this.title = title;
+                  this.col = col;
+                  this.black = black;
+                  this.leaf = leaf;
+                  this.bg = bg;
+                  this.text = text;
+              }
+
+              public static final Theme[] ALL = {
+                  new Theme("Класична",
+                      new int[]{0xFFE1352B, 0xFFF2B300, 0xFF1E8A3C, 0xFF3D9AE8},
+                      0xFF14141A, 0xFFFFFFFF, 0xFF1B5E3A, 0xFFFFFFFF),
+                  new Theme("Темна",
+                      new int[]{0xFFB3261E, 0xFFC79A00, 0xFF2E7D32, 0xFF1565C0},
+                      0xFF000000, 0xFFE0E0E0, 0xFF121417, 0xFFEDEDED),
+                  new Theme("Пастельна",
+                      new int[]{0xFFF28B82, 0xFFFDD663, 0xFF81C995, 0xFF8AB4F8},
+                      0xFF4A4A5A, 0xFFFFFFFF, 0xFFF3ECE2, 0xFF3A3A48)
+              };
+
+              public static Theme get(int i) {
+                  if (i < 0) i = 0;
+                  if (i >= ALL.length) i = ALL.length - 1;
+                  return ALL[i];
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/CardPainter.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.graphics.Typeface;
+
+          public class CardPainter {
+              private static final int INK = 0xFF111111;
+              private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint txt = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Path leaf = new Path();
+              private final RectF rf = new RectF();
+              public Theme th;
+
+              public CardPainter(Theme t) {
+                  th = t;
+                  txt.setTypeface(Typeface.DEFAULT_BOLD);
+                  txt.setStrokeJoin(Paint.Join.ROUND);
+              }
+
+              private void outlined(Canvas c, String s, float x, float base, float size, int color, Paint.Align al, boolean shadow) {
+                  txt.setTextSize(size);
+                  txt.setTextAlign(al);
+                  if (shadow) {
+                      txt.setStyle(Paint.Style.FILL_AND_STROKE);
+                      txt.setStrokeWidth(size * 0.16f);
+                      txt.setColor(INK);
+                      c.drawText(s, x + size * 0.08f, base + size * 0.08f, txt);
+                  }
+                  txt.setStyle(Paint.Style.STROKE);
+                  txt.setStrokeWidth(size * 0.17f);
+                  txt.setColor(INK);
+                  c.drawText(s, x, base, txt);
+                  txt.setStyle(Paint.Style.FILL);
+                  txt.setColor(color);
+                  c.drawText(s, x, base, txt);
+              }
+
+              private void body(Canvas c, float x, float y, float w, float h, int base) {
+                  float rad = w * 0.10f;
+                  fill.setStyle(Paint.Style.FILL);
+                  rf.set(x, y, x + w, y + h);
+                  fill.setColor(0xFFF8F8F8);
+                  c.drawRoundRect(rf, rad, rad, fill);
+                  rf.set(x + w * 0.035f, y + w * 0.035f, x + w * 0.965f, y + h - w * 0.035f);
+                  fill.setColor(base);
+                  c.drawRoundRect(rf, rad * 0.8f, rad * 0.8f, fill);
+              }
+
+              public void draw(Canvas c, Card k, float x, float y, float w, float h, boolean dim) {
+                  boolean wildCard = k.v >= Engine.WILD;
+                  body(c, x, y, w, h, wildCard ? th.black : th.col[k.c]);
+                  float lx = x + w * 0.09f, ly = y + h * 0.21f, lr = x + w * 0.91f, lb = y + h * 0.83f;
+                  float big = Math.min(lr - lx, lb - ly) * 0.55f;
+                  float small = big * 0.25f;
+                  leaf.reset();
+                  rf.set(lx, ly, lr, lb);
+                  leaf.addRoundRect(rf, new float[]{big, big, small, small, big, big, small, small}, Path.Direction.CW);
+                  fill.setStyle(Paint.Style.FILL);
+                  if (k.v == Engine.D4) {
+                      c.save();
+                      c.clipPath(leaf);
+                      float mx = (lx + lr) / 2f, my = (ly + lb) / 2f;
+                      fill.setColor(th.col[0]);
+                      c.drawRect(lx, ly, mx, my, fill);
+                      fill.setColor(th.col[3]);
+                      c.drawRect(mx, ly, lr, my, fill);
+                      fill.setColor(th.col[1]);
+                      c.drawRect(lx, my, mx, lb, fill);
+                      fill.setColor(th.col[2]);
+                      c.drawRect(mx, my, lr, lb, fill);
+                      c.restore();
+                  } else {
+                      fill.setColor(th.leaf);
+                      c.drawPath(leaf, fill);
+                  }
+                  float cx = (lx + lr) / 2f, cy = (ly + lb) / 2f, lh = lb - ly;
+                  if (k.v <= 9 || k.v == Engine.SKIP || k.v == Engine.REV || k.v == Engine.D2) {
+                      String s;
+                      if (k.v <= 9) s = String.valueOf(k.v);
+                      else if (k.v == Engine.SKIP) s = "S";
+                      else if (k.v == Engine.REV) s = "R";
+                      else s = "D";
+                      float size = lh * 0.78f;
+                      outlined(c, s, cx, cy + size * 0.36f, size, th.col[k.c], Paint.Align.CENTER, true);
+                  } else if (k.v == Engine.WILD) {
+                      float size = lh * 0.36f;
+                      String[] letters = {"W", "i", "l", "d"};
+                      int[] cols = {th.col[1], th.col[3], th.col[0], th.col[2]};
+                      txt.setTextSize(size);
+                      float total = 0;
+                      float[] ws = new float[4];
+                      for (int i = 0; i < 4; i++) {
+                          ws[i] = txt.measureText(letters[i]);
+                          total += ws[i];
+                      }
+                      float px = cx - total / 2f;
+                      for (int i = 0; i < 4; i++) {
+                          outlined(c, letters[i], px, cy + size * 0.36f, size, cols[i], Paint.Align.LEFT, true);
+                          px += ws[i];
+                      }
+                  } else {
+                      float size = lh * 0.34f;
+                      outlined(c, "Wild", cx, cy + size * 0.36f, size, 0xFFFFFFFF, Paint.Align.CENTER, true);
+                  }
+                  corner(c, k, x, y, w, h);
+                  c.save();
+                  c.rotate(180f, x + w / 2f, y + h / 2f);
+                  corner(c, k, x, y, w, h);
+                  c.restore();
+                  if (dim) {
+                      float rad = w * 0.10f;
+                      fill.setColor(0x77000000);
+                      rf.set(x, y, x + w, y + h);
+                      c.drawRoundRect(rf, rad, rad, fill);
+                  }
+              }
+
+              private void corner(Canvas c, Card k, float x, float y, float w, float h) {
+                  String s;
+                  float size;
+                  if (k.v <= 9) {
+                      s = String.valueOf(k.v);
+                      size = h * 0.11f;
+                  } else {
+                      s = Engine.label(k);
+                      size = h * 0.088f;
+                  }
+                  outlined(c, s, x + w * 0.09f, y + h * 0.145f, size, 0xFFFFFFFF, Paint.Align.LEFT, false);
+              }
+
+              public void back(Canvas c, float x, float y, float w, float h) {
+                  body(c, x, y, w, h, th.black);
+                  c.save();
+                  c.rotate(-28f, x + w / 2f, y + h / 2f);
+                  rf.set(x + w * 0.17f, y + h * 0.30f, x + w * 0.83f, y + h * 0.70f);
+                  fill.setStyle(Paint.Style.FILL);
+                  fill.setColor(th.col[0]);
+                  c.drawOval(rf, fill);
+                  float size = w * 0.14f;
+                  outlined(c, "Gryntsiv", x + w / 2f, y + h / 2f + size * 0.36f, size, th.col[1], Paint.Align.CENTER, true);
+                  c.restore();
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/Avatars.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.Rect;
+          import android.graphics.RectF;
+          import android.util.Base64;
+          import android.view.View;
+
+          import java.util.HashMap;
+
+          public class Avatars {
+              public static final String[] EMO = {
+                  "🐱", "🐶", "🦊", "🐼", "🐸", "🦁",
+                  "🐵", "🐯", "🐰", "🐻", "🐧", "🦄"
+              };
+              private static final int[] BG = {
+                  0xFFFFB74D, 0xFF90CAF9, 0xFFFFCC80, 0xFFB0BEC5, 0xFFA5D6A7, 0xFFFFE082,
+                  0xFFBCAAA4, 0xFFFFAB91, 0xFFF8BBD0, 0xFFD7CCC8, 0xFF81D4FA, 0xFFCE93D8
+              };
+              private static final HashMap<String, Bitmap> CACHE = new HashMap<String, Bitmap>();
+              private static final Paint P = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private static final Path CLIP = new Path();
+              private static final Rect SRC = new Rect();
+              private static final RectF DST = new RectF();
+
+              public static Bitmap photo(String b64) {
+                  if (b64 == null || b64.length() < 8 || b64.equals("-")) return null;
+                  Bitmap b = CACHE.get(b64);
+                  if (b == null) {
+                      try {
+                          byte[] d = Base64.decode(b64, Base64.NO_WRAP);
+                          b = BitmapFactory.decodeByteArray(d, 0, d.length);
+                      } catch (Exception e) {
+                          b = null;
+                      }
+                      if (b != null) CACHE.put(b64, b);
+                  }
+                  return b;
+              }
+
+              public static void draw(Canvas c, float cx, float cy, float r, int avatar, Bitmap photo) {
+                  if (photo != null) {
+                      c.save();
+                      CLIP.reset();
+                      CLIP.addCircle(cx, cy, r, Path.Direction.CW);
+                      c.clipPath(CLIP);
+                      SRC.set(0, 0, photo.getWidth(), photo.getHeight());
+                      DST.set(cx - r, cy - r, cx + r, cy + r);
+                      c.drawBitmap(photo, SRC, DST, P);
+                      c.restore();
+                  } else {
+                      int a = avatar;
+                      if (a < 0 || a >= EMO.length) a = 0;
+                      P.setStyle(Paint.Style.FILL);
+                      P.setColor(BG[a]);
+                      c.drawCircle(cx, cy, r, P);
+                      P.setTextAlign(Paint.Align.CENTER);
+                      P.setTextSize(r * 1.15f);
+                      P.setColor(0xFF000000);
+                      Paint.FontMetrics fm = P.getFontMetrics();
+                      c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
+                  }
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(Math.max(2f, r * 0.07f));
+                  P.setColor(0xCCFFFFFF);
+                  c.drawCircle(cx, cy, r, P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              public static class AvatarView extends View {
+                  private int avatar;
+                  private String photo = "-";
+                  private boolean selected;
+
+                  public AvatarView(android.content.Context ctx) {
+                      super(ctx);
+                  }
+
+                  public void set(int avatar, String photo, boolean selected) {
+                      this.avatar = avatar;
+                      this.photo = photo;
+                      this.selected = selected;
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      float r = Math.min(getWidth(), getHeight()) / 2f * 0.88f;
+                      float cx = getWidth() / 2f, cy = getHeight() / 2f;
+                      if (selected) {
+                          P.setStyle(Paint.Style.STROKE);
+                          P.setStrokeWidth(r * 0.14f);
+                          P.setColor(0xFFFFD54F);
+                          c.drawCircle(cx, cy, r * 1.08f, P);
+                          P.setStyle(Paint.Style.FILL);
+                      }
+                      Avatars.draw(c, cx, cy, r * 0.96f, avatar, Avatars.photo(photo));
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/GState.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.Comparator;
+
+          public class GState {
+              public int cur, dir, curColor, deck, pend;
+              public boolean skip, canDraw, canPass, over;
+              public Card top;
+              public ArrayList<Card> hand = new ArrayList<Card>();
+              public ArrayList<Boolean> legal = new ArrayList<Boolean>();
+              public int[] counts, totals;
+              public String msg = "";
+
+              private static int pi(String s) {
+                  try {
+                      return Integer.parseInt(s.trim());
+                  } catch (Exception e) {
+                      return 0;
+                  }
+              }
+
+              public static int[] ints(String s) {
+                  if (s.length() == 0) return new int[0];
+                  String[] p = s.split(",");
+                  int[] r = new int[p.length];
+                  for (int i = 0; i < p.length; i++) r[i] = pi(p[i]);
+                  return r;
+              }
+
+              public static GState parse(String[] f) {
+                  GState g = new GState();
+                  g.cur = pi(f[1]);
+                  g.dir = pi(f[2]);
+                  g.top = Card.dec(f[3]);
+                  g.curColor = pi(f[4]);
+                  g.deck = pi(f[5]);
+                  g.pend = pi(f[6]);
+                  g.skip = f[7].equals("1");
+                  g.canDraw = f[8].equals("1");
+                  g.canPass = f[9].equals("1");
+                  final ArrayList<Card> hs = new ArrayList<Card>();
+                  ArrayList<Boolean> ls = new ArrayList<Boolean>();
+                  if (f[10].length() > 0) {
+                      String[] a = f[10].split(",");
+                      String[] b = f[11].split(",");
+                      for (int i = 0; i < a.length; i++) {
+                          hs.add(Card.dec(a[i]));
+                          ls.add(i < b.length && b[i].equals("1"));
+                      }
+                  }
+                  Integer[] idx = new Integer[hs.size()];
+                  for (int i = 0; i < idx.length; i++) idx[i] = i;
+                  Arrays.sort(idx, new Comparator<Integer>() {
+                      public int compare(Integer x, Integer y) {
+                          Card a = hs.get(x), b = hs.get(y);
+                          if (a.c != b.c) return a.c - b.c;
+                          return a.v - b.v;
+                      }
+                  });
+                  for (int i = 0; i < idx.length; i++) {
+                      g.hand.add(hs.get(idx[i]));
+                      g.legal.add(ls.get(idx[i]));
+                  }
+                  g.counts = ints(f[12]);
+                  g.totals = ints(f[13]);
+                  g.msg = f[14];
+                  g.over = f[15].equals("1");
+                  return g;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/TableView.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.graphics.Typeface;
+          import android.view.MotionEvent;
+          import android.view.View;
+          import android.view.ViewConfiguration;
+
+          public class TableView extends View {
+              public interface Listener {
+                  void onPlay(Card k);
+
+                  void onDraw();
+              }
+
+              public Listener listener;
+              private Theme th;
+              private final CardPainter painter;
+              private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final RectF rf = new RectF();
+              private final Path path = new Path();
+
+              private int n, me;
+              private String[] names = new String[0];
+              private int[] avatars = new int[0];
+              private String[] photos = new String[0];
+              private boolean[] bots = new boolean[0];
+              private long[] emoUntil = new long[0];
+              private String[] emoVal = new String[0];
+              private GState g;
+
+              private float scroll, downX, startScroll;
+              private boolean moved;
+              private final int slop;
+
+              // геометрія
+              private float u, cyP, pw, ph, deckX, discX;
+              private float hStart, hStep, hCw, hCh, hTop, hRaise, areaL, areaR, maxScroll;
+
+              public TableView(Context ctx, Theme t) {
+                  super(ctx);
+                  th = t;
+                  painter = new CardPainter(t);
+                  slop = ViewConfiguration.get(ctx).getScaledTouchSlop();
+                  tp.setTypeface(Typeface.DEFAULT_BOLD);
+              }
+
+              public void setTheme(Theme t) {
+                  th = t;
+                  painter.th = t;
+                  invalidate();
+              }
+
+              public void setPlayers(String[] names, int[] avatars, String[] photos, boolean[] bots, int me) {
+                  this.n = names.length;
+                  this.names = names;
+                  this.avatars = avatars;
+                  this.photos = photos;
+                  this.bots = bots;
+                  this.me = me;
+                  if (emoUntil.length != n) {
+                      emoUntil = new long[n];
+                      emoVal = new String[n];
+                  }
+                  invalidate();
+              }
+
+              public void setState(GState s) {
+                  g = s;
+                  invalidate();
+              }
+
+              public void showEmoji(int idx, String e) {
+                  if (idx < 0 || idx >= emoUntil.length) return;
+                  emoUntil[idx] = System.currentTimeMillis() + 3000;
+                  emoVal[idx] = e;
+                  invalidate();
+                  postInvalidateDelayed(3100);
+              }
+
+              private void calc(int W, int H) {
+                  u = Math.min(W / 16f, H / 9f);
+                  hCw = u * 1.4f;
+                  hCh = hCw * 1.5f;
+                  hRaise = u * 0.3f;
+                  hTop = H - u * 0.2f - hCh;
+                  areaL = u * 2.3f;
+                  areaR = W - u * 2.8f;
+                  int k = g == null ? 0 : g.hand.size();
+                  float avail = areaR - areaL;
+                  float step = k <= 1 ? 0 : Math.min(hCw * 1.06f, (avail - hCw) / (k - 1));
+                  step = Math.max(step, hCw * 0.42f);
+                  float total = k == 0 ? 0 : hCw + step * (k - 1);
+                  hStep = step;
+                  if (total <= avail) {
+                      maxScroll = 0;
+                      scroll = 0;
+                      hStart = areaL + (avail - total) / 2f;
+                  } else {
+                      maxScroll = total - avail;
+                      if (scroll < 0) scroll = 0;
+                      if (scroll > maxScroll) scroll = maxScroll;
+                      hStart = areaL - scroll;
+                  }
+                  ph = u * 1.9f;
+                  pw = ph * 0.667f;
+                  cyP = (u * 3.4f + (H - u * 2.7f)) / 2f;
+                  deckX = W / 2f - pw * 0.9f;
+                  discX = W / 2f + pw * 0.9f;
+              }
+
+              private String cut(String s, int max) {
+                  if (s.length() > max) return s.substring(0, max - 1) + "…";
+                  return s;
+              }
+
+              @Override
+              protected void onDraw(Canvas c) {
+                  int W = getWidth(), H = getHeight();
+                  calc(W, H);
+                  c.drawColor(th.bg);
+                  if (g == null || n == 0 || g.counts == null || g.counts.length < n || g.totals == null || g.totals.length < n) return;
+                  int m = n - 1;
+                  for (int k = 1; k <= m; k++) {
+                      int idx = (me + k) % n;
+                      drawPlayer(c, idx, W * k / (m + 1f), u * 1.95f, false);
+                  }
+                  drawPlayer(c, me, u * 1.1f, H - u * 1.6f, true);
+
+                  // стос і скид
+                  for (int i = 2; i >= 0; i--) {
+                      painter.back(c, deckX - pw / 2f + i * u * 0.05f, cyP - ph / 2f - i * u * 0.05f, pw, ph);
+                  }
+                  tp.setTextAlign(Paint.Align.CENTER);
+                  tp.setTextSize(u * 0.28f);
+                  tp.setColor(th.text);
+                  c.drawText(String.valueOf(g.deck), deckX, cyP + ph / 2f + u * 0.32f, tp);
+                  painter.draw(c, g.top, discX - pw / 2f, cyP - ph / 2f, pw, ph, false);
+                  if (g.pend > 0) {
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFFD50000);
+                      c.drawCircle(discX + pw / 2f, cyP - ph / 2f, u * 0.38f, p);
+                      tp.setColor(0xFFFFFFFF);
+                      tp.setTextSize(u * 0.38f);
+                      c.drawText("+" + g.pend, discX + pw / 2f, cyP - ph / 2f + u * 0.13f, tp);
+                  }
+                  // індикатор кольору
+                  float colX = discX + pw / 2f + u * 0.75f;
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(th.col[g.curColor < 0 || g.curColor > 3 ? 0 : g.curColor]);
+                  c.drawCircle(colX, cyP, u * 0.36f, p);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(u * 0.06f);
+                  p.setColor(th.text);
+                  c.drawCircle(colX, cyP, u * 0.36f, p);
+                  // напрямок
+                  drawDir(c, deckX - pw / 2f - u * 0.8f, cyP, u * 0.36f, g.dir >= 0);
+
+                  // повідомлення
+                  float msgSize = u * 0.3f;
+                  tp.setTextSize(msgSize);
+                  float tw = tp.measureText(g.msg);
+                  if (tw > W * 0.8f) msgSize = msgSize * (W * 0.8f) / tw;
+                  tp.setTextSize(msgSize);
+                  tp.setColor(th.text);
+                  tp.setTextAlign(Paint.Align.CENTER);
+                  c.drawText(g.msg, W / 2f, cyP + ph / 2f + u * 0.62f, tp);
+
+                  // рука
+                  boolean myTurn = g.cur == me && !g.over;
+                  c.save();
+                  c.clipRect(areaL - u * 0.1f, 0, areaR + u * 0.1f, H);
+                  for (int i = 0; i < g.hand.size(); i++) {
+                      boolean lg = g.legal.get(i);
+                      float x = hStart + i * hStep;
+                      float y = hTop - (myTurn && lg ? hRaise : 0);
+                      painter.draw(c, g.hand.get(i), x, y, hCw, hCh, myTurn && !lg);
+                  }
+                  c.restore();
+              }
+
+              private void drawDir(Canvas c, float cx, float cy, float r, boolean cw) {
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(u * 0.09f);
+                  p.setStrokeCap(Paint.Cap.ROUND);
+                  p.setColor(th.text);
+                  rf.set(cx - r, cy - r, cx + r, cy + r);
+                  float start = cw ? -120f : -60f;
+                  float sweep = cw ? 250f : -250f;
+                  c.drawArc(rf, start, sweep, false, p);
+                  float a = (float) Math.toRadians(start + sweep);
+                  float px = cx + r * (float) Math.cos(a);
+                  float py = cy + r * (float) Math.sin(a);
+                  float tx, ty;
+                  if (cw) {
+                      tx = -(float) Math.sin(a);
+                      ty = (float) Math.cos(a);
+                  } else {
+                      tx = (float) Math.sin(a);
+                      ty = -(float) Math.cos(a);
+                  }
+                  float nx = (float) Math.cos(a), ny = (float) Math.sin(a);
+                  path.reset();
+                  path.moveTo(px + tx * u * 0.26f, py + ty * u * 0.26f);
+                  path.lineTo(px + nx * u * 0.18f, py + ny * u * 0.18f);
+                  path.lineTo(px - nx * u * 0.18f, py - ny * u * 0.18f);
+                  path.close();
+                  p.setStyle(Paint.Style.FILL);
+                  c.drawPath(path, p);
+                  p.setStrokeCap(Paint.Cap.BUTT);
+              }
+
+              private void drawPlayer(Canvas c, int idx, float cx, float cy, boolean mine) {
+                  if (idx >= names.length) return;
+                  boolean active = !g.over && g.cur == idx;
+                  if (active) {
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(u * 0.09f);
+                      p.setColor(0xFFFFD54F);
+                      c.drawCircle(cx, cy, u * 0.62f, p);
+                  }
+                  Avatars.draw(c, cx, cy, u * 0.5f, avatars[idx], Avatars.photo(photos[idx]));
+                  tp.setTextAlign(Paint.Align.CENTER);
+                  tp.setColor(th.text);
+                  tp.setTextSize(u * 0.3f);
+                  String nm = cut(names[idx], 12) + (bots[idx] ? " (бот)" : "");
+                  c.drawText(nm, cx, cy + u * 0.98f, tp);
+                  if (mine) {
+                      if (active) {
+                          tp.setColor(0xFFFFD54F);
+                          c.drawText("Ваш хід!", cx, cy + u * 1.32f, tp);
+                      }
+                  } else {
+                      float mx = cx - u * 0.85f;
+                      painter.back(c, mx, cy + u * 1.12f, u * 0.3f, u * 0.45f);
+                      tp.setTextAlign(Paint.Align.LEFT);
+                      tp.setColor(th.text);
+                      tp.setTextSize(u * 0.32f);
+                      c.drawText(String.valueOf(g.counts[idx]), mx + u * 0.38f, cy + u * 1.48f, tp);
+                      c.drawText("Σ " + g.totals[idx], cx + u * 0.05f, cy + u * 1.48f, tp);
+                  }
+                  if (idx < emoUntil.length && emoUntil[idx] > System.currentTimeMillis() && emoVal[idx] != null) {
+                      float bx = cx + u * 0.75f, by = cy - u * 0.5f;
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFFFFFFFF);
+                      rf.set(bx - u * 0.5f, by - u * 0.45f, bx + u * 0.5f, by + u * 0.45f);
+                      c.drawRoundRect(rf, u * 0.2f, u * 0.2f, p);
+                      tp.setTextAlign(Paint.Align.CENTER);
+                      tp.setTextSize(u * 0.58f);
+                      tp.setColor(0xFF000000);
+                      Paint.FontMetrics fm = tp.getFontMetrics();
+                      c.drawText(emoVal[idx], bx, by - (fm.ascent + fm.descent) / 2f, tp);
+                  }
+              }
+
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  switch (e.getAction()) {
+                      case MotionEvent.ACTION_DOWN:
+                          downX = e.getX();
+                          startScroll = scroll;
+                          moved = false;
+                          return true;
+                      case MotionEvent.ACTION_MOVE:
+                          if (Math.abs(e.getX() - downX) > slop) moved = true;
+                          if (moved && maxScroll > 0) {
+                              float s = startScroll + (downX - e.getX());
+                              if (s < 0) s = 0;
+                              if (s > maxScroll) s = maxScroll;
+                              scroll = s;
+                              invalidate();
+                          }
+                          return true;
+                      case MotionEvent.ACTION_UP:
+                          if (!moved) tap(e.getX(), e.getY());
+                          return true;
+                      default:
+                          return true;
+                  }
+              }
+
+              private void tap(float x, float y) {
+                  if (g == null || listener == null) return;
+                  calc(getWidth(), getHeight());
+                  if (g.canDraw && g.cur == me
+                          && x >= deckX - pw / 2f && x <= deckX + pw / 2f && y >= cyP - ph / 2f && y <= cyP + ph / 2f) {
+                      listener.onDraw();
+                      return;
+                  }
+                  boolean myTurn = g.cur == me && !g.over;
+                  if (!myTurn) return;
+                  for (int i = g.hand.size() - 1; i >= 0; i--) {
+                      float cx = hStart + i * hStep;
+                      float top = g.legal.get(i) ? hTop - hRaise : hTop;
+                      if (x >= cx && x <= cx + hCw && y >= top && y <= hTop + hCh) {
+                          if (g.legal.get(i)) listener.onPlay(g.hand.get(i));
+                          return;
+                      }
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/BaseActivity.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.app.Activity;
+          import android.app.Dialog;
+          import android.content.ActivityNotFoundException;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.ColorDrawable;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.text.InputFilter;
+          import android.util.Base64;
+          import android.util.DisplayMetrics;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.CompoundButton;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.Switch;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          import java.util.Locale;
+
+          public abstract class BaseActivity extends Activity {
+              protected static final int REQ_PHOTO = 7;
+              protected static final String[] EMOJI = {
+                  "😀", "😂", "😎", "😡",
+                  "😢", "👍", "👏", "🤔"
+              };
+              protected static final int WHITE = 0xFFFFFFFF;
+
+              protected SharedPreferences sp;
+              protected final Handler ui = new Handler(Looper.getMainLooper());
+              protected float u;
+              protected String nick = "Гравець";
+              protected String photo = "-";
+              protected int avatar;
+              protected int themeId;
+              protected boolean autoPass;
+
+              private EditText etNick;
+              private LinearLayout avatarBox, themeBox;
+              private Preview preview;
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  sp = getSharedPreferences("uno", MODE_PRIVATE);
+                  nick = sp.getString("nick", "Гравець");
+                  avatar = sp.getInt("avatar", 0);
+                  photo = sp.getString("photo", "-");
+                  themeId = sp.getInt("theme", 0);
+                  autoPass = sp.getBoolean("auto", false);
+                  DisplayMetrics dm = getResources().getDisplayMetrics();
+                  float big = Math.max(dm.widthPixels, dm.heightPixels);
+                  float small = Math.min(dm.widthPixels, dm.heightPixels);
+                  u = Math.min(big / 16f, small / 9f);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean focus) {
+                  super.onWindowFocusChanged(focus);
+                  if (focus) {
+                      getWindow().getDecorView().setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                              | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                              | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+                  }
+              }
+
+              protected void savePrefs() {
+                  sp.edit().putString("nick", nick).putInt("avatar", avatar).putString("photo", photo)
+                      .putInt("theme", themeId).putBoolean("auto", autoPass).commit();
+              }
+
+              protected String sendPhoto() {
+                  return (avatar < 0 && photo.length() > 8) ? photo : "-";
+              }
+
+              protected void onSettingsClosed() {
+              }
+
+              // ---------- допоміжні ----------
+              protected int px(float k) {
+                  return Math.round(k * u);
+              }
+
+              protected void toast(String s) {
+                  Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+              }
+
+              protected GradientDrawable bg(int color, float radiusU) {
+                  GradientDrawable d = new GradientDrawable();
+                  d.setColor(color);
+                  d.setCornerRadius(radiusU * u);
+                  return d;
+              }
+
+              protected TextView tv(String s, float size, int color, boolean bold) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
+                  t.setTextColor(color);
+                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  return t;
+              }
+
+              protected Button btn(String s, int color, View.OnClickListener l) {
+                  Button b = new Button(this);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  b.setTextColor(WHITE);
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.34f * u);
+                  b.setTypeface(Typeface.DEFAULT_BOLD);
+                  b.setBackground(bg(color, 0.2f));
+                  b.setStateListAnimator(null);
+                  b.setMinHeight(0);
+                  b.setMinimumHeight(0);
+                  b.setMinWidth(0);
+                  b.setMinimumWidth(0);
+                  b.setPadding(px(0.3f), px(0.1f), px(0.3f), px(0.1f));
+                  b.setOnClickListener(l);
+                  return b;
+              }
+
+              protected LinearLayout.LayoutParams lp(float w, float h, float margin) {
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                      w < 0 ? (int) w : px(w), h < 0 ? (int) h : px(h));
+                  int m = px(margin);
+                  p.setMargins(m, m, m, m);
+                  return p;
+              }
+
+              protected Dialog makeDialog(View content, boolean cancelable) {
+                  LinearLayout wrap = new LinearLayout(this);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setBackground(bg(0xFF263238, 0.3f));
+                  wrap.setPadding(px(0.5f), px(0.4f), px(0.5f), px(0.4f));
+                  wrap.addView(content);
+                  Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar);
+                  d.setContentView(wrap);
+                  d.setCancelable(cancelable);
+                  if (d.getWindow() != null) {
+                      d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                  }
+                  return d;
+              }
+
+              // ---------- налаштування ----------
+              protected void showSettings() {
+                  final Dialog dlg = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                  ScrollView sv = new ScrollView(this);
+                  sv.setBackgroundColor(0xFF1F2A30);
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
+                  sv.addView(box);
+                  box.addView(tv("Налаштування", 0.5f, WHITE, true));
+
+                  box.addView(tv("Нік", 0.3f, 0xFFB0BEC5, false));
+                  etNick = new EditText(this);
+                  etNick.setText(nick);
+                  etNick.setSingleLine(true);
+                  etNick.setFilters(new InputFilter[]{new InputFilter.LengthFilter(14)});
+                  etNick.setTextColor(WHITE);
+                  etNick.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.4f * u);
+                  box.addView(etNick, lp(6f, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
+
+                  box.addView(tv("Аватар", 0.3f, 0xFFB0BEC5, false));
+                  avatarBox = new LinearLayout(this);
+                  avatarBox.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(avatarBox);
+                  box.addView(btn("Обрати фото з галереї", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          pickPhoto();
+                      }
+                  }), lp(5f, 0.9f, 0.08f));
+
+                  box.addView(tv("Тема колоди", 0.3f, 0xFFB0BEC5, false));
+                  themeBox = new LinearLayout(this);
+                  themeBox.setOrientation(LinearLayout.HORIZONTAL);
+                  box.addView(themeBox);
+                  preview = new Preview(this);
+                  box.addView(preview, lp(8f, 2.4f, 0.08f));
+
+                  Switch sw = new Switch(this);
+                  sw.setText("Автоматично пасувати, якщо немає ходу");
+                  sw.setTextColor(WHITE);
+                  sw.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.34f * u);
+                  sw.setChecked(autoPass);
+                  sw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                      public void onCheckedChanged(CompoundButton b, boolean on) {
+                          autoPass = on;
+                      }
+                  });
+                  box.addView(sw, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.15f));
+
+                  box.addView(btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          dlg.dismiss();
+                      }
+                  }), lp(4f, 1.0f, 0.15f));
+
+                  refreshAvatars();
+                  refreshThemes();
+                  dlg.setContentView(sv);
+                  if (dlg.getWindow() != null) {
+                      dlg.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+                  }
+                  dlg.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
+                      public void onDismiss(android.content.DialogInterface d) {
+                          String s = etNick.getText().toString().trim().replace("|", " ").replace("~", " ").replace(";", " ");
+                          if (s.length() == 0) s = "Гравець";
+                          nick = s;
+                          savePrefs();
+                          etNick = null;
+                          avatarBox = null;
+                          themeBox = null;
+                          preview = null;
+                          onSettingsClosed();
+                      }
+                  });
+                  dlg.show();
+              }
+
+              private void refreshAvatars() {
+                  if (avatarBox == null) return;
+                  avatarBox.removeAllViews();
+                  int total = Avatars.EMO.length + (photo.length() > 8 ? 1 : 0);
+                  int perRow = 7;
+                  LinearLayout row = null;
+                  for (int i = 0; i < total; i++) {
+                      if (i % perRow == 0) {
+                          row = new LinearLayout(this);
+                          row.setOrientation(LinearLayout.HORIZONTAL);
+                          avatarBox.addView(row);
+                      }
+                      final int idx = i < Avatars.EMO.length ? i : -1;
+                      Avatars.AvatarView av = new Avatars.AvatarView(this);
+                      if (idx >= 0) av.set(idx, "-", avatar == idx);
+                      else av.set(-1, photo, avatar < 0);
+                      av.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View v) {
+                              avatar = idx;
+                              refreshAvatars();
+                          }
+                      });
+                      row.addView(av, lp(1.1f, 1.1f, 0.04f));
+                  }
+              }
+
+              private void refreshThemes() {
+                  if (themeBox == null) return;
+                  themeBox.removeAllViews();
+                  for (int i = 0; i < Theme.ALL.length; i++) {
+                      final int id = i;
+                      themeBox.addView(btn(Theme.ALL[i].title, themeId == i ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              themeId = id;
+                              refreshThemes();
+                          }
+                      }), lp(2.6f, 0.9f, 0.06f));
+                  }
+                  if (preview != null) preview.invalidate();
+              }
+
+              private class Preview extends View {
+                  private final CardPainter painter = new CardPainter(Theme.get(0));
+                  private final Card[] cards = {new Card(0, 7), new Card(3, Engine.SKIP), new Card(2, Engine.D2), new Card(4, Engine.D4)};
+
+                  Preview(Context c) {
+                      super(c);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      Theme t = Theme.get(themeId);
+                      painter.th = t;
+                      c.drawColor(t.bg);
+                      float h = getHeight() * 0.92f;
+                      float w = h * 0.667f;
+                      for (int i = 0; i < cards.length; i++) {
+                          painter.draw(c, cards[i], getHeight() * 0.1f + i * (w + u * 0.25f), getHeight() * 0.04f, w, h, false);
+                      }
+                      painter.back(c, getHeight() * 0.1f + cards.length * (w + u * 0.25f), getHeight() * 0.04f, w, h);
+                  }
+              }
+
+              private void pickPhoto() {
+                  try {
+                      Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                      i.setType("image/*");
+                      startActivityForResult(i, REQ_PHOTO);
+                  } catch (ActivityNotFoundException e) {
+                      toast("Галерею не знайдено");
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req != REQ_PHOTO || res != RESULT_OK || data == null || data.getData() == null) return;
+                  try {
+                      Uri uri = data.getData();
+                      InputStream in = getContentResolver().openInputStream(uri);
+                      BitmapFactory.Options o = new BitmapFactory.Options();
+                      o.inJustDecodeBounds = true;
+                      BitmapFactory.decodeStream(in, null, o);
+                      in.close();
+                      int s = 1;
+                      while (o.outWidth / (s * 2) >= 192 && o.outHeight / (s * 2) >= 192) s *= 2;
+                      BitmapFactory.Options o2 = new BitmapFactory.Options();
+                      o2.inSampleSize = s;
+                      in = getContentResolver().openInputStream(uri);
+                      Bitmap b = BitmapFactory.decodeStream(in, null, o2);
+                      in.close();
+                      if (b == null) throw new RuntimeException("decode");
+                      int side = Math.min(b.getWidth(), b.getHeight());
+                      Bitmap sq = Bitmap.createBitmap(b, (b.getWidth() - side) / 2, (b.getHeight() - side) / 2, side, side);
+                      Bitmap sm = Bitmap.createScaledBitmap(sq, 96, 96, true);
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      sm.compress(Bitmap.CompressFormat.JPEG, 80, bo);
+                      photo = Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
+                      avatar = -1;
+                      savePrefs();
+                      refreshAvatars();
+                  } catch (Exception e) {
+                      toast("Не вдалося завантажити фото");
+                  }
+              }
+
+              // ---------- історія ----------
+              protected void saveHistory(String[] names, int[] totals, int loser) {
+                  try {
+                      JSONObject o = new JSONObject();
+                      o.put("t", System.currentTimeMillis());
+                      o.put("loser", names[loser]);
+                      o.put("pts", totals[loser]);
+                      JSONArray ns = new JSONArray();
+                      JSONArray ts = new JSONArray();
+                      for (int i = 0; i < names.length; i++) {
+                          ns.put(names[i]);
+                          ts.put(totals[i]);
+                      }
+                      o.put("names", ns);
+                      o.put("tot", ts);
+                      JSONArray old = new JSONArray(sp.getString("hist", "[]"));
+                      JSONArray neu = new JSONArray();
+                      neu.put(o);
+                      for (int i = 0; i < old.length() && i < 99; i++) neu.put(old.get(i));
+                      sp.edit().putString("hist", neu.toString()).commit();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
+              protected View buildHistory() {
+                  LinearLayout list = new LinearLayout(this);
+                  list.setOrientation(LinearLayout.VERTICAL);
+                  try {
+                      JSONArray arr = new JSONArray(sp.getString("hist", "[]"));
+                      SimpleDateFormat fmt = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+                      for (int i = 0; i < arr.length(); i++) {
+                          JSONObject o = arr.getJSONObject(i);
+                          LinearLayout card = new LinearLayout(this);
+                          card.setOrientation(LinearLayout.VERTICAL);
+                          card.setBackground(bg(0xFF2C3A41, 0.2f));
+                          card.setPadding(px(0.4f), px(0.25f), px(0.4f), px(0.25f));
+                          card.addView(tv(fmt.format(new Date(o.getLong("t"))), 0.28f, 0xFFB0BEC5, false));
+                          card.addView(tv("Програв: " + o.getString("loser") + " — " + o.getInt("pts") + " очок", 0.38f, WHITE, true));
+                          JSONArray ns = o.getJSONArray("names");
+                          JSONArray ts = o.getJSONArray("tot");
+                          StringBuilder sb = new StringBuilder();
+                          for (int j = 0; j < ns.length(); j++) {
+                              if (j > 0) sb.append("   ");
+                              sb.append(ns.getString(j)).append(": ").append(ts.getInt(j));
+                          }
+                          card.addView(tv(sb.toString(), 0.3f, 0xFFCFD8DC, false));
+                          list.addView(card, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.1f));
+                      }
+                      if (arr.length() == 0) list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
+                  } catch (Exception e) {
+                      list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
+                  }
+                  return list;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/unogryntsiv/MainActivity.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.app.AlertDialog;
+          import android.app.Dialog;
+          import android.content.DialogInterface;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.SeekBar;
+          import android.widget.TextView;
+
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Comparator;
+
+          public class MainActivity extends BaseActivity {
+              private static final int S_MENU = 0, S_JOIN = 1, S_LOBBY = 2, S_GAME = 3, S_HIST = 4;
+              private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+              private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
+
+              private FrameLayout root;
+              private int screen;
+              private Host host;
+              private Client client;
+              private Link toServer;
+              private boolean isHost;
+              private boolean matchFinished;
+              private Discovery.Listener disc;
+              private final ArrayList<String[]> players = new ArrayList<String[]>();
+              private int me;
+              private int limit = 300;
+
+              private LinearLayout joinList;
+              private String joinSig = "";
+              private LinearLayout lobbyList;
+              private TextView lobbyLimit;
+              private TextView lobbyCount;
+              private Button lobbyStart;
+              private Button lobbyBot;
+
+              private TableView table;
+              private TextView scoreLbl;
+              private Button btnDraw, btnPass;
+              private GState gs;
+              private Dialog resultDlg;
+              private boolean autoPassSent;
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  root = new FrameLayout(this);
+                  setContentView(root);
+                  showMenu();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  stopNet();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (screen == S_MENU) {
+                      super.onBackPressed();
+                  } else if (screen == S_GAME) {
+                      confirmExit();
+                  } else {
+                      showMenu();
+                  }
+              }
+
+              @Override
+              protected void onSettingsClosed() {
+                  if (screen == S_MENU) {
+                      showMenu();
+                  } else if (screen == S_GAME && table != null) {
+                      table.setTheme(Theme.get(themeId));
+                      applyState();
+                  }
+              }
+
+              private static int pi(String s) {
+                  try {
+                      return Integer.parseInt(s.trim());
+                  } catch (Exception e) {
+                      return 0;
+                  }
+              }
+
+              // ---------- мережа ----------
+              private void stopDisc() {
+                  if (disc != null) {
+                      disc.stop();
+                      disc = null;
+                  }
+              }
+
+              private void stopNet() {
+                  stopDisc();
+                  if (host != null) {
+                      host.stop();
+                      host = null;
+                  }
+                  if (client != null) {
+                      client.close();
+                      client = null;
+                  }
+                  toServer = null;
+                  gs = null;
+                  table = null;
+                  players.clear();
+              }
+
+              private void leaveToMenu() {
+                  if (resultDlg != null && resultDlg.isShowing()) resultDlg.dismiss();
+                  showMenu();
+              }
+
+              private void confirmExit() {
+                  new AlertDialog.Builder(this).setTitle("Вийти з гри?")
+                      .setPositiveButton("Так", new DialogInterface.OnClickListener() {
+                          public void onClick(DialogInterface d, int w) {
+                              leaveToMenu();
+                          }
+                      }).setNegativeButton("Ні", null).show();
+              }
+
+              private void createRoom() {
+                  stopNet();
+                  matchFinished = false;
+                  isHost = true;
+                  final Host[] ref = new Host[1];
+                  Link toUi = new Link() {
+                      public void send(final String l) {
+                          ui.post(new Runnable() {
+                              public void run() {
+                                  if (host != null && host == ref[0]) onLine(l);
+                              }
+                          });
+                      }
+                  };
+                  host = new Host(nick, avatar < 0 ? -1 : avatar, sendPhoto(), toUi);
+                  ref[0] = host;
+                  final Host hh = host;
+                  toServer = new Link() {
+                      public void send(String l) {
+                          hh.handleLocal(l);
+                      }
+                  };
+                  String err = host.start();
+                  if (err != null) {
+                      toast(err);
+                      host = null;
+                      showMenu();
+                      return;
+                  }
+                  showLobby();
+              }
+
+              private void joinRoom(Discovery.Room r) {
+                  if (r.inGame || r.count >= 5) {
+                      toast("Кімната заповнена або гра вже триває");
+                      return;
+                  }
+                  stopDisc();
+                  matchFinished = false;
+                  isHost = false;
+                  players.clear();
+                  client = new Client();
+                  final Client cc = client;
+                  toServer = new Link() {
+                      public void send(String l) {
+                          cc.send(l);
+                      }
+                  };
+                  toast("Підключення…");
+                  client.connect(r.ip, r.port, "HELLO|" + nick + "|" + (avatar < 0 ? -1 : avatar) + "|" + sendPhoto(), new Client.Cb() {
+                      public void onLine(String line) {
+                          MainActivity.this.onLine(line);
+                      }
+
+                      public void onClosed() {
+                          if (screen == S_MENU) return;
+                          if (!matchFinished) toast("З'єднання втрачено");
+                          leaveToMenu();
+                      }
+
+                      public void onFail() {
+                          toast("Не вдалося підключитись");
+                          showJoin();
+                      }
+                  });
+              }
+
+              private void onLine(String line) {
+                  String[] f = line.split("\\|", -1);
+                  try {
+                      if (f[0].equals("LOBBY")) {
+                          onLobby(f);
+                      } else if (f[0].equals("STATE")) {
+                          gs = GState.parse(f);
+                          if (screen != S_GAME) showGame();
+                          applyState();
+                      } else if (f[0].equals("EMO")) {
+                          int k = pi(f[2]);
+                          if (table != null && k >= 0 && k < EMOJI.length) table.showEmoji(pi(f[1]), EMOJI[k]);
+                      } else if (f[0].equals("RES")) {
+                          onResult(f);
+                      } else if (f[0].equals("FULL")) {
+                          toast("Кімната заповнена або гра вже триває");
+                          leaveToMenu();
+                      }
+                  } catch (Exception e) {
+                      // некоректне повідомлення ігноруємо
+                  }
+              }
+
+              private void onLobby(String[] f) {
+                  me = pi(f[1]);
+                  limit = pi(f[2]);
+                  players.clear();
+                  if (f[4].length() > 0) {
+                      for (String s : f[4].split(";")) {
+                          String[] p = s.split("~", -1);
+                          if (p.length >= 4) players.add(p);
+                      }
+                  }
+                  if (screen == S_GAME) {
+                      applyPlayers();
+                  } else if (screen == S_LOBBY) {
+                      refreshLobby();
+                  } else if (f[3].equals("0")) {
+                      showLobby();
+                  }
+              }
+
+              // ---------- меню ----------
+              private void showMenu() {
+                  stopNet();
+                  screen = S_MENU;
+                  root.removeAllViews();
+                  root.setBackgroundColor(0xFF1B5E3A);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setGravity(Gravity.CENTER);
+                  col.addView(tv("Uno Gryntsiv", 1.0f, WHITE, true), lp(WRAP, WRAP, 0.1f));
+                  LinearLayout prof = new LinearLayout(this);
+                  prof.setOrientation(LinearLayout.HORIZONTAL);
+                  prof.setGravity(Gravity.CENTER_VERTICAL);
+                  Avatars.AvatarView av = new Avatars.AvatarView(this);
+                  av.set(avatar, avatar < 0 ? photo : "-", false);
+                  prof.addView(av, lp(1.2f, 1.2f, 0.05f));
+                  prof.addView(tv(nick, 0.45f, WHITE, true), lp(WRAP, WRAP, 0.1f));
+                  col.addView(prof, lp(WRAP, WRAP, 0.05f));
+                  col.addView(btn("Створити кімнату", 0xFFE53935, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          createRoom();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
+                  col.addView(btn("Приєднатися", 0xFF1E88E5, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showJoin();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
+                  col.addView(btn("Історія ігор", 0xFF43A047, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showHistory();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
+                  col.addView(btn("Налаштування", 0xFF8E24AA, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSettings();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+              }
+
+              private void showHistory() {
+                  screen = S_HIST;
+                  root.removeAllViews();
+                  root.setBackgroundColor(0xFF1F2A30);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
+                  col.addView(tv("Історія ігор", 0.5f, WHITE, true));
+                  ScrollView sv = new ScrollView(this);
+                  sv.addView(buildHistory());
+                  col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  col.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showMenu();
+                      }
+                  }), lp(3f, 0.95f, 0.1f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+              }
+
+              // ---------- пошук кімнат ----------
+              private void showJoin() {
+                  stopNet();
+                  screen = S_JOIN;
+                  joinSig = "";
+                  root.removeAllViews();
+                  root.setBackgroundColor(0xFF1F2A30);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
+                  col.addView(tv("Кімнати у вашій Wi-Fi мережі", 0.5f, WHITE, true));
+                  ScrollView sv = new ScrollView(this);
+                  joinList = new LinearLayout(this);
+                  joinList.setOrientation(LinearLayout.VERTICAL);
+                  sv.addView(joinList);
+                  col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  col.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showMenu();
+                      }
+                  }), lp(3f, 0.95f, 0.1f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  disc = new Discovery.Listener(this);
+                  disc.start();
+                  ui.post(new Runnable() {
+                      public void run() {
+                          if (screen != S_JOIN || disc == null) return;
+                          refreshRooms();
+                          ui.postDelayed(this, 1000);
+                      }
+                  });
+              }
+
+              private void refreshRooms() {
+                  long now = System.currentTimeMillis();
+                  final ArrayList<Discovery.Room> list = new ArrayList<Discovery.Room>();
+                  for (Discovery.Room r : disc.rooms.values()) {
+                      if (now - r.seen <= 5000) list.add(r);
+                  }
+                  StringBuilder sig = new StringBuilder();
+                  for (Discovery.Room r : list) {
+                      sig.append(r.ip).append(r.port).append(r.name).append(r.count).append(r.inGame).append(';');
+                  }
+                  if (sig.toString().equals(joinSig)) return;
+                  joinSig = sig.toString();
+                  joinList.removeAllViews();
+                  if (list.isEmpty()) {
+                      joinList.addView(tv("Кімнат не знайдено. Усі гравці мають бути в одній Wi-Fi мережі.", 0.36f, 0xFFB0BEC5, false));
+                      return;
+                  }
+                  for (final Discovery.Room r : list) {
+                      String t = r.name + "   " + r.count + "/5" + (r.inGame ? "   гра триває" : "");
+                      joinList.addView(btn(t, r.inGame || r.count >= 5 ? 0xFF607D8B : 0xFF1E88E5, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              joinRoom(r);
+                          }
+                      }), lp(MATCH, 1.1f, 0.08f));
+                  }
+              }
+
+              // ---------- лобі ----------
+              private void showLobby() {
+                  stopDisc();
+                  screen = S_LOBBY;
+                  root.removeAllViews();
+                  root.setBackgroundColor(0xFF1F2A30);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
+                  col.addView(tv(isHost ? "Ваша кімната" : "Кімната", 0.5f, WHITE, true));
+                  lobbyCount = tv("", 0.32f, 0xFFB0BEC5, false);
+                  col.addView(lobbyCount);
+                  ScrollView sv = new ScrollView(this);
+                  lobbyList = new LinearLayout(this);
+                  lobbyList.setOrientation(LinearLayout.VERTICAL);
+                  sv.addView(lobbyList);
+                  col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  lobbyLimit = tv("Ліміт очок: " + limit, 0.4f, WHITE, true);
+                  col.addView(lobbyLimit, lp(WRAP, WRAP, 0.05f));
+                  lobbyStart = null;
+                  lobbyBot = null;
+                  if (isHost) {
+                      SeekBar sb = new SeekBar(this);
+                      sb.setMax(18);
+                      sb.setProgress(Math.max(0, Math.min(18, (limit - 100) / 50)));
+                      sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                          public void onProgressChanged(SeekBar s, int p, boolean user) {
+                              if (user && host != null) host.setLimit(100 + 50 * p);
+                          }
+
+                          public void onStartTrackingTouch(SeekBar s) {
+                          }
+
+                          public void onStopTrackingTouch(SeekBar s) {
+                          }
+                      });
+                      col.addView(sb, lp(MATCH, WRAP, 0.05f));
+                      LinearLayout row = new LinearLayout(this);
+                      row.setOrientation(LinearLayout.HORIZONTAL);
+                      lobbyBot = btn("Додати бота", 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (host != null) host.addBot();
+                          }
+                      });
+                      lobbyStart = btn("Старт", 0xFF2E7D32, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (host != null) host.startMatch();
+                          }
+                      });
+                      row.addView(lobbyBot, lp(3.6f, 1.0f, 0.08f));
+                      row.addView(lobbyStart, lp(3.6f, 1.0f, 0.08f));
+                      row.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              showMenu();
+                          }
+                      }), lp(3f, 1.0f, 0.08f));
+                      col.addView(row);
+                  } else {
+                      col.addView(tv("Очікуємо, поки хост почне гру…", 0.34f, 0xFFB0BEC5, false));
+                      col.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              showMenu();
+                          }
+                      }), lp(3f, 1.0f, 0.08f));
+                  }
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  refreshLobby();
+              }
+
+              private void refreshLobby() {
+                  if (lobbyList == null) return;
+                  lobbyList.removeAllViews();
+                  for (int i = 0; i < players.size(); i++) {
+                      final int idx = i;
+                      String[] p = players.get(i);
+                      LinearLayout row = new LinearLayout(this);
+                      row.setOrientation(LinearLayout.HORIZONTAL);
+                      row.setGravity(Gravity.CENTER_VERTICAL);
+                      row.setBackground(bg(0xFF2C3A41, 0.2f));
+                      row.setPadding(px(0.2f), px(0.08f), px(0.3f), px(0.08f));
+                      Avatars.AvatarView av = new Avatars.AvatarView(this);
+                      av.set(pi(p[1]), p[2], false);
+                      row.addView(av, lp(1.0f, 1.0f, 0.05f));
+                      String label = p[0] + (i == 0 ? " (хост)" : "") + (p[3].equals("1") ? " (бот)" : "") + (i == me ? " — ви" : "");
+                      row.addView(tv(label, 0.4f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                      if (isHost && i > 0 && p[3].equals("1")) {
+                          row.addView(btn("Прибрати", 0xFFC62828, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  if (host != null) host.removePlayer(idx);
+                              }
+                          }), lp(2.0f, 0.8f, 0.05f));
+                      }
+                      lobbyList.addView(row, lp(MATCH, WRAP, 0.06f));
+                  }
+                  lobbyLimit.setText("Ліміт очок: " + limit);
+                  lobbyCount.setText("Гравці: " + players.size() + " з 5 (потрібно від 2)");
+                  if (lobbyStart != null) {
+                      boolean ok = players.size() >= 2;
+                      lobbyStart.setEnabled(ok);
+                      lobbyStart.setAlpha(ok ? 1f : 0.4f);
+                  }
+                  if (lobbyBot != null) {
+                      boolean ok = players.size() < 5;
+                      lobbyBot.setEnabled(ok);
+                      lobbyBot.setAlpha(ok ? 1f : 0.4f);
+                  }
+              }
+
+              // ---------- гра ----------
+              private void showGame() {
+                  stopDisc();
+                  screen = S_GAME;
+                  autoPassSent = false;
+                  root.removeAllViews();
+                  root.setBackgroundColor(0xFF000000);
+                  table = new TableView(this, Theme.get(themeId));
+                  table.listener = new TableView.Listener() {
+                      public void onPlay(Card k) {
+                          if (k.v >= Engine.WILD) pickColor(k);
+                          else send("PLAY|" + k.enc() + "|0");
+                      }
+
+                      public void onDraw() {
+                          send("DRAW");
+                      }
+                  };
+                  root.addView(table, new FrameLayout.LayoutParams(MATCH, MATCH));
+
+                  scoreLbl = tv("Очки: 0", 0.34f, WHITE, true);
+                  scoreLbl.setBackground(bg(0xAA000000, 0.2f));
+                  scoreLbl.setPadding(px(0.3f), px(0.12f), px(0.3f), px(0.12f));
+                  scoreLbl.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showScores();
+                      }
+                  });
+                  FrameLayout.LayoutParams lpScore = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.LEFT);
+                  lpScore.setMargins(px(0.2f), px(0.15f), 0, 0);
+                  root.addView(scoreLbl, lpScore);
+
+                  LinearLayout tr = new LinearLayout(this);
+                  tr.setOrientation(LinearLayout.HORIZONTAL);
+                  tr.addView(btn(EMOJI[0], 0xAA37474F, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showEmojiPicker();
+                      }
+                  }), lp(1.0f, 0.8f, 0.05f));
+                  tr.addView(btn("Налаштування", 0xAA37474F, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSettings();
+                      }
+                  }), lp(3.0f, 0.8f, 0.05f));
+                  tr.addView(btn("Вихід", 0xAAC62828, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          confirmExit();
+                      }
+                  }), lp(1.8f, 0.8f, 0.05f));
+                  FrameLayout.LayoutParams lpTr = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.RIGHT);
+                  lpTr.setMargins(0, px(0.1f), px(0.15f), 0);
+                  root.addView(tr, lpTr);
+
+                  LinearLayout bc = new LinearLayout(this);
+                  bc.setOrientation(LinearLayout.VERTICAL);
+                  btnDraw = btn("Добрати", 0xFF1E88E5, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          send("DRAW");
+                      }
+                  });
+                  btnPass = btn("Пас", 0xFFEF6C00, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          send("PASS");
+                      }
+                  });
+                  bc.addView(btnDraw, lp(2.3f, 0.95f, 0.08f));
+                  bc.addView(btnPass, lp(2.3f, 0.95f, 0.08f));
+                  FrameLayout.LayoutParams lpBc = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM | Gravity.RIGHT);
+                  lpBc.setMargins(0, 0, px(0.25f), px(0.35f));
+                  root.addView(bc, lpBc);
+                  applyPlayers();
+              }
+
+              private void send(String s) {
+                  if (toServer != null) toServer.send(s);
+              }
+
+              private void applyPlayers() {
+                  if (table == null) return;
+                  int n = players.size();
+                  String[] names = new String[n];
+                  int[] av = new int[n];
+                  String[] ph = new String[n];
+                  boolean[] bots = new boolean[n];
+                  for (int i = 0; i < n; i++) {
+                      String[] p = players.get(i);
+                      names[i] = p[0];
+                      av[i] = pi(p[1]);
+                      ph[i] = p[2];
+                      bots[i] = p[3].equals("1");
+                  }
+                  table.setPlayers(names, av, ph, bots, me);
+              }
+
+              private void setBtn(Button b, boolean on) {
+                  b.setEnabled(on);
+                  b.setAlpha(on ? 1f : 0.35f);
+              }
+
+              private void applyState() {
+                  if (table == null || gs == null) return;
+                  applyPlayers();
+                  table.setState(gs);
+                  int total = (gs.totals != null && me < gs.totals.length) ? gs.totals[me] : 0;
+                  scoreLbl.setText("Очки: " + total);
+                  boolean myTurn = gs.cur == me && !gs.over;
+                  setBtn(btnDraw, myTurn && gs.canDraw);
+                  setBtn(btnPass, myTurn && gs.canPass);
+                  btnPass.setVisibility(autoPass && !gs.skip ? View.GONE : View.VISIBLE);
+                  if (resultDlg != null && resultDlg.isShowing() && !gs.over) resultDlg.dismiss();
+                  boolean anyLegal = false;
+                  for (Boolean b : gs.legal) {
+                      if (b) anyLegal = true;
+                  }
+                  if (autoPass && myTurn && gs.canPass && !gs.skip && !anyLegal) {
+                      if (!autoPassSent) {
+                          autoPassSent = true;
+                          ui.postDelayed(new Runnable() {
+                              public void run() {
+                                  if (screen == S_GAME && gs != null && gs.cur == me && gs.canPass && !gs.over) send("PASS");
+                              }
+                          }, 700);
+                      }
+                  } else {
+                      autoPassSent = false;
+                  }
+              }
+
+              private void pickColor(final Card k) {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv("Оберіть колір", 0.45f, WHITE, true), lp(WRAP, WRAP, 0.1f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  final Dialog[] dd = new Dialog[1];
+                  Theme t = Theme.get(themeId);
+                  for (int i = 0; i < 4; i++) {
+                      final int c = i;
+                      View v = new View(this);
+                      v.setBackground(bg(t.col[i], 0.2f));
+                      v.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View x) {
+                              dd[0].dismiss();
+                              send("PLAY|" + k.enc() + "|" + c);
+                          }
+                      });
+                      row.addView(v, lp(1.9f, 1.5f, 0.1f));
+                  }
+                  box.addView(row);
+                  dd[0] = makeDialog(box, true);
+                  dd[0].show();
+              }
+
+              private void showEmojiPicker() {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  final Dialog[] dd = new Dialog[1];
+                  for (int r = 0; r < 2; r++) {
+                      LinearLayout row = new LinearLayout(this);
+                      row.setOrientation(LinearLayout.HORIZONTAL);
+                      for (int c = 0; c < 4; c++) {
+                          final int k = r * 4 + c;
+                          TextView e = tv(EMOJI[k], 0.9f, WHITE, false);
+                          e.setGravity(Gravity.CENTER);
+                          e.setOnClickListener(new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  dd[0].dismiss();
+                                  send("EMO|" + k);
+                              }
+                          });
+                          row.addView(e, lp(1.5f, 1.4f, 0.05f));
+                      }
+                      box.addView(row);
+                  }
+                  dd[0] = makeDialog(box, true);
+                  dd[0].show();
+              }
+
+              private void showScores() {
+                  if (gs == null || gs.totals == null) return;
+                  ArrayList<int[]> rows = new ArrayList<int[]>();
+                  for (int i = 0; i < players.size() && i < gs.totals.length; i++) rows.add(new int[]{i, gs.totals[i]});
+                  Collections.sort(rows, new Comparator<int[]>() {
+                      public int compare(int[] a, int[] b) {
+                          return a[1] - b[1];
+                      }
+                  });
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv("Очки (ліміт " + limit + ")", 0.45f, WHITE, true), lp(WRAP, WRAP, 0.08f));
+                  for (int[] r : rows) {
+                      box.addView(rowView(players.get(r[0])[0], String.valueOf(r[1]), "", r[0] == me ? 0xFFFFD54F : WHITE, r[0] == me));
+                  }
+                  final Dialog d = makeDialog(box, true);
+                  box.addView(btn("Закрити", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          d.dismiss();
+                      }
+                  }), lp(3f, 0.9f, 0.1f));
+                  d.show();
+                  if (d.getWindow() != null) d.getWindow().setLayout(px(7f), WRAP);
+              }
+
+              private LinearLayout rowView(String a, String b, String c, int color, boolean bold) {
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.setPadding(0, px(0.04f), 0, px(0.04f));
+                  row.addView(tv(a, 0.34f, color, bold), new LinearLayout.LayoutParams(0, WRAP, 2f));
+                  row.addView(tv(b, 0.34f, color, bold), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  if (c.length() > 0) row.addView(tv(c, 0.34f, color, bold), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  return row;
+              }
+
+              private void onResult(String[] f) {
+                  final boolean over = f[1].equals("1");
+                  int loser = pi(f[2]);
+                  int winner = pi(f[3]);
+                  int[] rp = GState.ints(f[4]);
+                  int[] tot = GState.ints(f[5]);
+                  int n = Math.min(rp.length, players.size());
+                  if (over) {
+                      matchFinished = true;
+                      String[] nm = new String[n];
+                      int[] tt = new int[n];
+                      for (int i = 0; i < n; i++) {
+                          nm[i] = players.get(i)[0];
+                          tt[i] = tot[i];
+                      }
+                      if (loser >= 0 && loser < n) saveHistory(nm, tt, loser);
+                  }
+                  if (resultDlg != null && resultDlg.isShowing()) resultDlg.dismiss();
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv(over ? "Гру завершено" : "Партію завершено", 0.5f, WHITE, true), lp(WRAP, WRAP, 0.05f));
+                  if (winner >= 0 && winner < n) {
+                      box.addView(tv("Переможець партії: " + players.get(winner)[0], 0.36f, 0xFFFFD54F, true));
+                  }
+                  if (over && loser >= 0 && loser < n) {
+                      box.addView(tv("Програв: " + players.get(loser)[0] + " (" + tot[loser] + " очок)", 0.36f, 0xFFEF9A9A, true));
+                  }
+                  box.addView(tv("Ліміт очок: " + limit, 0.3f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                  box.addView(rowView("Гравець", "Партія", "Всього", 0xFFB0BEC5, true));
+                  for (int i = 0; i < n; i++) {
+                      boolean w = i == winner;
+                      box.addView(rowView((w ? "★ " : "") + players.get(i)[0], String.valueOf(rp[i]), String.valueOf(tot[i]),
+                          w ? 0xFFFFD54F : WHITE, w));
+                  }
+                  if (over) {
+                      box.addView(btn("Закрити", 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              leaveToMenu();
+                          }
+                      }), lp(4f, 1.0f, 0.12f));
+                  } else if (isHost) {
+                      box.addView(btn("Наступна партія", 0xFF2E7D32, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (resultDlg != null) resultDlg.dismiss();
+                              if (host != null) host.nextRound();
+                          }
+                      }), lp(5f, 1.0f, 0.12f));
+                  } else {
+                      box.addView(tv("Очікуємо, поки хост почне наступну партію…", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
+                  }
+                  resultDlg = makeDialog(box, false);
+                  resultDlg.show();
+                  if (resultDlg.getWindow() != null) resultDlg.getWindow().setLayout(px(10f), WRAP);
+              }
+          }
+          EOF
+
+          echo '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' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Uno_Gryntsiv
+          path: app/build/outputs/apk/debug/app-debug.apk
