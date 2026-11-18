@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 4
-                  versionName "4.0"
+                  versionCode 5
+                  versionName "5.0"
               }
               signingConfigs {
                   debug {
@@ -800,6 +800,7 @@ jobs:
               private int round;
               private int botDelay = 1800;
               private final P me = new P();
+              private final ArrayList<int[]> rounds = new ArrayList<int[]>();
               private final String roomName;
 
               private final Runnable botRun = new Runnable() {
@@ -934,6 +935,15 @@ jobs:
                       p.link.close();
                       if (p.cid.length() > 0) banned.add(p.cid);
                   }
+                  for (int k = 0; k < rounds.size(); k++) {
+                      int[] r = rounds.get(k);
+                      if (r.length <= i) continue;
+                      int[] nr = new int[r.length - 1];
+                      for (int q = 0, w = 0; q < r.length; q++) {
+                          if (q != i) nr[w++] = r[q];
+                      }
+                      rounds.set(k, nr);
+                  }
                   if (paused == i) paused = -1;
                   else if (paused > i) paused--;
                   if (starter > i) starter--;
@@ -953,6 +963,13 @@ jobs:
                   P a = ps.get(i);
                   ps.set(i, ps.get(j));
                   ps.set(j, a);
+                  for (int[] r : rounds) {
+                      if (r.length > i && r.length > j) {
+                          int t = r[i];
+                          r[i] = r[j];
+                          r[j] = t;
+                      }
+                  }
                   if (inGame) {
                       eng.swap(i, j);
                       if (paused == i) paused = j;
@@ -972,6 +989,7 @@ jobs:
                   if (inGame || ps.size() < 2) return;
                   inGame = true;
                   hist.clear();
+                  rounds.clear();
                   round = 0;
                   paused = -1;
                   for (P p : ps) {
@@ -1251,6 +1269,7 @@ jobs:
                       q.last = eng.roundPts[i];
                       if (q.total >= limit) matchOver = true;
                   }
+                  rounds.add(eng.roundPts.clone());
                   starter = eng.winner;
                   int loser = -1;
                   int max = -1;
@@ -1280,9 +1299,23 @@ jobs:
                       if (i > 0) sb.append(',');
                       sb.append(ps.get(i).wins);
                   }
+                  sb.append('|').append(roundsStr());
                   sendAll(sb.toString());
                   if (matchOver) inGame = false;
                   h.removeCallbacks(botRun);
+              }
+
+              private String roundsStr() {
+                  StringBuilder sb = new StringBuilder();
+                  for (int k = 0; k < rounds.size(); k++) {
+                      if (k > 0) sb.append(';');
+                      int[] r = rounds.get(k);
+                      for (int q = 0; q < r.length; q++) {
+                          if (q > 0) sb.append(',');
+                          sb.append(r[q]);
+                      }
+                  }
+                  return sb.toString();
               }
 
               private void broadcastState() {
@@ -1330,7 +1363,7 @@ jobs:
                       if (j > 0) sb.append(',');
                       sb.append(ps.get(j).last);
                   }
-                  sb.append('|').append(paused);
+                  sb.append('|').append(paused).append('|').append(roundsStr());
                   return sb.toString();
               }
 
@@ -2158,6 +2191,7 @@ jobs:
               public ArrayList<Boolean> legal = new ArrayList<Boolean>();
               public int[] counts, totals, wins, last;
               public int paused = -1;
+              public int[][] rounds = new int[0][];
               public String msg = "";
 
               private static int pi(String s) {
@@ -2173,6 +2207,14 @@ jobs:
                   String[] p = s.split(",");
                   int[] r = new int[p.length];
                   for (int i = 0; i < p.length; i++) r[i] = pi(p[i]);
+                  return r;
+              }
+
+              public static int[][] parseRounds(String s) {
+                  if (s == null || s.length() == 0) return new int[0][];
+                  String[] rs = s.split(";");
+                  int[][] r = new int[rs.length][];
+                  for (int i = 0; i < rs.length; i++) r[i] = ints(rs[i]);
                   return r;
               }
 
@@ -2217,6 +2259,7 @@ jobs:
                   g.wins = ints(f[16]);
                   g.last = ints(f[17]);
                   g.paused = pi(f[18]);
+                  if (f.length > 19) g.rounds = parseRounds(f[19]);
                   return g;
               }
           }
@@ -2558,10 +2601,10 @@ jobs:
               private void calc(int W, int H) {
                   u = Math.min(W / 16f, H / 9f);
                   avR = u * 0.65f;
-                  hCw = u * 1.6f;
+                  hCw = u * 1.7f;
                   hCh = hCw * 1.5f;
-                  hRaise = u * 0.26f;
-                  hTop = H - u * 0.15f - hCh;
+                  hRaise = u * 0.24f;
+                  hTop = H - u * 0.12f - hCh;
                   areaL = u * 2.6f;
                   areaR = W - u * 2.9f;
                   int k = g == null ? 0 : g.hand.size();
@@ -2580,10 +2623,9 @@ jobs:
                       if (scroll > maxScroll) scroll = maxScroll;
                       hStart = areaL - scroll;
                   }
-                  float pTop = u * 3.5f, pBot = hTop - hRaise - u * 0.08f;
-                  ph = Math.min(u * 1.6f, pBot - pTop);
-                  pw = ph * 0.667f;
-                  cyP = (pTop + pBot) / 2f;
+                  pw = hCw;
+                  ph = hCh;
+                  cyP = u * 3.3f + ph / 2f;
                   deckX = W / 2f - pw * 0.9f;
                   discX = W / 2f + pw * 0.9f;
                   if (n > 0 && sx.length == n && me < n) {
@@ -2664,14 +2706,16 @@ jobs:
                   }
                   p.setStyle(Paint.Style.FILL);
                   p.setColor(0xBB000000);
-                  rf.set(deckX - u * 0.42f, cyP + ph / 2f - u * 0.55f, deckX + u * 0.42f, cyP + ph / 2f - u * 0.15f);
+                  tp.setTextSize(u * 0.3f);
+                  String dk = String.valueOf(g.deck);
+                  float dkw = tp.measureText(dk) + u * 0.3f;
+                  rf.set(deckX + pw / 2f - u * 0.1f - dkw, cyP + ph / 2f - u * 0.1f - u * 0.46f, deckX + pw / 2f - u * 0.1f, cyP + ph / 2f - u * 0.1f);
                   c.drawRoundRect(rf, u * 0.2f, u * 0.2f, p);
                   tp.setStyle(Paint.Style.FILL);
                   tp.setAlpha(255);
                   tp.setTextAlign(Paint.Align.CENTER);
-                  tp.setTextSize(u * 0.28f);
                   tp.setColor(TXT);
-                  c.drawText(String.valueOf(g.deck), deckX, cyP + ph / 2f - u * 0.24f, tp);
+                  c.drawText(dk, deckX + pw / 2f - u * 0.1f - dkw / 2f, cyP + ph / 2f - u * 0.1f - u * 0.13f, tp);
                   painter.draw(c, g.top, discX - pw / 2f, cyP - ph / 2f, pw, ph, false);
                   if (g.pend > 0) {
                       p.setStyle(Paint.Style.FILL);
@@ -2699,7 +2743,7 @@ jobs:
                   tp.setTextSize(msgSize);
                   tp.setColor(TXT);
                   tp.setTextAlign(Paint.Align.CENTER);
-                  c.drawText(g.msg, W / 2f, u * 3.3f, tp);
+                  c.drawText(g.msg, W / 2f, u * 3.12f, tp);
 
                   // рука
                   c.save();
@@ -2852,11 +2896,11 @@ jobs:
                       float cwid = tp.measureText(cnum);
                       float bx, by;
                       if (cy < u * 2.5f) {
-                          bx = cx + avR + u * 0.45f;
+                          bx = cx + avR + u * 0.2f;
                           by = cy + u * 0.15f;
                       } else {
                           bx = cx - (u * 0.3f + u * 0.2f + cwid) / 2f;
-                          by = cy + avR + u * 1.2f;
+                          by = cy + avR + u * 0.98f;
                       }
                       painter.back(c, bx, by - u * 0.4f, u * 0.3f, u * 0.45f);
                       tp.setTextAlign(Paint.Align.LEFT);
@@ -3222,7 +3266,16 @@ jobs:
                   box.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
                   box.setFocusableInTouchMode(true);
                   sv.addView(box);
-                  box.addView(tv("Налаштування", 0.5f, WHITE, true));
+                  LinearLayout titleRow = new LinearLayout(this);
+                  titleRow.setOrientation(LinearLayout.HORIZONTAL);
+                  titleRow.setGravity(Gravity.CENTER_VERTICAL);
+                  titleRow.addView(tv("Налаштування", 0.5f, WHITE, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                  titleRow.addView(btn("Зберегти", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          dlg.dismiss();
+                      }
+                  }), lp(3.2f, 0.95f, 0.05f));
+                  box.addView(titleRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                   box.addView(tv("Нік", 0.3f, 0xFFB0BEC5, false));
                   etNick = new EditText(this);
@@ -3293,12 +3346,6 @@ jobs:
                       });
                       box.addView(sb, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
                   }
-
-                  box.addView(btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          dlg.dismiss();
-                      }
-                  }), lp(4f, 1.0f, 0.15f));
 
                   refreshAvatars();
                   refreshThemes();
@@ -3705,6 +3752,7 @@ jobs:
               private Dialog resultDlg, roomDlg;
               private LinearLayout roomList;
               private boolean autoPassSent;
+              private boolean settingsPaused;
 
               private final Runnable micStop = new Runnable() {
                   public void run() {
@@ -3751,6 +3799,10 @@ jobs:
 
               @Override
               protected void onSettingsClosed() {
+                  if (settingsPaused) {
+                      settingsPaused = false;
+                      send("RESUME");
+                  }
                   if (screen == S_MENU) {
                       showMenu();
                   } else if (screen == S_GAME && table != null) {
@@ -3966,22 +4018,22 @@ jobs:
                   prof.addView(av, lp(1.2f, 1.2f, 0.05f));
                   prof.addView(tv(nick, 0.45f, WHITE, true), lp(WRAP, WRAP, 0.1f));
                   col.addView(prof, lp(WRAP, WRAP, 0.05f));
-                  col.addView(btn("Створити кімнату", 0xFFC2552F, new View.OnClickListener() {
+                  col.addView(btn("Створити кімнату", 0xFF0F3D26, new View.OnClickListener() {
                       public void onClick(View v) {
                           createRoom();
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
-                  col.addView(btn("Приєднатися", 0xFF2B7A9B, new View.OnClickListener() {
+                  col.addView(btn("Приєднатися", 0xFF0F3D26, new View.OnClickListener() {
                       public void onClick(View v) {
                           showJoin();
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
-                  col.addView(btn("Історія ігор", 0xFFC98B1F, new View.OnClickListener() {
+                  col.addView(btn("Історія ігор", 0xFF0F3D26, new View.OnClickListener() {
                       public void onClick(View v) {
                           showHistory();
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
-                  col.addView(btn("Налаштування", 0xFF7A4E9C, new View.OnClickListener() {
+                  col.addView(btn("Налаштування", 0xFF0F3D26, new View.OnClickListener() {
                       public void onClick(View v) {
                           showSettings();
                       }
@@ -4177,7 +4229,7 @@ jobs:
                               public void onClick(View v) {
                                   if (host != null) hostErr(host.removePlayer(idx));
                               }
-                          }), lp(2.0f, 0.8f, 0.05f));
+                          }), lp(2.7f, 0.8f, 0.05f));
                       }
                       if (inLobby && bot) {
                           int lv = pi(p[4]);
@@ -4189,7 +4241,7 @@ jobs:
                                   public void onClick(View v) {
                                       if (host != null) host.setLevel(idx, lk);
                                   }
-                              }), lp(2.2f, 0.8f, 0.03f));
+                              }), lp(2.1f, 0.8f, 0.03f));
                           }
                       }
                   }
@@ -4302,6 +4354,10 @@ jobs:
                   ivGear = new IconView(this, IconView.GEAR);
                   ivGear.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
+                          if (gs != null && gs.paused < 0 && !gs.over) {
+                              settingsPaused = true;
+                              send("PAUSE");
+                          }
                           showSettings();
                       }
                   });
@@ -4626,23 +4682,48 @@ jobs:
                       list.addView(tv("Поки порожньо", 0.34f, 0xFFB0BEC5, false));
                   } else {
                       String[] ls = data.split("\\^");
+                      android.graphics.Paint mp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                      mp.setTextSize(0.32f * u);
+                      mp.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                      float mw = 0;
+                      for (int j = 0; j < players.size(); j++) mw = Math.max(mw, mp.measureText(pname(j)));
+                      final int nameCol = (int) mw + px(0.3f);
                       for (int i = ls.length - 1; i >= 0; i--) {
-                          boolean head = ls[i].startsWith("—");
-                          TextView lt = tv(ls[i], 0.32f, head ? 0xFFFFD54F : 0xFFE0E0E0, head);
-                          SpannableString ss = new SpannableString(ls[i]);
+                          String line = ls[i];
+                          boolean head = line.startsWith("—");
+                          int who = -1;
+                          if (!head) {
+                              for (int j = 0; j < players.size(); j++) {
+                                  String nm = pname(j);
+                                  if (nm.length() > 0 && line.startsWith(nm) && (who < 0 || nm.length() > pname(who).length())) who = j;
+                              }
+                          }
+                          LinearLayout lr = new LinearLayout(this);
+                          lr.setOrientation(LinearLayout.HORIZONTAL);
+                          String rest = line;
+                          if (who >= 0) {
+                              TextView nt = tv(pname(who), 0.32f, Theme.pcol(who), true);
+                              lr.addView(nt, new LinearLayout.LayoutParams(nameCol, WRAP));
+                              rest = line.substring(pname(who).length());
+                              if (rest.startsWith(":")) rest = rest.substring(1);
+                              rest = rest.trim();
+                          }
+                          TextView lt = tv(rest, 0.32f, head ? 0xFFFFD54F : 0xFFE0E0E0, head);
+                          SpannableString ss = new SpannableString(rest);
                           for (int j = 0; j < players.size(); j++) {
                               String nm = pname(j);
                               if (nm.length() == 0) continue;
                               int from = 0;
                               while (true) {
-                                  int at = ls[i].indexOf(nm, from);
+                                  int at = rest.indexOf(nm, from);
                                   if (at < 0) break;
                                   ss.setSpan(new ForegroundColorSpan(Theme.pcol(j)), at, at + nm.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                                   from = at + nm.length();
                               }
                           }
                           lt.setText(ss);
-                          list.addView(lt, lp(WRAP, WRAP, 0.03f));
+                          lr.addView(lt, new LinearLayout.LayoutParams(0, WRAP, 1f));
+                          list.addView(lr, lp(MATCH, WRAP, 0.03f));
                       }
                   }
                   box.addView(sv, new LinearLayout.LayoutParams(MATCH, px(5.2f)));
@@ -4720,62 +4801,74 @@ jobs:
                   return s2.length() > max ? s2.substring(0, max - 1) + "…" : s2;
               }
 
-              private LinearLayout trowT(String label, String[] vals, int[] colors, boolean bold) {
-                  LinearLayout out = new LinearLayout(this);
-                  out.setOrientation(LinearLayout.VERTICAL);
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  row.setGravity(Gravity.CENTER_VERTICAL);
-                  TextView l = (TextView) hcell(label, 0xFFB0BEC5, true, 0.3f);
-                  l.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-                  l.setPadding(px(0.15f), px(0.12f), px(0.05f), px(0.12f));
-                  row.addView(l, new LinearLayout.LayoutParams(0, WRAP, 1.7f));
-                  for (int i = 0; i < vals.length; i++) {
-                      row.addView(divider());
-                      row.addView(hcell(vals[i], colors[i], bold, 0.4f), new LinearLayout.LayoutParams(0, WRAP, 1f));
-                  }
-                  out.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+              private View hline() {
                   View line = new View(this);
                   line.setBackgroundColor(0x66FFFFFF);
-                  out.addView(line, new LinearLayout.LayoutParams(MATCH, Math.max(1, px(0.02f))));
-                  return out;
+                  line.setLayoutParams(new LinearLayout.LayoutParams(MATCH, Math.max(1, px(0.02f))));
+                  return line;
               }
 
-              private View scoreTable(int[] pts, int[] tot, int[] wins, int winner) {
+              // таблиця: стовпчик = гравець (перемоги ліворуч від аватара, всього праворуч), рядки = партії
+              private View scoreTable(int[][] rounds, int[] tot, int[] wins, int winner, float bodyU) {
                   LinearLayout t = new LinearLayout(this);
                   t.setOrientation(LinearLayout.VERTICAL);
                   t.setBackground(bg(0xFF2C3A41, 0.15f));
                   int n = Math.min(players.size(), tot == null ? 0 : tot.length);
                   LinearLayout head = new LinearLayout(this);
                   head.setOrientation(LinearLayout.HORIZONTAL);
-                  head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1.7f));
+                  head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1.2f));
                   for (int i = 0; i < n; i++) {
                       head.addView(divider());
                       LinearLayout cc = new LinearLayout(this);
                       cc.setOrientation(LinearLayout.VERTICAL);
-                      cc.setGravity(Gravity.CENTER_HORIZONTAL);
+                      LinearLayout top = new LinearLayout(this);
+                      top.setOrientation(LinearLayout.HORIZONTAL);
+                      top.setGravity(Gravity.CENTER_VERTICAL);
+                      TextView wv = tv(String.valueOf(at(wins, i)), 0.34f, 0xFFFFD54F, true);
+                      wv.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                      top.addView(wv, new LinearLayout.LayoutParams(0, WRAP, 1f));
                       String[] p = players.get(i);
                       Avatars.AvatarView av = new Avatars.AvatarView(this);
                       av.set(pi(p[1]), p[2], false);
-                      cc.addView(av, lp(1.0f, 1.0f, 0.04f));
-                      cc.addView(hcell((i == winner ? "★ " : "") + cutName(pname(i), 8), Theme.pcol(i), true, 0.26f));
+                      top.addView(av, lp(0.85f, 0.85f, 0.04f));
+                      TextView tv2 = tv(String.valueOf(at(tot, i)), 0.38f, WHITE, true);
+                      tv2.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                      top.addView(tv2, new LinearLayout.LayoutParams(0, WRAP, 1f));
+                      cc.addView(top, new LinearLayout.LayoutParams(MATCH, WRAP));
+                      cc.addView(hcell((i == winner ? "★ " : "") + cutName(pname(i), 9), Theme.pcol(i), true, 0.26f));
                       head.addView(cc, new LinearLayout.LayoutParams(0, WRAP, 1f));
                   }
                   t.addView(head, new LinearLayout.LayoutParams(MATCH, WRAP));
-                  View line = new View(this);
-                  line.setBackgroundColor(0x66FFFFFF);
-                  t.addView(line, new LinearLayout.LayoutParams(MATCH, Math.max(1, px(0.02f))));
-                  String[] w = new String[n], r = new String[n], a = new String[n];
-                  int[] cols = new int[n];
-                  for (int i = 0; i < n; i++) {
-                      w[i] = String.valueOf(at(wins, i));
-                      r[i] = String.valueOf(at(pts, i));
-                      a[i] = String.valueOf(at(tot, i));
-                      cols[i] = i == winner ? 0xFFFFD54F : WHITE;
+                  t.addView(hline());
+                  LinearLayout body = new LinearLayout(this);
+                  body.setOrientation(LinearLayout.VERTICAL);
+                  int rc = rounds == null ? 0 : rounds.length;
+                  if (rc == 0) {
+                      body.addView(hcell("Партій ще не було", 0xFFB0BEC5, false, 0.3f));
                   }
-                  t.addView(trowT("Перемоги", w, cols, false));
-                  t.addView(trowT("Партія", r, cols, false));
-                  t.addView(trowT("Всього", a, cols, true));
+                  for (int k = 0; k < rc; k++) {
+                      LinearLayout row = new LinearLayout(this);
+                      row.setOrientation(LinearLayout.HORIZONTAL);
+                      row.setGravity(Gravity.CENTER_VERTICAL);
+                      TextView l = (TextView) hcell("Партія " + (k + 1), 0xFFB0BEC5, true, 0.28f);
+                      l.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                      l.setPadding(px(0.15f), px(0.08f), px(0.05f), px(0.08f));
+                      row.addView(l, new LinearLayout.LayoutParams(0, WRAP, 1.2f));
+                      for (int i = 0; i < n; i++) {
+                          row.addView(divider());
+                          int v = at(rounds[k], i);
+                          row.addView(hcell(String.valueOf(v), v == 0 ? 0xFF81C784 : WHITE, v == 0, 0.34f), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                      }
+                      body.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                      body.addView(hline());
+                  }
+                  if (rc > 3) {
+                      ScrollView sv = new ScrollView(this);
+                      sv.addView(body);
+                      t.addView(sv, new LinearLayout.LayoutParams(MATCH, px(bodyU)));
+                  } else {
+                      t.addView(body, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  }
                   return t;
               }
 
@@ -4796,7 +4889,8 @@ jobs:
                       }), lp(2.2f, 0.75f, 0.1f));
                   }
                   box.addView(lr);
-                  box.addView(scoreTable(gs.last, gs.totals, gs.wins, -1), lp(MATCH, WRAP, 0.05f));
+                  box.addView(tv("Ліворуч від аватара — перемоги, праворуч — очки всього", 0.24f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.03f));
+                  box.addView(scoreTable(gs.rounds, gs.totals, gs.wins, -1, 2.8f), lp(MATCH, WRAP, 0.05f));
                   final Dialog[] dd = new Dialog[1];
                   LinearLayout.LayoutParams cp = lp(3f, 0.9f, 0.1f);
                   cp.gravity = Gravity.CENTER_HORIZONTAL;
@@ -4806,7 +4900,7 @@ jobs:
                       }
                   }), cp);
                   dd[0] = makeDialog(box, true);
-                  showSized(dd[0], 11f);
+                  showSized(dd[0], 13.5f);
               }
 
               private void onResult(String[] f) {
@@ -4816,6 +4910,7 @@ jobs:
                   final int[] rp = GState.ints(f[4]);
                   final int[] tot = GState.ints(f[5]);
                   final int[] wins = GState.ints(f[6]);
+                  final int[][] rounds = GState.parseRounds(f.length > 7 ? f[7] : "");
                   int n = Math.min(tot.length, players.size());
                   if (over) {
                       matchFinished = true;
@@ -4829,15 +4924,15 @@ jobs:
                       if (table != null) table.showBanner("Кінець");
                       ui.postDelayed(new Runnable() {
                           public void run() {
-                              if (screen == S_GAME) showResults(true, loser, winner, rp, tot, wins);
+                              if (screen == S_GAME) showResults(true, loser, winner, rounds, tot, wins);
                           }
                       }, 1800);
                   } else {
-                      showResults(false, loser, winner, rp, tot, wins);
+                      showResults(false, loser, winner, rounds, tot, wins);
                   }
               }
 
-              private void showResults(final boolean over, int loser, int winner, int[] rp, int[] tot, int[] wins) {
+              private void showResults(final boolean over, int loser, int winner, int[][] rounds, int[] tot, int[] wins) {
                   if (resultDlg != null && resultDlg.isShowing()) resultDlg.dismiss();
                   LinearLayout box = new LinearLayout(this);
                   box.setOrientation(LinearLayout.VERTICAL);
@@ -4849,7 +4944,7 @@ jobs:
                       box.addView(tv("Програв: " + pname(loser) + " (" + at(tot, loser) + " очок)", 0.34f, 0xFFEF9A9A, true));
                   }
                   box.addView(tv("Ліміт очок: " + limit, 0.3f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
-                  box.addView(scoreTable(rp, tot, wins, winner), lp(MATCH, WRAP, 0.05f));
+                  box.addView(scoreTable(rounds, tot, wins, winner, 2.0f), lp(MATCH, WRAP, 0.05f));
                   LinearLayout.LayoutParams cp = lp(4.5f, 1.0f, 0.12f);
                   cp.gravity = Gravity.CENTER_HORIZONTAL;
                   if (over) {
@@ -4869,7 +4964,7 @@ jobs:
                       box.addView(tv("Очікуємо, поки хост почне наступну партію…", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
                   }
                   resultDlg = makeDialog(box, false);
-                  showSized(resultDlg, 12f);
+                  showSized(resultDlg, 13.5f);
               }
           }
           EOF
