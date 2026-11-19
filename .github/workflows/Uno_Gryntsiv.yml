@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "5.0"
+                  versionCode 6
+                  versionName "6.0"
               }
               signingConfigs {
                   debug {
@@ -354,12 +354,14 @@ jobs:
                   if (idx < 0) return "nocard";
                   if (k.v >= WILD && (color < 0 || color > 3)) return "nocolor";
                   log.setLength(0);
+                  boolean counter = pendSkip && k.v == SKIP;
                   Card played = h.remove(idx);
                   disc.add(played);
                   curColor = k.v >= WILD ? color : k.c;
                   drawn = false;
                   String s = names[p] + ": " + label(k);
                   if (k.v >= WILD && !h.isEmpty()) s += " (" + COLORS[color] + ")";
+                  if (counter) s += " \u2014 перебиває";
                   say(s);
                   if (k.v == D2) {
                       // штраф не сумується: завжди добирають лише 2 карти
@@ -427,7 +429,7 @@ jobs:
               public String pass(int p) {
                   if (!canPass(p)) return "illegal";
                   log.setLength(0);
-                  say(names[p] + " пасує");
+                  say(names[p] + (pendSkip ? " пропускає хід" : " пасує"));
                   pendSkip = false;
                   drawn = false;
                   cur = next(p);
@@ -1081,7 +1083,11 @@ jobs:
                       if (last != null && now - last < 1500) return;
                       pokeAt.put(p, now);
                       P q = ps.get(t);
-                      if (q.link != null) q.link.send("POKED|" + i);
+                      if (q.bot) {
+                          sendAll("POKEB|" + t + "|" + i);
+                      } else if (q.link != null) {
+                          q.link.send("POKED|" + i);
+                      }
                   } else if (c.equals("VOICE")) {
                       if (f.length < 3 || f[2].length() > 90000) return;
                       int t = pi(f[1]);
@@ -1933,7 +1939,7 @@ jobs:
                   fill.setStyle(Paint.Style.FILL);
                   fill.setColor(th.col[0]);
                   c.drawOval(rf, fill);
-                  float size = diag * 0.19f;
+                  float size = diag * 0.165f;
                   outlined(c, "Gryntsiv", x + w / 2f, y + h / 2f + size * 0.36f, size, th.col[1], Paint.Align.CENTER, true);
                   c.restore();
               }
@@ -2114,33 +2120,536 @@ jobs:
                   return b;
               }
 
+              public static final String[] CAT_NAMES = {"Тварини", "Люди", "Супергерої", "Лиходії", "Мультяшні"};
+              public static final int[] CAT_START = {0, 12, 19, 25, 31, 37};
+              public static final int TOTAL = 37;
+
               public static void draw(Canvas c, float cx, float cy, float r, int avatar, Bitmap photo) {
+                  c.save();
+                  CLIP.reset();
+                  CLIP.addCircle(cx, cy, r, Path.Direction.CW);
+                  c.clipPath(CLIP);
                   if (photo != null) {
-                      c.save();
-                      CLIP.reset();
-                      CLIP.addCircle(cx, cy, r, Path.Direction.CW);
-                      c.clipPath(CLIP);
                       SRC.set(0, 0, photo.getWidth(), photo.getHeight());
                       DST.set(cx - r, cy - r, cx + r, cy + r);
                       c.drawBitmap(photo, SRC, DST, P);
-                      c.restore();
                   } else {
                       int a = avatar;
-                      if (a < 0 || a >= EMO.length) a = 0;
-                      P.setStyle(Paint.Style.FILL);
-                      P.setColor(BG[a]);
-                      c.drawCircle(cx, cy, r, P);
-                      P.setTextAlign(Paint.Align.CENTER);
-                      P.setTextSize(r * 1.15f);
-                      P.setColor(0xFF000000);
-                      Paint.FontMetrics fm = P.getFontMetrics();
-                      c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
+                      if (a < 0 || a >= TOTAL) a = 0;
+                      if (a < EMO.length) {
+                          P.setStyle(Paint.Style.FILL);
+                          P.setColor(BG[a]);
+                          c.drawCircle(cx, cy, r, P);
+                          P.setTextAlign(Paint.Align.CENTER);
+                          P.setTextSize(r * 1.7f);
+                          P.setColor(0xFF000000);
+                          Paint.FontMetrics fm = P.getFontMetrics();
+                          c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
+                      } else {
+                          gc = c;
+                          gx = cx;
+                          gy = cy;
+                          gr = r;
+                          character(a);
+                      }
                   }
+                  c.restore();
                   P.setStyle(Paint.Style.STROKE);
                   P.setStrokeWidth(Math.max(2f, r * 0.07f));
                   P.setColor(0xCCFFFFFF);
                   c.drawCircle(cx, cy, r, P);
                   P.setStyle(Paint.Style.FILL);
+              }
+
+              // ---------- малювання персонажів (координати в частках радіуса) ----------
+              private static Canvas gc;
+              private static float gx, gy, gr;
+              private static final Path PATH = new Path();
+              private static final RectF RF = new RectF();
+              private static final int INK = 0xFF263238, WHITE = 0xFFFFFFFF;
+
+              private static float X(float a) {
+                  return gx + a * gr;
+              }
+
+              private static float Y(float a) {
+                  return gy + a * gr;
+              }
+
+              private static void cir(float x, float y, float rad, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  gc.drawCircle(X(x), Y(y), rad * gr, P);
+              }
+
+              private static void ring(float x, float y, float rad, float w, int col) {
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(w * gr);
+                  P.setColor(col);
+                  gc.drawCircle(X(x), Y(y), rad * gr, P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              private static void ovl(float x, float y, float rx, float ry, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  RF.set(X(x - rx), Y(y - ry), X(x + rx), Y(y + ry));
+                  gc.drawOval(RF, P);
+              }
+
+              private static void rct(float l, float t, float r, float b, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  gc.drawRect(X(l), Y(t), X(r), Y(b), P);
+              }
+
+              private static void rrc(float l, float t, float r, float b, float rad, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  RF.set(X(l), Y(t), X(r), Y(b));
+                  gc.drawRoundRect(RF, rad * gr, rad * gr, P);
+              }
+
+              private static void tri(float x1, float y1, float x2, float y2, float x3, float y3, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  PATH.reset();
+                  PATH.moveTo(X(x1), Y(y1));
+                  PATH.lineTo(X(x2), Y(y2));
+                  PATH.lineTo(X(x3), Y(y3));
+                  PATH.close();
+                  gc.drawPath(PATH, P);
+              }
+
+              private static void arcF(float x, float y, float rx, float ry, float st, float sw, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  RF.set(X(x - rx), Y(y - ry), X(x + rx), Y(y + ry));
+                  gc.drawArc(RF, st, sw, true, P);
+              }
+
+              private static void arcS(float x, float y, float rx, float ry, float st, float sw, float w, int col) {
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(w * gr);
+                  P.setColor(col);
+                  RF.set(X(x - rx), Y(y - ry), X(x + rx), Y(y + ry));
+                  gc.drawArc(RF, st, sw, false, P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              private static void lin(float x1, float y1, float x2, float y2, float w, int col) {
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(w * gr);
+                  P.setColor(col);
+                  gc.drawLine(X(x1), Y(y1), X(x2), Y(y2), P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              private static void eyes(float y, float dx, float rad) {
+                  cir(-dx, y, rad, INK);
+                  cir(dx, y, rad, INK);
+                  cir(-dx + rad * 0.3f, y - rad * 0.3f, rad * 0.32f, WHITE);
+                  cir(dx + rad * 0.3f, y - rad * 0.3f, rad * 0.32f, WHITE);
+              }
+
+              private static void smile(float y, float w) {
+                  arcS(0, y, w, w * 0.8f, 25, 130, 0.055f, INK);
+              }
+
+              private static void cheeks(float y, float dx) {
+                  cir(-dx, y, 0.09f, 0x66FF5252);
+                  cir(dx, y, 0.09f, 0x66FF5252);
+              }
+
+              private static void body(int col) {
+                  ovl(0, 1.12f, 0.88f, 0.56f, col);
+              }
+
+              private static void head(int skin) {
+                  cir(-0.5f, 0.05f, 0.09f, skin);
+                  cir(0.5f, 0.05f, 0.09f, skin);
+                  rct(-0.14f, 0.4f, 0.14f, 0.75f, skin);
+                  ovl(0, 0.02f, 0.5f, 0.58f, skin);
+              }
+
+              private static void character(int id) {
+                  int S1 = 0xFFFFCCA0, S2 = 0xFFFFD6B8, S3 = 0xFFF1C27D, S4 = 0xFFF0C8A0;
+                  switch (id) {
+                      case 12: // Тато
+                          cir(0, 0, 1.1f, 0xFF90CAF9);
+                          body(0xFF1976D2);
+                          head(S1);
+                          arcF(0, -0.1f, 0.54f, 0.56f, 180, 180, 0xFF4E342E);
+                          arcF(0, 0.1f, 0.5f, 0.5f, 10, 160, 0x30000000);
+                          eyes(-0.03f, 0.2f, 0.07f);
+                          rrc(-0.24f, 0.14f, 0.24f, 0.23f, 0.05f, 0xFF4E342E);
+                          arcS(0, 0.27f, 0.15f, 0.1f, 20, 140, 0.045f, INK);
+                          break;
+                      case 13: // Мама
+                          cir(0, 0, 1.1f, 0xFFF8BBD0);
+                          ovl(0, 0.25f, 0.7f, 0.88f, 0xFF6D4C41);
+                          body(0xFFE91E63);
+                          head(S2);
+                          arcF(0, -0.08f, 0.54f, 0.52f, 180, 180, 0xFF6D4C41);
+                          ovl(-0.28f, -0.2f, 0.3f, 0.18f, 0xFF6D4C41);
+                          eyes(0.0f, 0.2f, 0.07f);
+                          lin(-0.3f, -0.08f, -0.24f, -0.04f, 0.03f, INK);
+                          lin(0.3f, -0.08f, 0.24f, -0.04f, 0.03f, INK);
+                          arcS(0, 0.22f, 0.15f, 0.1f, 20, 140, 0.06f, 0xFFD32F2F);
+                          cheeks(0.14f, 0.3f);
+                          break;
+                      case 14: // Син
+                          cir(0, 0, 1.1f, 0xFFA5D6A7);
+                          body(0xFFFFC107);
+                          head(S3);
+                          arcF(0, -0.1f, 0.52f, 0.5f, 180, 180, 0xFF3E2723);
+                          for (int i = 0; i < 4; i++) {
+                              float x = -0.36f + i * 0.24f;
+                              tri(x - 0.14f, -0.36f, x, -0.82f, x + 0.14f, -0.36f, 0xFF3E2723);
+                          }
+                          eyes(0.0f, 0.2f, 0.08f);
+                          cir(-0.14f, 0.12f, 0.025f, 0xFFB5651D);
+                          cir(0.0f, 0.14f, 0.025f, 0xFFB5651D);
+                          cir(0.14f, 0.12f, 0.025f, 0xFFB5651D);
+                          arcF(0, 0.2f, 0.2f, 0.16f, 0, 180, 0xFFB71C1C);
+                          arcF(0, 0.2f, 0.2f, 0.06f, 0, 180, WHITE);
+                          break;
+                      case 15: // Донька
+                          cir(0, 0, 1.1f, 0xFFD1C4E9);
+                          cir(-0.62f, 0.12f, 0.22f, 0xFFFF8F00);
+                          cir(0.62f, 0.12f, 0.22f, 0xFFFF8F00);
+                          body(0xFFEC407A);
+                          head(S2);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFFFF8F00);
+                          tri(-0.5f, -0.28f, -0.72f, -0.42f, -0.72f, -0.14f, 0xFFE91E63);
+                          tri(-0.5f, -0.28f, -0.28f, -0.42f, -0.28f, -0.14f, 0xFFE91E63);
+                          tri(0.5f, -0.28f, 0.72f, -0.42f, 0.72f, -0.14f, 0xFFE91E63);
+                          tri(0.5f, -0.28f, 0.28f, -0.42f, 0.28f, -0.14f, 0xFFE91E63);
+                          eyes(0.02f, 0.2f, 0.08f);
+                          smile(0.2f, 0.17f);
+                          cheeks(0.16f, 0.3f);
+                          break;
+                      case 16: // Дід
+                          cir(0, 0, 1.1f, 0xFFCFD8DC);
+                          body(0xFF795548);
+                          head(S4);
+                          ovl(-0.5f, 0.0f, 0.12f, 0.22f, 0xFFF5F5F5);
+                          ovl(0.5f, 0.0f, 0.12f, 0.22f, 0xFFF5F5F5);
+                          lin(-0.32f, -0.15f, -0.1f, -0.18f, 0.05f, 0xFFF5F5F5);
+                          lin(0.32f, -0.15f, 0.1f, -0.18f, 0.05f, 0xFFF5F5F5);
+                          eyes(-0.02f, 0.2f, 0.05f);
+                          ring(-0.2f, -0.02f, 0.14f, 0.03f, 0xFF455A64);
+                          ring(0.2f, -0.02f, 0.14f, 0.03f, 0xFF455A64);
+                          lin(-0.06f, -0.02f, 0.06f, -0.02f, 0.03f, 0xFF455A64);
+                          cir(0, 0.1f, 0.07f, 0xFFE8A98A);
+                          ovl(-0.13f, 0.22f, 0.17f, 0.08f, 0xFFF5F5F5);
+                          ovl(0.13f, 0.22f, 0.17f, 0.08f, 0xFFF5F5F5);
+                          break;
+                      case 17: // Баба
+                          cir(0, 0, 1.1f, 0xFFFFCCBC);
+                          cir(0, -0.72f, 0.24f, 0xFFBDBDBD);
+                          body(0xFF8E24AA);
+                          head(S4);
+                          arcF(0, -0.08f, 0.54f, 0.54f, 180, 180, 0xFFBDBDBD);
+                          eyes(0.0f, 0.2f, 0.05f);
+                          ring(-0.2f, 0.0f, 0.14f, 0.03f, 0xFFAD1457);
+                          ring(0.2f, 0.0f, 0.14f, 0.03f, 0xFFAD1457);
+                          lin(-0.06f, 0.0f, 0.06f, 0.0f, 0.03f, 0xFFAD1457);
+                          cheeks(0.16f, 0.32f);
+                          smile(0.2f, 0.17f);
+                          break;
+                      case 18: // Малюк
+                          cir(0, 0, 1.1f, 0xFFFFF59D);
+                          ovl(0, 1.2f, 0.6f, 0.45f, 0xFF81D4FA);
+                          ovl(0, 1.05f, 0.3f, 0.25f, WHITE);
+                          cir(-0.62f, 0.12f, 0.1f, S2);
+                          cir(0.62f, 0.12f, 0.1f, S2);
+                          ovl(0, 0.1f, 0.62f, 0.68f, S2);
+                          arcS(0, -0.62f, 0.14f, 0.2f, 180, 200, 0.07f, 0xFF6D4C41);
+                          eyes(0.06f, 0.22f, 0.11f);
+                          cheeks(0.3f, 0.36f);
+                          ovl(0, 0.4f, 0.08f, 0.06f, 0xFFD84315);
+                          break;
+                      case 19: // Герой у плащі
+                          cir(0, 0, 1.1f, 0xFF1565C0);
+                          tri(-1.0f, 1.0f, -0.1f, -0.1f, 1.0f, 1.0f, 0xFFC62828);
+                          body(0xFF283593);
+                          cir(0, 0.95f, 0.2f, 0xFFFFD600);
+                          head(S1);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFF212121);
+                          rrc(-0.5f, -0.14f, 0.5f, 0.1f, 0.08f, 0xFF1A237E);
+                          ovl(-0.2f, -0.02f, 0.11f, 0.07f, WHITE);
+                          ovl(0.2f, -0.02f, 0.11f, 0.07f, WHITE);
+                          smile(0.22f, 0.2f);
+                          break;
+                      case 20: // Герой у шоломі
+                          cir(0, 0, 1.1f, 0xFFB2EBF2);
+                          body(0xFF00838F);
+                          rct(-0.14f, 0.4f, 0.14f, 0.75f, 0xFF006064);
+                          ovl(0, 0.0f, 0.56f, 0.64f, 0xFF00ACC1);
+                          tri(0, -0.78f, 0.1f, -0.4f, -0.1f, -0.4f, 0xFF00838F);
+                          rrc(-0.44f, -0.16f, 0.44f, 0.1f, 0.07f, 0xFFFFEB3B);
+                          lin(-0.3f, -0.08f, -0.1f, -0.1f, 0.04f, WHITE);
+                          arcF(0, 0.2f, 0.42f, 0.36f, 0, 180, 0xFF0097A7);
+                          break;
+                      case 21: // Героїня
+                          cir(0, 0, 1.1f, 0xFFFFE0B2);
+                          ovl(0.72f, -0.1f, 0.2f, 0.5f, 0xFF6A1B9A);
+                          tri(-1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0xFFAD1457);
+                          body(0xFFEC407A);
+                          head(S2);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFF6A1B9A);
+                          ovl(-0.3f, -0.22f, 0.3f, 0.16f, 0xFF6A1B9A);
+                          rrc(-0.5f, -0.1f, 0.5f, 0.1f, 0.08f, 0xFFAD1457);
+                          ovl(-0.2f, 0.0f, 0.1f, 0.06f, WHITE);
+                          ovl(0.2f, 0.0f, 0.1f, 0.06f, WHITE);
+                          arcS(0, 0.22f, 0.15f, 0.1f, 20, 140, 0.06f, 0xFFD32F2F);
+                          break;
+                      case 22: // Герой з блискавкою
+                          cir(0, 0, 1.1f, 0xFFFFF59D);
+                          body(0xFFFF6F00);
+                          PATH.reset();
+                          PATH.moveTo(X(0.08f), Y(0.78f));
+                          PATH.lineTo(X(-0.14f), Y(1.02f));
+                          PATH.lineTo(X(0.0f), Y(1.02f));
+                          PATH.lineTo(X(-0.1f), Y(1.3f));
+                          PATH.lineTo(X(0.16f), Y(0.98f));
+                          PATH.lineTo(X(0.02f), Y(0.98f));
+                          PATH.close();
+                          P.setStyle(Paint.Style.FILL);
+                          P.setColor(0xFFFFEB3B);
+                          gc.drawPath(PATH, P);
+                          head(S3);
+                          ovl(0, -0.08f, 0.56f, 0.5f, 0xFFE65100);
+                          ovl(0, 0.12f, 0.46f, 0.4f, S3);
+                          rrc(-0.46f, -0.14f, 0.46f, 0.08f, 0.08f, 0xFFE65100);
+                          ovl(-0.2f, -0.03f, 0.11f, 0.06f, WHITE);
+                          ovl(0.2f, -0.03f, 0.11f, 0.06f, WHITE);
+                          tri(0.55f, -0.5f, 0.85f, -0.65f, 0.7f, -0.35f, 0xFFFFEB3B);
+                          smile(0.24f, 0.18f);
+                          break;
+                      case 23: // Герой у капюшоні
+                          cir(0, 0, 1.1f, 0xFFC8E6C9);
+                          body(0xFF1B5E3A);
+                          ovl(0, 0.0f, 0.64f, 0.72f, 0xFF2E7D32);
+                          ovl(0, 0.1f, 0.42f, 0.5f, S4);
+                          rrc(-0.4f, -0.06f, 0.4f, 0.08f, 0.04f, 0xFF1B5E3A);
+                          ovl(-0.17f, 0.01f, 0.09f, 0.05f, WHITE);
+                          ovl(0.17f, 0.01f, 0.09f, 0.05f, WHITE);
+                          smile(0.3f, 0.15f);
+                          tri(0.0f, -0.82f, 0.25f, -0.55f, -0.25f, -0.55f, 0xFF2E7D32);
+                          break;
+                      case 24: // Герой в окулярах і шарфі
+                          cir(0, 0, 1.1f, 0xFFBBDEFB);
+                          body(0xFF5D4037);
+                          head(S1);
+                          rct(-0.5f, 0.55f, 0.5f, 0.75f, 0xFFC62828);
+                          tri(0.3f, 0.7f, 0.6f, 0.7f, 0.5f, 1.1f, 0xFFC62828);
+                          ovl(0, -0.12f, 0.58f, 0.46f, 0xFF6D4C41);
+                          rct(-0.58f, -0.16f, 0.58f, -0.06f, 0xFF3E2723);
+                          ring(-0.22f, -0.02f, 0.16f, 0.07f, 0xFF3E2723);
+                          ring(0.22f, -0.02f, 0.16f, 0.07f, 0xFF3E2723);
+                          cir(-0.22f, -0.02f, 0.13f, 0xAA4FC3F7);
+                          cir(0.22f, -0.02f, 0.13f, 0xAA4FC3F7);
+                          smile(0.26f, 0.18f);
+                          break;
+                      case 25: // Чарівник
+                          cir(0, 0, 1.1f, 0xFF311B92);
+                          body(0xFF4527A0);
+                          ovl(0, 0.5f, 0.5f, 0.6f, 0xFFEEEEEE);
+                          ovl(0, -0.02f, 0.44f, 0.46f, S4);
+                          ovl(0, -0.3f, 0.78f, 0.14f, 0xFF4527A0);
+                          tri(-0.55f, -0.3f, 0.0f, -1.3f, 0.55f, -0.3f, 0xFF5E35B1);
+                          cir(0.1f, -0.7f, 0.07f, 0xFFFFEB3B);
+                          cir(-0.15f, -0.5f, 0.05f, 0xFFFFEB3B);
+                          lin(-0.3f, -0.12f, -0.08f, -0.06f, 0.05f, 0xFFEEEEEE);
+                          lin(0.3f, -0.12f, 0.08f, -0.06f, 0.05f, 0xFFEEEEEE);
+                          eyes(0.0f, 0.19f, 0.05f);
+                          cir(0, 0.14f, 0.09f, 0xFFE8A98A);
+                          ovl(0, 0.3f, 0.2f, 0.07f, 0xFFEEEEEE);
+                          break;
+                      case 26: // Пірат
+                          cir(0, 0, 1.1f, 0xFF37474F);
+                          body(0xFFB71C1C);
+                          head(S3);
+                          arcF(0, 0.14f, 0.5f, 0.52f, 0, 180, 0xFF212121);
+                          ovl(0, 0.32f, 0.2f, 0.08f, S3);
+                          ovl(0, -0.22f, 0.78f, 0.17f, 0xFF212121);
+                          arcF(0, -0.2f, 0.5f, 0.55f, 180, 180, 0xFF212121);
+                          cir(0, -0.42f, 0.09f, WHITE);
+                          rct(-0.06f, -0.36f, 0.06f, -0.3f, WHITE);
+                          lin(-0.5f, -0.1f, 0.4f, -0.05f, 0.03f, 0xFF000000);
+                          ovl(-0.2f, 0.02f, 0.12f, 0.1f, 0xFF000000);
+                          cir(0.2f, 0.0f, 0.06f, INK);
+                          smile(0.3f, 0.15f);
+                          cir(0.07f, 0.32f, 0.03f, 0xFFFFD600);
+                          break;
+                      case 27: // Вампір
+                          cir(0, 0, 1.1f, 0xFF1A0F1F);
+                          tri(-1.0f, 1.0f, -0.55f, 0.1f, -0.15f, 1.0f, 0xFFB71C1C);
+                          tri(1.0f, 1.0f, 0.55f, 0.1f, 0.15f, 1.0f, 0xFFB71C1C);
+                          body(0xFF212121);
+                          head(0xFFE8E0F0);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFF111111);
+                          tri(-0.2f, -0.3f, 0.0f, -0.05f, 0.2f, -0.3f, 0xFFE8E0F0);
+                          eyes(0.04f, 0.2f, 0.07f);
+                          cir(-0.2f, 0.04f, 0.045f, 0xFFD50000);
+                          cir(0.2f, 0.04f, 0.045f, 0xFFD50000);
+                          lin(-0.3f, -0.06f, -0.1f, -0.02f, 0.04f, INK);
+                          lin(0.3f, -0.06f, 0.1f, -0.02f, 0.04f, INK);
+                          arcS(0, 0.26f, 0.15f, 0.08f, 20, 140, 0.04f, 0xFF8E0000);
+                          tri(-0.1f, 0.3f, -0.04f, 0.3f, -0.07f, 0.42f, WHITE);
+                          tri(0.1f, 0.3f, 0.04f, 0.3f, 0.07f, 0.42f, WHITE);
+                          break;
+                      case 28: // Привид
+                          cir(0, 0, 1.1f, 0xFF4A148C);
+                          ovl(0, -0.1f, 0.62f, 0.7f, WHITE);
+                          rct(-0.62f, -0.1f, 0.62f, 0.85f, WHITE);
+                          cir(-0.41f, 0.85f, 0.21f, WHITE);
+                          cir(0.0f, 0.9f, 0.21f, WHITE);
+                          cir(0.41f, 0.85f, 0.21f, WHITE);
+                          ovl(-0.22f, -0.12f, 0.1f, 0.16f, INK);
+                          ovl(0.22f, -0.12f, 0.1f, 0.16f, INK);
+                          ovl(0, 0.28f, 0.12f, 0.17f, INK);
+                          cheeks(0.12f, 0.38f);
+                          break;
+                      case 29: // Клоун
+                          cir(0, 0, 1.1f, 0xFFFFCDD2);
+                          cir(-0.55f, -0.05f, 0.3f, 0xFFFF6F00);
+                          cir(0.55f, -0.05f, 0.3f, 0xFFFF6F00);
+                          cir(0, -0.62f, 0.26f, 0xFFFF6F00);
+                          body(0xFF7B1FA2);
+                          cir(-0.4f, 1.0f, 0.08f, 0xFFFFEB3B);
+                          cir(0.4f, 1.0f, 0.08f, 0xFFFFEB3B);
+                          ovl(0, 0.02f, 0.5f, 0.56f, 0xFFFAFAFA);
+                          eyes(-0.06f, 0.2f, 0.06f);
+                          tri(-0.2f, -0.28f, -0.12f, -0.18f, -0.28f, -0.18f, 0xFF1E88E5);
+                          tri(0.2f, -0.28f, 0.12f, -0.18f, 0.28f, -0.18f, 0xFF1E88E5);
+                          cir(0, 0.1f, 0.14f, 0xFFD50000);
+                          arcS(0, 0.2f, 0.3f, 0.22f, 15, 150, 0.09f, 0xFFD50000);
+                          break;
+                      case 30: // Робот-диктатор
+                          cir(0, 0, 1.1f, 0xFF212121);
+                          body(0xFF455A64);
+                          cir(-0.4f, 1.0f, 0.06f, 0xFFD50000);
+                          cir(0.4f, 1.0f, 0.06f, 0xFFD50000);
+                          rct(-0.1f, 0.5f, 0.1f, 0.75f, 0xFF37474F);
+                          rrc(-0.55f, -0.5f, 0.55f, 0.55f, 0.12f, 0xFF607D8B);
+                          lin(0, -0.5f, 0, -0.85f, 0.04f, 0xFF90A4AE);
+                          cir(0, -0.88f, 0.08f, 0xFFD50000);
+                          rrc(-0.45f, -0.22f, 0.45f, 0.06f, 0.05f, 0xFF000000);
+                          cir(-0.2f, -0.08f, 0.07f, 0xFFFF1744);
+                          cir(0.2f, -0.08f, 0.07f, 0xFFFF1744);
+                          lin(-0.45f, -0.3f, -0.1f, -0.22f, 0.05f, 0xFF263238);
+                          lin(0.45f, -0.3f, 0.1f, -0.22f, 0.05f, 0xFF263238);
+                          for (int i = 0; i < 5; i++) lin(-0.25f + i * 0.125f, 0.22f, -0.25f + i * 0.125f, 0.42f, 0.035f, 0xFF263238);
+                          break;
+                      case 31: // Дружній робот
+                          cir(0, 0, 1.1f, 0xFFB3E5FC);
+                          body(0xFF78909C);
+                          rct(-0.62f, -0.1f, -0.5f, 0.2f, 0xFF90A4AE);
+                          rct(0.5f, -0.1f, 0.62f, 0.2f, 0xFF90A4AE);
+                          lin(0, -0.45f, 0, -0.8f, 0.04f, 0xFF607D8B);
+                          cir(0, -0.85f, 0.09f, 0xFFFFEB3B);
+                          rrc(-0.52f, -0.45f, 0.52f, 0.55f, 0.1f, 0xFFB0BEC5);
+                          cir(-0.22f, -0.05f, 0.17f, WHITE);
+                          cir(0.22f, -0.05f, 0.17f, WHITE);
+                          cir(-0.22f, -0.05f, 0.09f, 0xFF1E88E5);
+                          cir(0.22f, -0.05f, 0.09f, 0xFF1E88E5);
+                          rrc(-0.25f, 0.25f, 0.25f, 0.4f, 0.04f, 0xFF455A64);
+                          lin(-0.12f, 0.25f, -0.12f, 0.4f, 0.025f, 0xFFB0BEC5);
+                          lin(0.0f, 0.25f, 0.0f, 0.4f, 0.025f, 0xFFB0BEC5);
+                          lin(0.12f, 0.25f, 0.12f, 0.4f, 0.025f, 0xFFB0BEC5);
+                          break;
+                      case 32: // Інопланетянин
+                          cir(0, 0, 1.1f, 0xFF1A237E);
+                          cir(-0.7f, -0.7f, 0.04f, WHITE);
+                          cir(0.75f, -0.4f, 0.03f, WHITE);
+                          body(0xFF9E9E9E);
+                          lin(-0.25f, -0.55f, -0.45f, -0.9f, 0.04f, 0xFF7CB342);
+                          lin(0.25f, -0.55f, 0.45f, -0.9f, 0.04f, 0xFF7CB342);
+                          cir(-0.47f, -0.92f, 0.07f, 0xFFFFEB3B);
+                          cir(0.47f, -0.92f, 0.07f, 0xFFFFEB3B);
+                          rct(-0.12f, 0.5f, 0.12f, 0.8f, 0xFF8BC34A);
+                          ovl(0, 0.0f, 0.55f, 0.7f, 0xFF8BC34A);
+                          ovl(-0.22f, -0.02f, 0.14f, 0.23f, 0xFF000000);
+                          ovl(0.22f, -0.02f, 0.14f, 0.23f, 0xFF000000);
+                          cir(-0.18f, -0.1f, 0.04f, WHITE);
+                          cir(0.26f, -0.1f, 0.04f, WHITE);
+                          smile(0.38f, 0.1f);
+                          break;
+                      case 33: // Єдиноріг
+                          cir(0, 0, 1.1f, 0xFFF8BBD0);
+                          cir(-0.55f, -0.1f, 0.32f, 0xFFF06292);
+                          cir(0.55f, -0.1f, 0.32f, 0xFFBA68C8);
+                          cir(-0.5f, 0.35f, 0.25f, 0xFFBA68C8);
+                          cir(0.5f, 0.35f, 0.25f, 0xFFF06292);
+                          tri(-0.42f, -0.35f, -0.28f, -0.8f, -0.12f, -0.4f, WHITE);
+                          tri(0.42f, -0.35f, 0.28f, -0.8f, 0.12f, -0.4f, WHITE);
+                          ovl(0, 0.12f, 0.45f, 0.62f, WHITE);
+                          tri(-0.1f, -0.42f, 0.1f, -0.42f, 0.0f, -1.15f, 0xFFFFC107);
+                          lin(-0.07f, -0.62f, 0.07f, -0.6f, 0.03f, 0xFFFF8F00);
+                          lin(-0.05f, -0.82f, 0.05f, -0.8f, 0.03f, 0xFFFF8F00);
+                          ovl(0, 0.5f, 0.32f, 0.26f, 0xFFFFE4EC);
+                          cir(-0.1f, 0.52f, 0.03f, 0xFFAD1457);
+                          cir(0.1f, 0.52f, 0.03f, 0xFFAD1457);
+                          cir(-0.2f, 0.02f, 0.09f, INK);
+                          cir(0.2f, 0.02f, 0.09f, INK);
+                          cir(-0.17f, -0.01f, 0.03f, WHITE);
+                          cir(0.23f, -0.01f, 0.03f, WHITE);
+                          cheeks(0.25f, 0.32f);
+                          break;
+                      case 34: // Дракончик
+                          cir(0, 0, 1.1f, 0xFFFFE0B2);
+                          tri(-0.35f, -0.4f, -0.5f, -0.9f, -0.15f, -0.5f, 0xFFFFA726);
+                          tri(0.35f, -0.4f, 0.5f, -0.9f, 0.15f, -0.5f, 0xFFFFA726);
+                          tri(-0.62f, 0.0f, -0.95f, -0.2f, -0.6f, 0.3f, 0xFF43A047);
+                          tri(0.62f, 0.0f, 0.95f, -0.2f, 0.6f, 0.3f, 0xFF43A047);
+                          for (int i = 0; i < 3; i++) tri(-0.12f + i * 0.12f, -0.5f, -0.06f + i * 0.12f, -0.72f, 0.0f + i * 0.12f, -0.5f, 0xFFFFA726);
+                          ovl(0, 0.05f, 0.56f, 0.58f, 0xFF66BB6A);
+                          ovl(0, 0.4f, 0.36f, 0.26f, 0xFF9CCC65);
+                          cir(-0.12f, 0.38f, 0.04f, 0xFF33691E);
+                          cir(0.12f, 0.38f, 0.04f, 0xFF33691E);
+                          cir(-0.22f, -0.1f, 0.14f, WHITE);
+                          cir(0.22f, -0.1f, 0.14f, WHITE);
+                          cir(-0.22f, -0.08f, 0.07f, INK);
+                          cir(0.22f, -0.08f, 0.07f, INK);
+                          smile(0.5f, 0.14f);
+                          break;
+                      case 35: // Фея
+                          cir(0, 0, 1.1f, 0xFFB39DDB);
+                          ovl(-0.78f, -0.15f, 0.3f, 0.55f, 0xAAE1F5FE);
+                          ovl(0.78f, -0.15f, 0.3f, 0.55f, 0xAAE1F5FE);
+                          body(0xFFF06292);
+                          head(S2);
+                          cir(0, -0.66f, 0.22f, 0xFFFFC107);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFFFFC107);
+                          lin(0.1f, -0.9f, 0.2f, -0.78f, 0.04f, 0xFFFFEB3B);
+                          tri(-0.12f, -0.9f, 0.12f, -0.9f, 0.0f, -1.05f, 0xFFFFEB3B);
+                          eyes(0.02f, 0.2f, 0.08f);
+                          smile(0.2f, 0.16f);
+                          cheeks(0.16f, 0.3f);
+                          cir(0.85f, 0.35f, 0.07f, 0xFFFFEB3B);
+                          cir(-0.85f, 0.5f, 0.05f, WHITE);
+                          break;
+                      default: // 36 Монстрик
+                          cir(0, 0, 1.1f, 0xFFD1C4E9);
+                          for (int i = 0; i < 12; i++) {
+                              double ang = i * Math.PI / 6.0;
+                              cir((float) Math.cos(ang) * 0.68f, (float) Math.sin(ang) * 0.68f, 0.2f, 0xFF42A5F5);
+                          }
+                          cir(0, 0, 0.7f, 0xFF42A5F5);
+                          tri(-0.4f, -0.55f, -0.55f, -0.95f, -0.2f, -0.65f, WHITE);
+                          tri(0.4f, -0.55f, 0.55f, -0.95f, 0.2f, -0.65f, WHITE);
+                          cir(-0.24f, -0.12f, 0.2f, WHITE);
+                          cir(0.24f, -0.12f, 0.2f, WHITE);
+                          cir(-0.22f, -0.1f, 0.09f, INK);
+                          cir(0.22f, -0.1f, 0.09f, INK);
+                          ovl(0, 0.34f, 0.32f, 0.2f, 0xFF4A148C);
+                          tri(-0.22f, 0.2f, -0.1f, 0.2f, -0.16f, 0.32f, WHITE);
+                          tri(0.22f, 0.2f, 0.1f, 0.2f, 0.16f, 0.32f, WHITE);
+                          break;
+                  }
               }
 
               public static class AvatarView extends View {
@@ -2483,6 +2992,7 @@ jobs:
               private int bgId;
               private static final int TXT = 0xFFFFFFFF;
               private final HashMap<String, Long> fresh = new HashMap<String, Long>();
+              private final HashMap<Integer, Long> shake = new HashMap<Integer, Long>();
               private String crossEnc;
               private long crossUntil;
               private Theme th;
@@ -2536,6 +3046,11 @@ jobs:
               public void setTheme(Theme t) {
                   th = t;
                   painter.th = t;
+                  invalidate();
+              }
+
+              public void shakeAvatar(int idx) {
+                  shake.put(idx, System.currentTimeMillis());
                   invalidate();
               }
 
@@ -2632,7 +3147,7 @@ jobs:
                       sx[me] = u * 1.35f;
                       sy[me] = H - u * 1.85f;
                       int m = n - 1;
-                      float top = u * 1.75f, side = u * 4.0f;
+                      float top = u * 1.55f, side = u * 4.0f;
                       for (int q = 1; q <= m; q++) {
                           int idx = (me + q) % n;
                           float x, y;
@@ -2725,7 +3240,7 @@ jobs:
                       tp.setTextSize(u * 0.38f);
                       c.drawText("+" + g.pend, discX + pw / 2f, cyP - ph / 2f + u * 0.13f, tp);
                   }
-                  float colX = discX + pw / 2f + u * 0.75f;
+                  float colX = W / 2f;
                   p.setStyle(Paint.Style.FILL);
                   p.setColor(th.col[g.curColor < 0 || g.curColor > 3 ? 0 : g.curColor]);
                   c.drawCircle(colX, cyP, u * 0.36f, p);
@@ -2743,7 +3258,7 @@ jobs:
                   tp.setTextSize(msgSize);
                   tp.setColor(TXT);
                   tp.setTextAlign(Paint.Align.CENTER);
-                  c.drawText(g.msg, W / 2f, u * 3.12f, tp);
+                  c.drawText(g.msg, W / 2f, u * 2.95f, tp);
 
                   // рука
                   c.save();
@@ -2762,7 +3277,7 @@ jobs:
                               float a = Math.min(1f, (fu - now) / 600f);
                               p.setStyle(Paint.Style.STROKE);
                               p.setStrokeWidth(u * 0.09f);
-                              p.setColor((((int) (255 * a)) << 24) | 0x0000E5FF);
+                              p.setColor((((int) (255 * a)) << 24) | 0x00FFD54F);
                               rf.set(x, y, x + hCw, y + hCh);
                               c.drawRoundRect(rf, hCw * 0.1f, hCw * 0.1f, p);
                               anim = true;
@@ -2875,7 +3390,18 @@ jobs:
                       c.drawCircle(cx, cy, avR * 1.12f + u * 0.06f + u * 0.1f * (float) pulse, p);
                       anim = true;
                   }
-                  Avatars.draw(c, cx, cy, avR, avatars[idx], Avatars.photo(photos[idx]));
+                  Long sk = shake.get(idx);
+                  float sx = 0;
+                  if (sk != null) {
+                      long dt = now - sk;
+                      if (dt < 700) {
+                          sx = (float) Math.sin(dt / 35.0) * u * 0.16f * (1f - dt / 700f);
+                          anim = true;
+                      } else {
+                          shake.remove(idx);
+                      }
+                  }
+                  Avatars.draw(c, cx + sx, cy, avR, avatars[idx], Avatars.photo(photos[idx]));
                   tp.setStyle(Paint.Style.FILL);
                   tp.setAlpha(255);
                   tp.setTextAlign(Paint.Align.CENTER);
@@ -2892,20 +3418,20 @@ jobs:
                       }
                   } else {
                       String cnum = String.valueOf(g.counts[idx]);
-                      tp.setTextSize(u * 0.34f);
+                      tp.setTextSize(u * 0.41f);
                       float cwid = tp.measureText(cnum);
                       float bx, by;
                       if (cy < u * 2.5f) {
                           bx = cx + avR + u * 0.2f;
-                          by = cy + u * 0.15f;
+                          by = cy + u * 0.2f;
                       } else {
-                          bx = cx - (u * 0.3f + u * 0.2f + cwid) / 2f;
-                          by = cy + avR + u * 0.98f;
+                          bx = cx - (u * 0.36f + u * 0.2f + cwid) / 2f;
+                          by = cy + avR + u * 1.05f;
                       }
-                      painter.back(c, bx, by - u * 0.4f, u * 0.3f, u * 0.45f);
+                      painter.back(c, bx, by - u * 0.48f, u * 0.36f, u * 0.54f);
                       tp.setTextAlign(Paint.Align.LEFT);
                       tp.setColor(TXT);
-                      c.drawText(cnum, bx + u * 0.5f, by, tp);
+                      c.drawText(cnum, bx + u * 0.56f, by, tp);
                   }
                   if (micOk && !bots[idx]) {
                       float mx = cx + avR * 0.9f, my = cy + avR * 0.8f;
@@ -3062,6 +3588,7 @@ jobs:
           import android.graphics.BitmapFactory;
           import android.graphics.Canvas;
           import android.graphics.Color;
+          import android.graphics.Paint;
           import android.graphics.Typeface;
           import android.graphics.drawable.ColorDrawable;
           import android.graphics.drawable.GradientDrawable;
@@ -3119,7 +3646,14 @@ jobs:
               protected boolean showDraw = true;
               protected boolean hint = true;
               protected int bgId;
-              protected int botDelay = 1800;
+              protected int botDelay = 1500;
+              protected int botSpeed = 3;
+              protected static final int[] SPEED_MS = {3000, 2200, 1500, 900, 450};
+              protected static final int CAP = 0xFFCFD8DC;
+              protected static final float CAPS = 0.36f;
+              private int avCat;
+              private LinearLayout avatarTabs, photoBox;
+              private Button speedBtn;
               protected String cid = "";
 
               private EditText etNick;
@@ -3138,7 +3672,8 @@ jobs:
                   showDraw = sp.getBoolean("showDraw", true);
                   hint = sp.getBoolean("hint", true);
                   bgId = sp.getInt("bg", 0);
-                  botDelay = sp.getInt("botDelay", 1800);
+                  botSpeed = Math.max(1, Math.min(5, sp.getInt("botSpeed", 3)));
+                  botDelay = SPEED_MS[botSpeed - 1];
                   cid = sp.getString("cid", "");
                   if (cid.length() == 0) {
                       cid = Long.toHexString(new Random().nextLong()) + Long.toHexString(System.currentTimeMillis());
@@ -3165,7 +3700,7 @@ jobs:
               protected void savePrefs() {
                   sp.edit().putString("nick", nick).putInt("avatar", avatar).putString("photo", photo)
                       .putInt("theme", themeId).putBoolean("auto", autoPass).putBoolean("showDraw", showDraw).putBoolean("hint", hint).putInt("bg", bgId)
-                      .putInt("botDelay", botDelay).commit();
+                      .putInt("botSpeed", botSpeed).commit();
               }
 
               protected String sendPhoto() {
@@ -3277,7 +3812,7 @@ jobs:
                   }), lp(3.2f, 0.95f, 0.05f));
                   box.addView(titleRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-                  box.addView(tv("Нік", 0.3f, 0xFFB0BEC5, false));
+                  box.addView(tv("Нік", CAPS, CAP, false));
                   etNick = new EditText(this);
                   etNick.setText(nick);
                   etNick.setSingleLine(true);
@@ -3286,66 +3821,75 @@ jobs:
                   etNick.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.4f * u);
                   box.addView(etNick, lp(6f, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
 
-                  box.addView(tv("Аватар", 0.3f, 0xFFB0BEC5, false));
+                  LinearLayout mid = new LinearLayout(this);
+                  mid.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout left = new LinearLayout(this);
+                  left.setOrientation(LinearLayout.VERTICAL);
+                  left.addView(tv("Аватар", CAPS, CAP, false));
+                  avatarTabs = new LinearLayout(this);
+                  avatarTabs.setOrientation(LinearLayout.HORIZONTAL);
+                  left.addView(avatarTabs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(0.85f)));
                   avatarBox = new LinearLayout(this);
                   avatarBox.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(avatarBox);
-                  box.addView(btn("Обрати фото з галереї", 0xFF455A64, new View.OnClickListener() {
+                  left.addView(avatarBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(3.55f)));
+                  LinearLayout photoRow = new LinearLayout(this);
+                  photoRow.setOrientation(LinearLayout.HORIZONTAL);
+                  photoRow.setGravity(Gravity.CENTER_VERTICAL);
+                  photoRow.addView(btn("Моє фото", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           pickPhoto();
                       }
-                  }), lp(5f, 0.9f, 0.08f));
+                  }), lp(4.4f, 0.95f, 0.04f));
+                  photoBox = new LinearLayout(this);
+                  photoRow.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  left.addView(photoRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(6.0f)));
 
-                  box.addView(tv("Тема колоди", 0.3f, 0xFFB0BEC5, false));
-                  themeBox = new LinearLayout(this);
-                  themeBox.setOrientation(LinearLayout.HORIZONTAL);
-                  box.addView(themeBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-                  preview = new Preview(this);
-                  box.addView(preview, lp(ViewGroup.LayoutParams.MATCH_PARENT, 2.8f, 0.08f));
-
-                  box.addView(tv("Фон столу", 0.3f, 0xFFB0BEC5, false));
-                  bgBox = new LinearLayout(this);
-                  bgBox.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(bgBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-                  box.addView(onOff("Автоматично пасувати, якщо немає ходу", autoPass, new Toggle() {
+                  LinearLayout right = new LinearLayout(this);
+                  right.setOrientation(LinearLayout.VERTICAL);
+                  right.addView(onOff("Автоматичний пас", autoPass, new Toggle() {
                       public void set(boolean on) {
                           autoPass = on;
                       }
                   }));
-                  box.addView(onOff("Кнопка «Добрати» (добирати можна і дотиком до колоди)", showDraw, new Toggle() {
+                  right.addView(onOff("Кнопка «Добрати»", showDraw, new Toggle() {
                       public void set(boolean on) {
                           showDraw = on;
                       }
                   }));
-                  box.addView(onOff("Автопідсвічування потрібних карт", hint, new Toggle() {
+                  right.addView(onOff("Автопідсвічування карт", hint, new Toggle() {
                       public void set(boolean on) {
                           hint = on;
                       }
                   }));
-
                   if (hostMode()) {
-                      final TextView lbl = tv("", 0.34f, WHITE, false);
-                      box.addView(lbl, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.1f));
-                      SeekBar sb = new SeekBar(this);
-                      sb.setMax(9);
-                      sb.setProgress(Math.max(0, Math.min(9, (botDelay - 600) / 300)));
-                      lbl.setText("Швидкість ботів: " + (botDelay / 1000f) + " с на хід");
-                      sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                          public void onProgressChanged(SeekBar s, int p, boolean user) {
-                              botDelay = 600 + 300 * p;
-                              lbl.setText("Швидкість ботів: " + (botDelay / 1000f) + " с на хід");
-                              if (user) onBotDelay(botDelay);
-                          }
-
-                          public void onStartTrackingTouch(SeekBar s) {
-                          }
-
-                          public void onStopTrackingTouch(SeekBar s) {
+                      LinearLayout item = new LinearLayout(this);
+                      item.setOrientation(LinearLayout.VERTICAL);
+                      item.setGravity(Gravity.BOTTOM);
+                      speedBtn = btn("Швидкість ботів: " + botSpeed, 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              showSpeedDialog();
                           }
                       });
-                      box.addView(sb, lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
+                      item.addView(speedBtn, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.95f, 0.04f));
+                      right.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
                   }
+                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(6.0f), 1f);
+                  rp.leftMargin = px(0.3f);
+                  mid.addView(right, rp);
+                  box.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  box.addView(tv("Тема колоди", CAPS, CAP, false));
+                  themeBox = new LinearLayout(this);
+                  themeBox.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(themeBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  preview = new Preview(this);
+                  box.addView(preview, lp(ViewGroup.LayoutParams.MATCH_PARENT, 2.8f, 0.08f));
+
+                  box.addView(tv("Фон столу", CAPS, CAP, false));
+                  bgBox = new LinearLayout(this);
+                  bgBox.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(bgBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                   refreshAvatars();
                   refreshThemes();
@@ -3363,6 +3907,9 @@ jobs:
                           savePrefs();
                           etNick = null;
                           avatarBox = null;
+                          avatarTabs = null;
+                          photoBox = null;
+                          speedBtn = null;
                           themeBox = null;
                           bgBox = null;
                           preview = null;
@@ -3380,22 +3927,43 @@ jobs:
               private LinearLayout onOff(String text, boolean init, final Toggle cb) {
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
-                  col.addView(tv(text, 0.32f, WHITE, false), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.04f));
+                  col.setGravity(Gravity.BOTTOM);
+                  col.addView(tv(text, CAPS, CAP, false));
                   final LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
-                  col.addView(row, new LinearLayout.LayoutParams(px(6f), ViewGroup.LayoutParams.WRAP_CONTENT));
+                  col.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                   fillOnOff(row, init, cb);
-                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                  p.topMargin = px(0.12f);
-                  col.setLayoutParams(p);
+                  col.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
                   return col;
+              }
+
+              protected void showSpeedDialog() {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv("Швидкість ботів", 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.08f));
+                  final Dialog[] dd = new Dialog[1];
+                  for (int k = 1; k <= 5; k++) {
+                      final int val = k;
+                      String t = String.valueOf(k) + (k == 1 ? "  (повільно)" : k == 5 ? "  (швидко)" : "");
+                      box.addView(btn(t, botSpeed == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              botSpeed = val;
+                              botDelay = SPEED_MS[val - 1];
+                              onBotDelay(botDelay);
+                              if (speedBtn != null) speedBtn.setText("Швидкість ботів: " + botSpeed);
+                              dd[0].dismiss();
+                          }
+                      }), lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.8f, 0.04f));
+                  }
+                  dd[0] = makeDialog(box, true);
+                  showSized(dd[0], 5.5f);
               }
 
               private void fillOnOff(final LinearLayout row, boolean on, final Toggle cb) {
                   row.removeAllViews();
                   for (int k = 0; k < 2; k++) {
                       final boolean val = k == 0;
-                      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.8f), 1f);
+                      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.95f), 1f);
                       p.setMargins(px(0.04f), px(0.04f), px(0.04f), px(0.04f));
                       row.addView(btn(val ? "Увімк." : "Вимк.", on == val ? (val ? 0xFF2E7D32 : 0xFFC62828) : 0xFF455A64, new View.OnClickListener() {
                           public void onClick(View v) {
@@ -3463,20 +4031,40 @@ jobs:
 
               private void refreshAvatars() {
                   if (avatarBox == null) return;
+                  if (avatar >= 0) {
+                      for (int k = 0; k < Avatars.CAT_NAMES.length; k++) {
+                          if (avatar >= Avatars.CAT_START[k] && avatar < Avatars.CAT_START[k + 1]) avCat = k;
+                      }
+                  }
+                  avatarTabs.removeAllViews();
+                  for (int k = 0; k < Avatars.CAT_NAMES.length; k++) {
+                      final int cat = k;
+                      Button t = btn(Avatars.CAT_NAMES[k], avCat == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              avCat = cat;
+                              refreshAvatars();
+                          }
+                      });
+                      t.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.27f * u);
+                      t.setPadding(px(0.04f), px(0.05f), px(0.04f), px(0.05f));
+                      t.setSingleLine(true);
+                      LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+                      tp.setMargins(px(0.03f), px(0.03f), px(0.03f), px(0.03f));
+                      avatarTabs.addView(t, tp);
+                  }
                   avatarBox.removeAllViews();
-                  int total = Avatars.EMO.length + (photo.length() > 8 ? 1 : 0);
+                  int from = Avatars.CAT_START[avCat], to = Avatars.CAT_START[avCat + 1];
                   int perRow = 6;
                   LinearLayout row = null;
-                  for (int i = 0; i < total; i++) {
-                      if (i % perRow == 0) {
+                  for (int i = from; i < to; i++) {
+                      if ((i - from) % perRow == 0) {
                           row = new LinearLayout(this);
                           row.setOrientation(LinearLayout.HORIZONTAL);
                           avatarBox.addView(row);
                       }
-                      final int idx = i < Avatars.EMO.length ? i : -1;
+                      final int idx = i;
                       Avatars.AvatarView av = new Avatars.AvatarView(this);
-                      if (idx >= 0) av.set(idx, "-", avatar == idx);
-                      else av.set(-1, photo, avatar < 0);
+                      av.set(idx, "-", avatar == idx);
                       av.setOnClickListener(new View.OnClickListener() {
                           public void onClick(View v) {
                               avatar = idx;
@@ -3484,6 +4072,18 @@ jobs:
                           }
                       });
                       row.addView(av, lp(1.5f, 1.5f, 0.05f));
+                  }
+                  photoBox.removeAllViews();
+                  if (photo.length() > 8) {
+                      Avatars.AvatarView pv = new Avatars.AvatarView(this);
+                      pv.set(-1, photo, avatar < 0);
+                      pv.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View v) {
+                              avatar = -1;
+                              refreshAvatars();
+                          }
+                      });
+                      photoBox.addView(pv, lp(1.4f, 1.4f, 0.05f));
                   }
               }
 
@@ -3567,25 +4167,158 @@ jobs:
                       o.inJustDecodeBounds = true;
                       BitmapFactory.decodeStream(in, null, o);
                       in.close();
-                      int s = 1;
-                      while (o.outWidth / (s * 2) >= 192 && o.outHeight / (s * 2) >= 192) s *= 2;
+                      int sm = 1;
+                      while (Math.max(o.outWidth, o.outHeight) / (sm * 2) >= 1400) sm *= 2;
                       BitmapFactory.Options o2 = new BitmapFactory.Options();
-                      o2.inSampleSize = s;
+                      o2.inSampleSize = sm;
                       in = getContentResolver().openInputStream(uri);
                       Bitmap b = BitmapFactory.decodeStream(in, null, o2);
                       in.close();
                       if (b == null) throw new RuntimeException("decode");
-                      int side = Math.min(b.getWidth(), b.getHeight());
-                      Bitmap sq = Bitmap.createBitmap(b, (b.getWidth() - side) / 2, (b.getHeight() - side) / 2, side, side);
-                      Bitmap sm = Bitmap.createScaledBitmap(sq, 96, 96, true);
-                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
-                      sm.compress(Bitmap.CompressFormat.JPEG, 80, bo);
-                      photo = Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
-                      avatar = -1;
-                      savePrefs();
-                      refreshAvatars();
+                      showCrop(b);
                   } catch (Exception e) {
                       toast("Не вдалося завантажити фото");
+                  }
+              }
+
+              private void showCrop(Bitmap b) {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setGravity(Gravity.CENTER_HORIZONTAL);
+                  box.addView(tv("Посуньте і наблизьте фото (двома пальцями)", 0.32f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
+                  final CropView cv = new CropView(this, b);
+                  box.addView(cv, lp(6f, 6f, 0.05f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  final Dialog[] dd = new Dialog[1];
+                  row.addView(btn("Скасувати", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          dd[0].dismiss();
+                      }
+                  }), lp(3.4f, 0.95f, 0.08f));
+                  row.addView(btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          try {
+                              Bitmap sm = cv.result();
+                              ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                              sm.compress(Bitmap.CompressFormat.JPEG, 82, bo);
+                              photo = Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
+                              avatar = -1;
+                              savePrefs();
+                              refreshAvatars();
+                          } catch (Exception e) {
+                              toast("Не вдалося обрізати фото");
+                          }
+                          dd[0].dismiss();
+                      }
+                  }), lp(3.4f, 0.95f, 0.08f));
+                  box.addView(row);
+                  dd[0] = makeDialog(box, true);
+                  showSized(dd[0], 7.2f);
+              }
+
+              private class CropView extends View {
+                  private final Bitmap bmp;
+                  private float sc, tx, ty, minS;
+                  private int size;
+                  private boolean init;
+                  private float lastDist, lastMx, lastMy;
+                  private int lastCnt;
+                  private final Paint cp = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  CropView(Context c, Bitmap b) {
+                      super(c);
+                      bmp = b;
+                  }
+
+                  private void clamp() {
+                      if (sc < minS) sc = minS;
+                      if (sc > minS * 8f) sc = minS * 8f;
+                      float w = bmp.getWidth() * sc, h = bmp.getHeight() * sc;
+                      if (tx > 0) tx = 0;
+                      if (ty > 0) ty = 0;
+                      if (tx < size - w) tx = size - w;
+                      if (ty < size - h) ty = size - h;
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      if (!init) {
+                          size = getWidth();
+                          minS = size / (float) Math.min(bmp.getWidth(), bmp.getHeight());
+                          sc = minS;
+                          tx = (size - bmp.getWidth() * sc) / 2f;
+                          ty = (size - bmp.getHeight() * sc) / 2f;
+                          init = true;
+                      }
+                      c.drawColor(0xFF000000);
+                      c.save();
+                      c.translate(tx, ty);
+                      c.scale(sc, sc);
+                      c.drawBitmap(bmp, 0, 0, null);
+                      c.restore();
+                      float ring = size * 0.3f;
+                      cp.setStyle(Paint.Style.STROKE);
+                      cp.setStrokeWidth(ring);
+                      cp.setColor(0xAA000000);
+                      c.drawCircle(size / 2f, size / 2f, size / 2f + ring / 2f, cp);
+                      cp.setStrokeWidth(Math.max(2f, size * 0.01f));
+                      cp.setColor(0xFFFFFFFF);
+                      c.drawCircle(size / 2f, size / 2f, size / 2f, cp);
+                  }
+
+                  @Override
+                  public boolean onTouchEvent(android.view.MotionEvent e) {
+                      int n = e.getPointerCount();
+                      float mx = 0, my = 0;
+                      for (int i = 0; i < n; i++) {
+                          mx += e.getX(i);
+                          my += e.getY(i);
+                      }
+                      mx /= n;
+                      my /= n;
+                      float dist = 0;
+                      if (n >= 2) {
+                          float dx = e.getX(0) - e.getX(1), dy = e.getY(0) - e.getY(1);
+                          dist = (float) Math.sqrt(dx * dx + dy * dy);
+                      }
+                      int act = e.getAction();
+                      if (act == android.view.MotionEvent.ACTION_DOWN || n != lastCnt) {
+                          lastCnt = n;
+                          lastMx = mx;
+                          lastMy = my;
+                          lastDist = dist;
+                          return true;
+                      }
+                      if (act == android.view.MotionEvent.ACTION_MOVE && init) {
+                          tx += mx - lastMx;
+                          ty += my - lastMy;
+                          if (n >= 2 && lastDist > 0 && dist > 0) {
+                              float ns = Math.max(minS, Math.min(minS * 8f, sc * dist / lastDist));
+                              float f = ns / sc;
+                              tx = mx - (mx - tx) * f;
+                              ty = my - (my - ty) * f;
+                              sc = ns;
+                          }
+                          lastMx = mx;
+                          lastMy = my;
+                          lastDist = dist;
+                          clamp();
+                          invalidate();
+                      }
+                      return true;
+                  }
+
+                  Bitmap result() {
+                      int bw = bmp.getWidth(), bh = bmp.getHeight();
+                      int x = Math.max(0, (int) (-tx / sc));
+                      int y = Math.max(0, (int) (-ty / sc));
+                      int side = (int) (size / sc);
+                      if (x + side > bw) side = bw - x;
+                      if (y + side > bh) side = Math.min(side, bh - y);
+                      if (side < 8) side = Math.min(bw, bh);
+                      Bitmap crop = Bitmap.createBitmap(bmp, x, y, side, side);
+                      return Bitmap.createScaledBitmap(crop, 96, 96, true);
                   }
               }
 
@@ -3704,6 +4437,7 @@ jobs:
           import android.view.animation.TranslateAnimation;
           import android.widget.Button;
           import android.widget.FrameLayout;
+          import android.widget.HorizontalScrollView;
           import android.widget.LinearLayout;
           import android.widget.ScrollView;
           import android.widget.SeekBar;
@@ -3954,6 +4688,8 @@ jobs:
                       } else if (f[0].equals("EMO")) {
                           int k = pi(f[3]);
                           if (table != null && k >= 0 && k < EMOJI.length) table.showEmoji(pi(f[1]), EMOJI[k]);
+                      } else if (f[0].equals("POKEB")) {
+                          if (table != null) table.shakeAvatar(pi(f[1]));
                       } else if (f[0].equals("POKED")) {
                           onPoked(pi(f[1]));
                       } else if (f[0].equals("VOICE")) {
@@ -4229,9 +4965,9 @@ jobs:
                               public void onClick(View v) {
                                   if (host != null) hostErr(host.removePlayer(idx));
                               }
-                          }), lp(2.7f, 0.8f, 0.05f));
+                          }), lp(2.5f, 0.8f, 0.05f));
                       }
-                      if (inLobby && bot) {
+                      if (bot) {
                           int lv = pi(p[4]);
                           View gap = new View(this);
                           row.addView(gap, new LinearLayout.LayoutParams(px(0.3f), 1));
@@ -4241,7 +4977,7 @@ jobs:
                                   public void onClick(View v) {
                                       if (host != null) host.setLevel(idx, lk);
                                   }
-                              }), lp(2.1f, 0.8f, 0.03f));
+                              }), lp(2.0f, 0.8f, 0.03f));
                           }
                       }
                   }
@@ -4304,13 +5040,7 @@ jobs:
 
                       public void onAvatarLong(int idx) {
                           if (idx < 0 || idx >= players.size() || idx == me) return;
-                          boolean bot = players.get(idx)[3].equals("1");
-                          if (bot) {
-                              if (isHost) showBotMenu(idx);
-                          } else {
-                              send("POKE|" + idx);
-                              toast("Штурхаєте: " + pname(idx));
-                          }
+                          send("POKE|" + idx);
                       }
 
                       public void onMic(int idx, boolean down) {
@@ -4615,31 +5345,6 @@ jobs:
                   showSized(dd[0], 13f);
               }
 
-              private void showBotMenu(final int idx) {
-                  LinearLayout box = new LinearLayout(this);
-                  box.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(tv(pname(idx) + ": рівень", 0.4f, WHITE, true), lp(WRAP, WRAP, 0.08f));
-                  final Dialog[] dd = new Dialog[1];
-                  int cur = pi(players.get(idx)[4]);
-                  for (int k = 0; k < 3; k++) {
-                      final int lk = k;
-                      box.addView(btn(LEVELS[k], cur == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              dd[0].dismiss();
-                              if (host != null) host.setLevel(idx, lk);
-                          }
-                      }), lp(MATCH, 0.9f, 0.05f));
-                  }
-                  box.addView(btn("Прибрати бота", 0xFFC62828, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          dd[0].dismiss();
-                          if (host != null) hostErr(host.removePlayer(idx));
-                      }
-                  }), lp(MATCH, 0.9f, 0.05f));
-                  dd[0] = makeDialog(box, true);
-                  showSized(dd[0], 5.5f);
-              }
-
               private void showRoom() {
                   LinearLayout box = new LinearLayout(this);
                   box.setOrientation(LinearLayout.VERTICAL);
@@ -4659,7 +5364,7 @@ jobs:
                   dd[0] = makeDialog(box, true);
                   roomDlg = dd[0];
                   fillRoom();
-                  showSized(dd[0], 12.5f);
+                  showSized(dd[0], 14.7f);
               }
 
               private void fillRoom() {
@@ -4674,59 +5379,41 @@ jobs:
                   LinearLayout box = new LinearLayout(this);
                   box.setOrientation(LinearLayout.VERTICAL);
                   box.addView(tv("Історія ходів", 0.45f, WHITE, true), lp(WRAP, WRAP, 0.05f));
-                  ScrollView sv = new ScrollView(this);
-                  LinearLayout list = new LinearLayout(this);
-                  list.setOrientation(LinearLayout.VERTICAL);
-                  sv.addView(list);
-                  if (data.length() == 0) {
-                      list.addView(tv("Поки порожньо", 0.34f, 0xFFB0BEC5, false));
-                  } else {
-                      String[] ls = data.split("\\^");
-                      android.graphics.Paint mp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                      mp.setTextSize(0.32f * u);
-                      mp.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                      float mw = 0;
-                      for (int j = 0; j < players.size(); j++) mw = Math.max(mw, mp.measureText(pname(j)));
-                      final int nameCol = (int) mw + px(0.3f);
-                      for (int i = ls.length - 1; i >= 0; i--) {
-                          String line = ls[i];
-                          boolean head = line.startsWith("—");
-                          int who = -1;
-                          if (!head) {
-                              for (int j = 0; j < players.size(); j++) {
-                                  String nm = pname(j);
-                                  if (nm.length() > 0 && line.startsWith(nm) && (who < 0 || nm.length() > pname(who).length())) who = j;
-                              }
-                          }
-                          LinearLayout lr = new LinearLayout(this);
-                          lr.setOrientation(LinearLayout.HORIZONTAL);
-                          String rest = line;
-                          if (who >= 0) {
-                              TextView nt = tv(pname(who), 0.32f, Theme.pcol(who), true);
-                              lr.addView(nt, new LinearLayout.LayoutParams(nameCol, WRAP));
-                              rest = line.substring(pname(who).length());
-                              if (rest.startsWith(":")) rest = rest.substring(1);
-                              rest = rest.trim();
-                          }
-                          TextView lt = tv(rest, 0.32f, head ? 0xFFFFD54F : 0xFFE0E0E0, head);
-                          SpannableString ss = new SpannableString(rest);
-                          for (int j = 0; j < players.size(); j++) {
-                              String nm = pname(j);
-                              if (nm.length() == 0) continue;
-                              int from = 0;
-                              while (true) {
-                                  int at = rest.indexOf(nm, from);
-                                  if (at < 0) break;
-                                  ss.setSpan(new ForegroundColorSpan(Theme.pcol(j)), at, at + nm.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                                  from = at + nm.length();
-                              }
-                          }
-                          lt.setText(ss);
-                          lr.addView(lt, new LinearLayout.LayoutParams(0, WRAP, 1f));
-                          list.addView(lr, lp(MATCH, WRAP, 0.03f));
+                  final ArrayList<ArrayList<String>> rs = new ArrayList<ArrayList<String>>();
+                  if (data.length() > 0) {
+                      for (String line : data.split("\\^")) {
+                          if (line.startsWith("\u2014") || rs.isEmpty()) rs.add(new ArrayList<String>());
+                          rs.get(rs.size() - 1).add(line);
                       }
                   }
-                  box.addView(sv, new LinearLayout.LayoutParams(MATCH, px(5.2f)));
+                  final LinearLayout tabs = new LinearLayout(this);
+                  tabs.setOrientation(LinearLayout.HORIZONTAL);
+                  final HorizontalScrollView hs = new HorizontalScrollView(this);
+                  hs.addView(tabs);
+                  if (rs.size() > 1) box.addView(hs, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  ScrollView sv = new ScrollView(this);
+                  final LinearLayout list = new LinearLayout(this);
+                  list.setOrientation(LinearLayout.VERTICAL);
+                  sv.addView(list);
+                  box.addView(sv, new LinearLayout.LayoutParams(MATCH, px(5.0f)));
+                  final int[] sel = {rs.size() - 1};
+                  final Runnable[] fill = new Runnable[1];
+                  fill[0] = new Runnable() {
+                      public void run() {
+                          tabs.removeAllViews();
+                          for (int k = 0; k < rs.size(); k++) {
+                              final int kk = k;
+                              tabs.addView(btn(String.valueOf(k + 1), sel[0] == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                                  public void onClick(View v) {
+                                      sel[0] = kk;
+                                      fill[0].run();
+                                  }
+                              }), lp(1.1f, 0.8f, 0.04f));
+                          }
+                          fillLog(list, sel[0] >= 0 ? rs.get(sel[0]) : null);
+                      }
+                  };
+                  fill[0].run();
                   final Dialog[] dd = new Dialog[1];
                   Button close = btn("Закрити", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
@@ -4738,6 +5425,57 @@ jobs:
                   box.addView(close, cp);
                   dd[0] = makeDialog(box, true);
                   showSized(dd[0], 10f);
+              }
+
+              private void fillLog(LinearLayout list, ArrayList<String> ls) {
+                  list.removeAllViews();
+                  if (ls == null || ls.isEmpty()) {
+                      list.addView(tv("Поки порожньо", 0.34f, 0xFFB0BEC5, false));
+                      return;
+                  }
+                  android.graphics.Paint mp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                  mp.setTextSize(0.32f * u);
+                  mp.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                  float mw = 0;
+                  for (int j = 0; j < players.size(); j++) mw = Math.max(mw, mp.measureText(pname(j)));
+                  final int nameCol = (int) mw + px(0.3f);
+                  for (int i = ls.size() - 1; i >= 0; i--) {
+                      String line = ls.get(i);
+                      boolean head = line.startsWith("\u2014");
+                      int who = -1;
+                      if (!head) {
+                          for (int j = 0; j < players.size(); j++) {
+                              String nm = pname(j);
+                              if (nm.length() > 0 && line.startsWith(nm) && (who < 0 || nm.length() > pname(who).length())) who = j;
+                          }
+                      }
+                      LinearLayout lr = new LinearLayout(this);
+                      lr.setOrientation(LinearLayout.HORIZONTAL);
+                      String rest = line;
+                      if (who >= 0) {
+                          TextView nt = tv(pname(who), 0.32f, Theme.pcol(who), true);
+                          lr.addView(nt, new LinearLayout.LayoutParams(nameCol, WRAP));
+                          rest = line.substring(pname(who).length());
+                          if (rest.startsWith(":")) rest = rest.substring(1);
+                          rest = rest.trim();
+                      }
+                      TextView lt = tv(rest, 0.32f, head ? 0xFFFFD54F : 0xFFE0E0E0, head);
+                      SpannableString ss = new SpannableString(rest);
+                      for (int j = 0; j < players.size(); j++) {
+                          String nm = pname(j);
+                          if (nm.length() == 0) continue;
+                          int from = 0;
+                          while (true) {
+                              int at = rest.indexOf(nm, from);
+                              if (at < 0) break;
+                              ss.setSpan(new ForegroundColorSpan(Theme.pcol(j)), at, at + nm.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                              from = at + nm.length();
+                          }
+                      }
+                      lt.setText(ss);
+                      lr.addView(lt, new LinearLayout.LayoutParams(0, WRAP, 1f));
+                      list.addView(lr, lp(MATCH, WRAP, 0.03f));
+                  }
               }
 
               private void changeLimit() {
@@ -4921,14 +5659,23 @@ jobs:
                           tt[i] = tot[i];
                       }
                       if (loser >= 0 && loser < n) saveHistory(nm, tt, loser);
-                      if (table != null) table.showBanner("Кінець");
                       ui.postDelayed(new Runnable() {
                           public void run() {
-                              if (screen == S_GAME) showResults(true, loser, winner, rounds, tot, wins);
+                              if (screen != S_GAME) return;
+                              if (table != null) table.showBanner("Кінець");
+                              ui.postDelayed(new Runnable() {
+                                  public void run() {
+                                      if (screen == S_GAME) showResults(true, loser, winner, rounds, tot, wins);
+                                  }
+                              }, 1800);
                           }
-                      }, 1800);
+                      }, 1500);
                   } else {
-                      showResults(false, loser, winner, rounds, tot, wins);
+                      ui.postDelayed(new Runnable() {
+                          public void run() {
+                              if (screen == S_GAME) showResults(false, loser, winner, rounds, tot, wins);
+                          }
+                      }, 1500);
                   }
               }
 
