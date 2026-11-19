@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 7
-                  versionName "7.0"
+                  versionCode 8
+                  versionName "8.0"
               }
               signingConfigs {
                   debug {
@@ -3834,7 +3834,7 @@ jobs:
                   left.addView(avatarBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(3.2f)));
                   LinearLayout photoRow = new LinearLayout(this);
                   photoRow.setOrientation(LinearLayout.HORIZONTAL);
-                  photoRow.setGravity(Gravity.CENTER_VERTICAL);
+                  photoRow.setGravity(Gravity.BOTTOM);
                   photoRow.addView(btn("Моє фото", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           pickPhoto();
@@ -3842,7 +3842,7 @@ jobs:
                   }), lp(4.4f, 0.95f, 0.04f));
                   photoBox = new LinearLayout(this);
                   photoRow.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-                  left.addView(photoRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  left.addView(photoRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
                   mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(6.5f)));
 
                   LinearLayout right = new LinearLayout(this);
@@ -3891,6 +3891,10 @@ jobs:
                   bgBox.setOrientation(LinearLayout.VERTICAL);
                   box.addView(bgBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+                  avCat = 0;
+                  for (int k = 0; k < Avatars.CAT_NAMES.length; k++) {
+                      if (avatar >= Avatars.CAT_START[k] && avatar < Avatars.CAT_START[k + 1]) avCat = k;
+                  }
                   refreshAvatars();
                   refreshThemes();
                   refreshBgs();
@@ -4031,11 +4035,6 @@ jobs:
 
               private void refreshAvatars() {
                   if (avatarBox == null) return;
-                  if (avatar >= 0) {
-                      for (int k = 0; k < Avatars.CAT_NAMES.length; k++) {
-                          if (avatar >= Avatars.CAT_START[k] && avatar < Avatars.CAT_START[k + 1]) avCat = k;
-                      }
-                  }
                   avatarTabs.removeAllViews();
                   for (int k = 0; k < Avatars.CAT_NAMES.length; k++) {
                       final int cat = k;
@@ -4083,7 +4082,7 @@ jobs:
                               refreshAvatars();
                           }
                       });
-                      photoBox.addView(pv, lp(1.2f, 1.2f, 0.05f));
+                      photoBox.addView(pv, lp(1.2f, 1.2f, 0.04f));
                   }
               }
 
