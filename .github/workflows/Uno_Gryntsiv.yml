@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 8
-                  versionName "8.0"
+                  versionCode 9
+                  versionName "9.0"
               }
               signingConfigs {
                   debug {
@@ -2124,34 +2124,40 @@ jobs:
               public static final int[] CAT_START = {0, 12, 19, 25, 31, 37};
               public static final int TOTAL = 37;
 
+              private static void content(Canvas c, float cx, float cy, float r, int a, boolean over) {
+                  noBg = over;
+                  P.setTextAlign(Paint.Align.CENTER);
+                  if (a < EMO.length) {
+                      P.setStyle(Paint.Style.FILL);
+                      P.setTextSize(r * 1.9f);
+                      P.setColor(0xFF000000);
+                      Paint.FontMetrics fm = P.getFontMetrics();
+                      c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
+                  } else {
+                      gc = c;
+                      gx = cx;
+                      gy = cy + 0.06f * r;
+                      gr = r * 1.2f;
+                      character(a);
+                  }
+              }
+
               public static void draw(Canvas c, float cx, float cy, float r, int avatar, Bitmap photo) {
                   c.save();
                   CLIP.reset();
                   CLIP.addCircle(cx, cy, r, Path.Direction.CW);
                   c.clipPath(CLIP);
+                  int a = avatar;
+                  if (a < 0 || a >= TOTAL) a = 0;
                   if (photo != null) {
                       SRC.set(0, 0, photo.getWidth(), photo.getHeight());
                       DST.set(cx - r, cy - r, cx + r, cy + r);
                       c.drawBitmap(photo, SRC, DST, P);
                   } else {
-                      int a = avatar;
-                      if (a < 0 || a >= TOTAL) a = 0;
-                      if (a < EMO.length) {
-                          P.setStyle(Paint.Style.FILL);
-                          P.setColor(BG[a]);
-                          c.drawCircle(cx, cy, r, P);
-                          P.setTextAlign(Paint.Align.CENTER);
-                          P.setTextSize(r * 1.7f);
-                          P.setColor(0xFF000000);
-                          Paint.FontMetrics fm = P.getFontMetrics();
-                          c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
-                      } else {
-                          gc = c;
-                          gx = cx;
-                          gy = cy;
-                          gr = r;
-                          character(a);
-                      }
+                      P.setStyle(Paint.Style.FILL);
+                      P.setColor(a < EMO.length ? BG[a] : 0xFF455A64);
+                      c.drawCircle(cx, cy, r, P);
+                      content(c, cx, cy, r, a, false);
                   }
                   c.restore();
                   P.setStyle(Paint.Style.STROKE);
@@ -2159,6 +2165,14 @@ jobs:
                   P.setColor(0xCCFFFFFF);
                   c.drawCircle(cx, cy, r, P);
                   P.setStyle(Paint.Style.FILL);
+                  if (photo == null) {
+                      // голова поверх круга: верхня частина малюється без обрізання колом
+                      c.save();
+                      c.clipRect(cx - r * 2f, cy - r * 3f, cx + r * 2f, cy - r * 0.1f);
+                      content(c, cx, cy, r, a, true);
+                      c.restore();
+                      noBg = false;
+                  }
               }
 
               // ---------- малювання персонажів (координати в частках радіуса) ----------
@@ -2176,7 +2190,10 @@ jobs:
                   return gy + a * gr;
               }
 
+              private static boolean noBg;
+
               private static void cir(float x, float y, float rad, int col) {
+                  if (noBg && x == 0 && y == 0 && rad >= 1.0f) return;
                   P.setStyle(Paint.Style.FILL);
                   P.setColor(col);
                   gc.drawCircle(X(x), Y(y), rad * gr, P);
@@ -2679,7 +2696,7 @@ jobs:
                           c.drawCircle(cx, cy, r * 1.08f, P);
                           P.setStyle(Paint.Style.FILL);
                       }
-                      Avatars.draw(c, cx, cy, r * 0.96f, avatar, Avatars.photo(photo));
+                      Avatars.draw(c, cx, cy, r * 0.8f, avatar, Avatars.photo(photo));
                   }
               }
           }
