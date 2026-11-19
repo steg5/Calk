@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 9
-                  versionName "9.0"
+                  versionCode 10
+                  versionName "10.0"
               }
               signingConfigs {
                   debug {
@@ -778,6 +778,7 @@ jobs:
                   String photo = "-";
                   boolean bot;
                   int level = 1;
+                  int delay;
                   Link link;
                   int total, wins, last;
                   String cid = "";
@@ -901,6 +902,16 @@ jobs:
 
               public void setBotDelay(int ms) {
                   botDelay = Math.max(200, ms);
+                  for (P q : ps) q.delay = 0;
+              }
+
+              public void setBotDelayOf(int i, int ms) {
+                  if (i >= 0 && i < ps.size() && ps.get(i).bot) ps.get(i).delay = Math.max(200, ms);
+              }
+
+              public int getBotDelayOf(int i) {
+                  if (i >= 0 && i < ps.size() && ps.get(i).delay > 0) return ps.get(i).delay;
+                  return botDelay;
               }
 
               public void addBot() {
@@ -1083,9 +1094,7 @@ jobs:
                       if (last != null && now - last < 1500) return;
                       pokeAt.put(p, now);
                       P q = ps.get(t);
-                      if (q.bot) {
-                          sendAll("POKEB|" + t + "|" + i);
-                      } else if (q.link != null) {
+                      if (!q.bot && q.link != null) {
                           q.link.send("POKED|" + i);
                       }
                   } else if (c.equals("VOICE")) {
@@ -1377,7 +1386,7 @@ jobs:
               private void botTick() {
                   h.removeCallbacks(botRun);
                   if (eng != null && !eng.over && paused < 0 && eng.cur < ps.size() && ps.get(eng.cur).bot) {
-                      h.postDelayed(botRun, botDelay);
+                      h.postDelayed(botRun, getBotDelayOf(eng.cur));
                   }
               }
 
@@ -2124,12 +2133,16 @@ jobs:
               public static final int[] CAT_START = {0, 12, 19, 25, 31, 37};
               public static final int TOTAL = 37;
 
+              private static final float[] ESIZE = {1.9f, 1.95f, 1.9f, 1.65f, 1.65f, 1.9f, 2.15f, 1.9f, 1.9f, 1.65f, 2.25f, 1.9f};
+              private static final float[] EDY = {0f, -0.04f, 0f, 0f, -0.1f, 0f, -0.2f, 0f, -0.3f, 0f, -0.2f, 0f};
+
               private static void content(Canvas c, float cx, float cy, float r, int a, boolean over) {
                   noBg = over;
                   P.setTextAlign(Paint.Align.CENTER);
                   if (a < EMO.length) {
                       P.setStyle(Paint.Style.FILL);
-                      P.setTextSize(r * 1.9f);
+                      P.setTextSize(r * ESIZE[a]);
+                      cy += EDY[a] * r;
                       P.setColor(0xFF000000);
                       Paint.FontMetrics fm = P.getFontMetrics();
                       c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
@@ -2168,7 +2181,7 @@ jobs:
                   if (photo == null) {
                       // голова поверх круга: верхня частина малюється без обрізання колом
                       c.save();
-                      c.clipRect(cx - r * 2f, cy - r * 3f, cx + r * 2f, cy - r * 0.1f);
+                      c.clipRect(cx - r * 3f, cy - r * 3f, cx + r * 3f, cy + r * (a < EMO.length ? 0.7f : 0.55f));
                       content(c, cx, cy, r, a, true);
                       c.restore();
                       noBg = false;
@@ -2375,10 +2388,14 @@ jobs:
                           cheeks(0.16f, 0.32f);
                           smile(0.2f, 0.17f);
                           break;
-                      case 18: // Малюк
+                      case 18: { // Малюк
                           cir(0, 0, 1.1f, 0xFFFFF59D);
-                          ovl(0, 1.2f, 0.6f, 0.45f, 0xFF81D4FA);
+                          body(0xFF81D4FA);
                           ovl(0, 1.05f, 0.3f, 0.25f, WHITE);
+                          float og = gr, oy = gy;
+                          gr = og * 0.8f;
+                          gy = oy - 0.04f * og;
+                          rct(-0.14f, 0.4f, 0.14f, 0.85f, S2);
                           cir(-0.62f, 0.12f, 0.1f, S2);
                           cir(0.62f, 0.12f, 0.1f, S2);
                           ovl(0, 0.1f, 0.62f, 0.68f, S2);
@@ -2386,7 +2403,10 @@ jobs:
                           eyes(0.06f, 0.22f, 0.11f);
                           cheeks(0.3f, 0.36f);
                           ovl(0, 0.4f, 0.08f, 0.06f, 0xFFD84315);
+                          gr = og;
+                          gy = oy;
                           break;
+                      }
                       case 19: // Герой у плащі
                           cir(0, 0, 1.1f, 0xFF1565C0);
                           tri(-1.0f, 1.0f, -0.1f, -0.1f, 1.0f, 1.0f, 0xFFC62828);
@@ -2411,7 +2431,6 @@ jobs:
                           break;
                       case 21: // Героїня
                           cir(0, 0, 1.1f, 0xFFFFE0B2);
-                          ovl(0.72f, -0.1f, 0.2f, 0.5f, 0xFF6A1B9A);
                           tri(-1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0xFFAD1457);
                           body(0xFFEC407A);
                           head(S2);
@@ -2502,7 +2521,7 @@ jobs:
                           cir(0.07f, 0.32f, 0.03f, 0xFFFFD600);
                           break;
                       case 27: // Вампір
-                          cir(0, 0, 1.1f, 0xFF1A0F1F);
+                          cir(0, 0, 1.1f, 0xFF4A1942);
                           tri(-1.0f, 1.0f, -0.55f, 0.1f, -0.15f, 1.0f, 0xFFB71C1C);
                           tri(1.0f, 1.0f, 0.55f, 0.1f, 0.15f, 1.0f, 0xFFB71C1C);
                           body(0xFF212121);
@@ -2580,8 +2599,10 @@ jobs:
                           break;
                       case 32: // Інопланетянин
                           cir(0, 0, 1.1f, 0xFF1A237E);
-                          cir(-0.7f, -0.7f, 0.04f, WHITE);
-                          cir(0.75f, -0.4f, 0.03f, WHITE);
+                          if (!noBg) {
+                              cir(-0.7f, -0.7f, 0.04f, WHITE);
+                              cir(0.75f, -0.4f, 0.03f, WHITE);
+                          }
                           body(0xFF9E9E9E);
                           lin(-0.25f, -0.55f, -0.45f, -0.9f, 0.04f, 0xFF7CB342);
                           lin(0.25f, -0.55f, 0.45f, -0.9f, 0.04f, 0xFF7CB342);
@@ -2646,8 +2667,10 @@ jobs:
                           eyes(0.02f, 0.2f, 0.08f);
                           smile(0.2f, 0.16f);
                           cheeks(0.16f, 0.3f);
-                          cir(0.85f, 0.35f, 0.07f, 0xFFFFEB3B);
-                          cir(-0.85f, 0.5f, 0.05f, WHITE);
+                          if (!noBg) {
+                              cir(0.85f, 0.35f, 0.07f, 0xFFFFEB3B);
+                              cir(-0.85f, 0.5f, 0.05f, WHITE);
+                          }
                           break;
                       default: // 36 Монстрик
                           cir(0, 0, 1.1f, 0xFFD1C4E9);
@@ -3609,6 +3632,8 @@ jobs:
           import android.graphics.Typeface;
           import android.graphics.drawable.ColorDrawable;
           import android.graphics.drawable.GradientDrawable;
+          import android.media.AudioManager;
+          import android.media.ToneGenerator;
           import android.net.Uri;
           import android.os.Build;
           import android.provider.MediaStore;
@@ -3665,6 +3690,9 @@ jobs:
               protected int bgId;
               protected int botDelay = 1500;
               protected int botSpeed = 3;
+              protected boolean soundOn = true, musicOn = true;
+              private ToneGenerator tone;
+              protected static final int SFX_CLICK = 0, SFX_MOVE = 1, SFX_OPP = 2, SFX_DRAW = 3, SFX_TURN = 4, SFX_WIN = 5, SFX_LOSE = 6;
               protected static final int[] SPEED_MS = {3000, 2200, 1500, 900, 450};
               protected static final int CAP = 0xFFCFD8DC;
               protected static final float CAPS = 0.36f;
@@ -3688,6 +3716,8 @@ jobs:
                   autoPass = sp.getBoolean("auto", false);
                   showDraw = sp.getBoolean("showDraw", true);
                   hint = sp.getBoolean("hint", true);
+                  soundOn = sp.getBoolean("sound", true);
+                  musicOn = sp.getBoolean("music", true);
                   bgId = sp.getInt("bg", 0);
                   botSpeed = Math.max(1, Math.min(5, sp.getInt("botSpeed", 3)));
                   botDelay = SPEED_MS[botSpeed - 1];
@@ -3717,7 +3747,7 @@ jobs:
               protected void savePrefs() {
                   sp.edit().putString("nick", nick).putInt("avatar", avatar).putString("photo", photo)
                       .putInt("theme", themeId).putBoolean("auto", autoPass).putBoolean("showDraw", showDraw).putBoolean("hint", hint).putInt("bg", bgId)
-                      .putInt("botSpeed", botSpeed).commit();
+                      .putInt("botSpeed", botSpeed).putBoolean("sound", soundOn).putBoolean("music", musicOn).commit();
               }
 
               protected String sendPhoto() {
@@ -3767,7 +3797,39 @@ jobs:
                   return t;
               }
 
-              protected Button btn(String s, int color, View.OnClickListener l) {
+              protected void sfx(int kind) {
+                  if (!soundOn) return;
+                  try {
+                      if (tone == null) tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 70);
+                      switch (kind) {
+                          case SFX_CLICK:
+                              tone.startTone(ToneGenerator.TONE_PROP_BEEP, 35);
+                              break;
+                          case SFX_MOVE:
+                              tone.startTone(ToneGenerator.TONE_PROP_ACK, 120);
+                              break;
+                          case SFX_OPP:
+                              tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 80);
+                              break;
+                          case SFX_DRAW:
+                              tone.startTone(ToneGenerator.TONE_PROP_PROMPT, 90);
+                              break;
+                          case SFX_TURN:
+                              tone.startTone(ToneGenerator.TONE_PROP_BEEP, 110);
+                              break;
+                          case SFX_WIN:
+                              tone.startTone(ToneGenerator.TONE_PROP_ACK, 500);
+                              break;
+                          default:
+                              tone.startTone(ToneGenerator.TONE_PROP_NACK, 500);
+                              break;
+                      }
+                  } catch (Exception e) {
+                      tone = null;
+                  }
+              }
+
+              protected Button btn(String s, int color, final View.OnClickListener l) {
                   Button b = new Button(this);
                   b.setText(s);
                   b.setAllCaps(false);
@@ -3781,7 +3843,12 @@ jobs:
                   b.setMinWidth(0);
                   b.setMinimumWidth(0);
                   b.setPadding(px(0.3f), px(0.1f), px(0.3f), px(0.1f));
-                  b.setOnClickListener(l);
+                  b.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          sfx(SFX_CLICK);
+                          l.onClick(v);
+                      }
+                  });
                   return b;
               }
 
@@ -3856,14 +3923,24 @@ jobs:
                       public void onClick(View v) {
                           pickPhoto();
                       }
-                  }), lp(4.4f, 0.95f, 0.04f));
+                  }), lp(4.4f, 0.85f, 0.02f));
                   photoBox = new LinearLayout(this);
                   photoRow.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                   left.addView(photoRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-                  mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(6.5f)));
+                  mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(8.4f)));
 
                   LinearLayout right = new LinearLayout(this);
                   right.setOrientation(LinearLayout.VERTICAL);
+                  right.addView(onOff("Звук", soundOn, new Toggle() {
+                      public void set(boolean on) {
+                          soundOn = on;
+                      }
+                  }));
+                  right.addView(onOff("Музика", musicOn, new Toggle() {
+                      public void set(boolean on) {
+                          musicOn = on;
+                      }
+                  }));
                   right.addView(onOff("Автоматичний пас", autoPass, new Toggle() {
                       public void set(boolean on) {
                           autoPass = on;
@@ -3888,10 +3965,10 @@ jobs:
                               showSpeedDialog();
                           }
                       });
-                      item.addView(speedBtn, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.95f, 0.04f));
+                      item.addView(speedBtn, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.85f, 0.02f));
                       right.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
                   }
-                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(6.5f), 1f);
+                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(8.4f), 1f);
                   rp.leftMargin = px(0.3f);
                   mid.addView(right, rp);
                   box.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -3958,20 +4035,43 @@ jobs:
                   return col;
               }
 
+              protected interface SpeedPick {
+                  void pick(int speed);
+              }
+
+              protected int speedOf(int ms) {
+                  int best = 3, d = Integer.MAX_VALUE;
+                  for (int k = 0; k < 5; k++) {
+                      if (Math.abs(SPEED_MS[k] - ms) < d) {
+                          d = Math.abs(SPEED_MS[k] - ms);
+                          best = k + 1;
+                      }
+                  }
+                  return best;
+              }
+
               protected void showSpeedDialog() {
+                  showSpeedPick("Швидкість ботів", botSpeed, new SpeedPick() {
+                      public void pick(int val) {
+                          botSpeed = val;
+                          botDelay = SPEED_MS[val - 1];
+                          onBotDelay(botDelay);
+                          if (speedBtn != null) speedBtn.setText("Швидкість ботів: " + botSpeed);
+                      }
+                  });
+              }
+
+              protected void showSpeedPick(String title, int cur, final SpeedPick sp) {
                   LinearLayout box = new LinearLayout(this);
                   box.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(tv("Швидкість ботів", 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.08f));
+                  box.addView(tv(title, 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.08f));
                   final Dialog[] dd = new Dialog[1];
                   for (int k = 1; k <= 5; k++) {
                       final int val = k;
                       String t = String.valueOf(k) + (k == 1 ? "  (повільно)" : k == 5 ? "  (швидко)" : "");
-                      box.addView(btn(t, botSpeed == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                      box.addView(btn(t, cur == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
                           public void onClick(View v) {
-                              botSpeed = val;
-                              botDelay = SPEED_MS[val - 1];
-                              onBotDelay(botDelay);
-                              if (speedBtn != null) speedBtn.setText("Швидкість ботів: " + botSpeed);
+                              sp.pick(val);
                               dd[0].dismiss();
                           }
                       }), lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.8f, 0.04f));
@@ -3984,14 +4084,18 @@ jobs:
                   row.removeAllViews();
                   for (int k = 0; k < 2; k++) {
                       final boolean val = k == 0;
-                      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.95f), 1f);
-                      p.setMargins(px(0.04f), px(0.04f), px(0.04f), px(0.04f));
-                      row.addView(btn(val ? "Увімк." : "Вимк.", on == val ? (val ? 0xFF2E7D32 : 0xFFC62828) : 0xFF455A64, new View.OnClickListener() {
+                      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.85f), 1f);
+                      p.setMargins(px(0.02f), px(0.02f), px(0.02f), px(0.02f));
+                      Button ob = btn(val ? "Увімкнено" : "Вимкнено", on == val ? (val ? 0xFF2E7D32 : 0xFFC62828) : 0xFF455A64, new View.OnClickListener() {
                           public void onClick(View v) {
                               cb.set(val);
                               fillOnOff(row, val, cb);
                           }
-                      }), p);
+                      });
+                      ob.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.3f * u);
+                      ob.setPadding(px(0.05f), px(0.05f), px(0.05f), px(0.05f));
+                      ob.setSingleLine(true);
+                      row.addView(ob, p);
                   }
               }
 
@@ -4099,7 +4203,7 @@ jobs:
                               refreshAvatars();
                           }
                       });
-                      photoBox.addView(pv, lp(1.2f, 1.2f, 0.04f));
+                      photoBox.addView(pv, lp(1.2f, 1.2f, 0.02f));
                   }
               }
 
@@ -4697,6 +4801,7 @@ jobs:
                           onLobby(f);
                       } else if (f[0].equals("START")) {
                           pendingBanner = "Поїхали";
+                          lastGs = null;
                       } else if (f[0].equals("STATE")) {
                           gs = GState.parse(f);
                           if (screen != S_GAME) showGame();
@@ -5056,6 +5161,17 @@ jobs:
 
                       public void onAvatarLong(int idx) {
                           if (idx < 0 || idx >= players.size() || idx == me) return;
+                          if (players.get(idx)[3].equals("1")) {
+                              if (isHost && host != null) {
+                                  final int bi = idx;
+                                  showSpeedPick("Швидкість: " + pname(idx), speedOf(host.getBotDelayOf(idx)), new SpeedPick() {
+                                      public void pick(int val) {
+                                          host.setBotDelayOf(bi, SPEED_MS[val - 1]);
+                                      }
+                                  });
+                              }
+                              return;
+                          }
                           send("POKE|" + idx);
                       }
 
@@ -5198,8 +5314,25 @@ jobs:
                   b.setAlpha(on ? 1f : 0.35f);
               }
 
+              private GState lastGs;
+
+              private void stateSounds(GState p, GState g) {
+                  if (p == null || p.over || g.counts == null || p.counts == null || g.counts.length != p.counts.length) return;
+                  boolean played = false;
+                  int inc = 0;
+                  for (int i = 0; i < g.counts.length; i++) {
+                      if (g.counts[i] < p.counts[i]) played = true;
+                      else if (g.counts[i] > p.counts[i]) inc += g.counts[i] - p.counts[i];
+                  }
+                  if (played) sfx(p.cur == me ? SFX_MOVE : SFX_OPP);
+                  else if (inc > 0 && inc < 6) sfx(SFX_DRAW);
+                  else if (g.cur == me && p.cur != me && !g.over) sfx(SFX_TURN);
+              }
+
               private void applyState() {
                   if (table == null || gs == null) return;
+                  stateSounds(lastGs, gs);
+                  lastGs = gs;
                   applyPlayers();
                   table.setState(gs);
                   scoreLbl.setText("Очки: " + at(gs.totals, me));
@@ -5661,6 +5794,13 @@ jobs:
                   final boolean over = f[1].equals("1");
                   final int loser = pi(f[2]);
                   final int winner = pi(f[3]);
+                  lastGs = null;
+                  final int snd = winner == me || (over && loser != me) ? SFX_WIN : SFX_LOSE;
+                  ui.postDelayed(new Runnable() {
+                      public void run() {
+                          if (screen == S_GAME) sfx(snd);
+                      }
+                  }, 1500);
                   final int[] rp = GState.ints(f[4]);
                   final int[] tot = GState.ints(f[5]);
                   final int[] wins = GState.ints(f[6]);
