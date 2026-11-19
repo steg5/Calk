@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 6
-                  versionName "6.0"
+                  versionCode 7
+                  versionName "7.0"
               }
               signingConfigs {
                   debug {
@@ -3831,7 +3831,7 @@ jobs:
                   left.addView(avatarTabs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(0.85f)));
                   avatarBox = new LinearLayout(this);
                   avatarBox.setOrientation(LinearLayout.VERTICAL);
-                  left.addView(avatarBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(3.55f)));
+                  left.addView(avatarBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(3.2f)));
                   LinearLayout photoRow = new LinearLayout(this);
                   photoRow.setOrientation(LinearLayout.HORIZONTAL);
                   photoRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -3843,7 +3843,7 @@ jobs:
                   photoBox = new LinearLayout(this);
                   photoRow.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                   left.addView(photoRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-                  mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(6.0f)));
+                  mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(6.5f)));
 
                   LinearLayout right = new LinearLayout(this);
                   right.setOrientation(LinearLayout.VERTICAL);
@@ -3874,12 +3874,12 @@ jobs:
                       item.addView(speedBtn, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.95f, 0.04f));
                       right.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
                   }
-                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(6.0f), 1f);
+                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(6.5f), 1f);
                   rp.leftMargin = px(0.3f);
                   mid.addView(right, rp);
                   box.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-                  box.addView(tv("Тема колоди", CAPS, CAP, false));
+                  box.addView(tv("Тема колоди", CAPS, CAP, false), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.25f));
                   themeBox = new LinearLayout(this);
                   themeBox.setOrientation(LinearLayout.VERTICAL);
                   box.addView(themeBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -4083,7 +4083,7 @@ jobs:
                               refreshAvatars();
                           }
                       });
-                      photoBox.addView(pv, lp(1.4f, 1.4f, 0.05f));
+                      photoBox.addView(pv, lp(1.2f, 1.2f, 0.05f));
                   }
               }
 
@@ -5363,8 +5363,8 @@ jobs:
                   ((LinearLayout.LayoutParams) box.getChildAt(2).getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
                   dd[0] = makeDialog(box, true);
                   roomDlg = dd[0];
-                  fillRoom();
                   showSized(dd[0], 14.7f);
+                  fillRoom();
               }
 
               private void fillRoom() {
