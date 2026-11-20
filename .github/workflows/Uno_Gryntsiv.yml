@@ -10,6 +10,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -21,7 +23,7 @@ jobs:
 
       - name: Write project
         run: |
-          mkdir -p app/src/main/java/com/example/unogryntsiv app/src/main/res/drawable
+          mkdir -p app/src/main/java/com/example/unogryntsiv app/src/main/res/drawable app/src/main/res/raw
           echo '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' | base64 -d > debug.keystore
 
           cat > settings.gradle <<'EOF'
@@ -64,8 +66,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 10
-                  versionName "10.0"
+                  versionCode 11
+                  versionName "11.0"
               }
               signingConfigs {
                   debug {
@@ -480,6 +482,71 @@ jobs:
                   }
                   msg = log.toString();
               }
+
+              private Engine() {
+              }
+
+              private static String cards(ArrayList<Card> l) {
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < l.size(); i++) {
+                      if (i > 0) sb.append(',');
+                      sb.append(l.get(i).enc());
+                  }
+                  return sb.toString();
+              }
+
+              private static void fillCards(ArrayList<Card> l, String s) {
+                  if (s.length() == 0) return;
+                  for (String t : s.split(",")) l.add(Card.dec(t));
+              }
+
+              public String save() {
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < n; i++) {
+                      if (i > 0) sb.append('\t');
+                      sb.append(names[i]);
+                  }
+                  sb.append('\n').append(cur).append('\n').append(dir).append('\n').append(curColor).append('\n').append(pendDraw)
+                      .append('\n').append(pendFour ? 1 : 0).append('\n').append(pendSkip ? 1 : 0).append('\n').append(drawn ? 1 : 0)
+                      .append('\n').append(over ? 1 : 0).append('\n').append(winner).append('\n');
+                  for (int i = 0; roundPts != null && i < roundPts.length; i++) {
+                      if (i > 0) sb.append(',');
+                      sb.append(roundPts[i]);
+                  }
+                  sb.append('\n').append(msg.replace('\n', ' ')).append('\n').append(cards(deck)).append('\n').append(cards(disc));
+                  for (int i = 0; i < n; i++) sb.append('\n').append(cards(hands.get(i)));
+                  return sb.toString();
+              }
+
+              public static Engine restore(String data) {
+                  String[] f = data.split("\n", -1);
+                  Engine e = new Engine();
+                  e.names = f[0].split("\t", -1);
+                  e.n = e.names.length;
+                  e.cur = Integer.parseInt(f[1]);
+                  e.dir = Integer.parseInt(f[2]);
+                  e.curColor = Integer.parseInt(f[3]);
+                  e.pendDraw = Integer.parseInt(f[4]);
+                  e.pendFour = f[5].equals("1");
+                  e.pendSkip = f[6].equals("1");
+                  e.drawn = f[7].equals("1");
+                  e.over = f[8].equals("1");
+                  e.winner = Integer.parseInt(f[9]);
+                  if (f[10].length() > 0) {
+                      String[] r = f[10].split(",");
+                      e.roundPts = new int[r.length];
+                      for (int i = 0; i < r.length; i++) e.roundPts[i] = Integer.parseInt(r[i]);
+                  }
+                  e.msg = f[11];
+                  fillCards(e.deck, f[12]);
+                  fillCards(e.disc, f[13]);
+                  for (int i = 0; i < e.n; i++) {
+                      ArrayList<Card> h = new ArrayList<Card>();
+                      fillCards(h, f[14 + i]);
+                      e.hands.add(h);
+                  }
+                  return e;
+              }
           }
           EOF
 
@@ -770,6 +837,7 @@ jobs:
 
           public class Host {
               public static final int PORT = 45454;
+              public static final int MAXP = 6;
               private static final String[] BOT_NAMES = {"Бот Макс", "Бот Ліза", "Бот Тимко", "Бот Оля", "Бот Дан", "Бот Яна"};
 
               private static class P {
@@ -805,6 +873,33 @@ jobs:
               private final P me = new P();
               private final ArrayList<int[]> rounds = new ArrayList<int[]>();
               private final String roomName;
+              private int pendBots;
+              private boolean voiceBusy;
+              private int voiceAcks;
+
+              public interface Saver {
+                  void save(String data);
+              }
+
+              private Saver saver;
+
+              public void setSaver(Saver sv) {
+                  saver = sv;
+              }
+
+              private final Runnable voiceFree = new Runnable() {
+                  public void run() {
+                      freeVoice();
+                  }
+              };
+
+              private void freeVoice() {
+                  h.removeCallbacks(voiceFree);
+                  if (!voiceBusy) return;
+                  voiceBusy = false;
+                  voiceAcks = 0;
+                  sendAll("VLOCK|0");
+              }
 
               private final Runnable botRun = new Runnable() {
                   public void run() {
@@ -875,6 +970,7 @@ jobs:
               public void stop() {
                   stopped = true;
                   h.removeCallbacks(botRun);
+                  h.removeCallbacks(voiceFree);
                   if (ann != null) ann.stop();
                   try {
                       if (server != null) server.close();
@@ -914,15 +1010,25 @@ jobs:
                   return botDelay;
               }
 
-              public void addBot() {
-                  if (inGame || ps.size() >= 5) return;
+              // Повертає текст-повідомлення або null
+              public String addBot() {
+                  if (ps.size() + pendBots >= MAXP) return "Максимум гравців — " + MAXP;
+                  if (inGame && eng != null && !eng.over) {
+                      pendBots++;
+                      return "Бот з'явиться з наступної партії";
+                  }
+                  addBotNow();
+                  broadcastLobby();
+                  return null;
+              }
+
+              private void addBotNow() {
                   P b = new P();
                   b.bot = true;
                   b.level = 1;
                   b.name = BOT_NAMES[botCounter++ % BOT_NAMES.length];
                   b.avatar = rnd.nextInt(12);
                   ps.add(b);
-                  broadcastLobby();
               }
 
               public void setLevel(int i, int lvl) {
@@ -1086,7 +1192,7 @@ jobs:
                           if (q != p && q.link != null) q.link.send(m);
                       }
                   } else if (c.equals("POKE")) {
-                      if (f.length < 2) return;
+                      if (f.length < 2 || paused >= 0) return;
                       int t = pi(f[1]);
                       if (t < 0 || t >= ps.size() || t == i) return;
                       long now = System.currentTimeMillis();
@@ -1099,21 +1205,51 @@ jobs:
                       }
                   } else if (c.equals("VOICE")) {
                       if (f.length < 3 || f[2].length() > 90000) return;
+                      if (paused >= 0) {
+                          if (p.link != null) p.link.send("VBUSY|2");
+                          return;
+                      }
+                      if (voiceBusy) {
+                          if (p.link != null) p.link.send("VBUSY|1");
+                          return;
+                      }
                       int t = pi(f[1]);
                       String m = "VOICE|" + i + "|" + t + "|" + f[2];
+                      ArrayList<P> to = new ArrayList<P>();
                       if (t < 0 || t >= ps.size()) {
                           for (P q : ps) {
-                              if (q != p && q.link != null) q.link.send(m);
+                              if (q != p && !q.bot && q.link != null) to.add(q);
                           }
                       } else {
                           P q = ps.get(t);
-                          if (q != p && q.link != null) q.link.send(m);
+                          if (q != p && !q.bot && q.link != null) to.add(q);
                       }
+                      if (to.isEmpty()) return;
+                      voiceBusy = true;
+                      voiceAcks = to.size();
+                      sendAll("VLOCK|1");
+                      for (P q : to) q.link.send(m);
+                      h.removeCallbacks(voiceFree);
+                      h.postDelayed(voiceFree, 15000);
+                  } else if (c.equals("VDONE")) {
+                      if (voiceBusy && --voiceAcks <= 0) freeVoice();
+                  } else if (c.equals("NAME")) {
+                      if (f.length < 4) return;
+                      p.name = clean(f[1]);
+                      p.avatar = pi(f[2]);
+                      String ph = f[3];
+                      if (ph.length() == 0 || ph.length() > 30000) ph = "-";
+                      p.photo = ph;
+                      if (eng != null && i < eng.names.length) eng.names[i] = p.name;
+                      broadcastLobby();
+                      if (inGame && eng != null) broadcastState();
+                      persist();
                   } else if (c.equals("PAUSE")) {
                       if (inGame && eng != null && !eng.over && paused < 0) {
                           paused = i;
                           h.removeCallbacks(botRun);
                           broadcastState();
+                          persist();
                       }
                   } else if (c.equals("RESUME")) {
                       if (paused >= 0 && paused == i) {
@@ -1180,7 +1316,7 @@ jobs:
                       botTick();
                       return;
                   }
-                  if (ps.size() >= 5) {
+                  if (ps.size() >= MAXP) {
                       l.send("FULL");
                       l.close();
                       return;
@@ -1252,6 +1388,24 @@ jobs:
               }
 
               private void newRound() {
+                  boolean added = false;
+                  while (pendBots > 0 && ps.size() < MAXP) {
+                      addBotNow();
+                      added = true;
+                      pendBots--;
+                  }
+                  pendBots = 0;
+                  if (added) {
+                      for (int k = 0; k < rounds.size(); k++) {
+                          int[] r = rounds.get(k);
+                          if (r.length < ps.size()) {
+                              int[] nr = new int[ps.size()];
+                              System.arraycopy(r, 0, nr, 0, r.length);
+                              rounds.set(k, nr);
+                          }
+                      }
+                      broadcastLobby();
+                  }
                   String[] names = new String[ps.size()];
                   for (int i = 0; i < names.length; i++) names[i] = ps.get(i).name;
                   if (starter < 0 || starter >= names.length) starter = 0;
@@ -1262,6 +1416,7 @@ jobs:
                   h.removeCallbacks(botRun);
                   broadcastState();
                   botTick();
+                  persist();
               }
 
               private void after() {
@@ -1272,6 +1427,7 @@ jobs:
                   }
                   broadcastState();
                   botTick();
+                  persist();
               }
 
               private void roundEnd() {
@@ -1318,6 +1474,7 @@ jobs:
                   sendAll(sb.toString());
                   if (matchOver) inGame = false;
                   h.removeCallbacks(botRun);
+                  persist();
               }
 
               private String roundsStr() {
@@ -1380,6 +1537,139 @@ jobs:
                   }
                   sb.append('|').append(paused).append('|').append(roundsStr());
                   return sb.toString();
+              }
+
+              // ---------- збереження гри ----------
+              private void persist() {
+                  if (saver == null || stopped) return;
+                  if (!inGame || eng == null) {
+                      saver.save(null);
+                      return;
+                  }
+                  try {
+                      saver.save(serialize());
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
+              public void forget() {
+                  if (saver != null) saver.save(null);
+              }
+
+              private String serialize() {
+                  StringBuilder sb = new StringBuilder();
+                  sb.append(limit).append(',').append(starter).append(',').append(round).append(',').append(botCounter)
+                      .append(',').append(ps.indexOf(me)).append('\u001f');
+                  for (int k = 0; k < hist.size(); k++) {
+                      if (k > 0) sb.append('^');
+                      sb.append(hist.get(k).replace("^", " ").replace("\u001f", " "));
+                  }
+                  sb.append('\u001f').append(roundsStr()).append('\u001f');
+                  for (int k = 0; k < ps.size(); k++) {
+                      P q = ps.get(k);
+                      if (k > 0) sb.append(';');
+                      sb.append(q.name).append('~').append(q.avatar).append('~').append(q.photo).append('~').append(q.bot ? 1 : 0)
+                          .append('~').append(q.level).append('~').append(q.replaced ? 1 : 0).append('~').append(q.cid)
+                          .append('~').append(q.delay).append('~').append(q.total).append('~').append(q.wins).append('~').append(q.last);
+                  }
+                  sb.append('\u001f').append(eng.save());
+                  return sb.toString();
+              }
+
+              // Короткий опис збереженої гри для вікна «Продовжити»
+              public static String describe(String d) {
+                  try {
+                      String[] sec = d.split("\u001f", -1);
+                      String[] m = sec[0].split(",");
+                      StringBuilder sb = new StringBuilder("Партія " + m[2] + ", ліміт " + m[0] + " очок\n");
+                      String[] pl = sec[3].split(";");
+                      for (int k = 0; k < pl.length; k++) {
+                          String[] q = pl[k].split("~", -1);
+                          if (k > 0) sb.append('\n');
+                          sb.append(q[0]).append(" — ").append(q[8]);
+                      }
+                      return sb.toString();
+                  } catch (Exception e) {
+                      return "Збережена гра";
+                  }
+              }
+
+              // Відновлює гру. Інші люди стають ботами (можуть повернутись за ключем). Повертає false при помилці
+              public boolean loadState(String d) {
+                  try {
+                      String[] sec = d.split("\u001f", -1);
+                      String[] m = sec[0].split(",");
+                      int meIdx = Integer.parseInt(m[4]);
+                      ArrayList<P> np = new ArrayList<P>();
+                      String[] pl = sec[3].split(";");
+                      for (int k = 0; k < pl.length; k++) {
+                          String[] q = pl[k].split("~", -1);
+                          P x = (k == meIdx) ? me : new P();
+                          if (k != meIdx) {
+                              x.name = q[0];
+                              x.avatar = Integer.parseInt(q[1]);
+                              x.photo = q[2];
+                              x.bot = true;
+                              x.replaced = !q[3].equals("1");
+                              x.level = Integer.parseInt(q[4]);
+                              x.cid = q[6];
+                              x.delay = Integer.parseInt(q[7]);
+                              if (q[3].equals("1")) x.replaced = q[5].equals("1");
+                          }
+                          x.total = Integer.parseInt(q[8]);
+                          x.wins = Integer.parseInt(q[9]);
+                          x.last = Integer.parseInt(q[10]);
+                          np.add(x);
+                      }
+                      Engine e = Engine.restore(sec[4]);
+                      if (e.n != np.size()) return false;
+                      ps.clear();
+                      ps.addAll(np);
+                      limit = Integer.parseInt(m[0]);
+                      starter = Integer.parseInt(m[1]);
+                      round = Integer.parseInt(m[2]);
+                      botCounter = Integer.parseInt(m[3]);
+                      hist.clear();
+                      if (sec[1].length() > 0) {
+                          for (String t : sec[1].split("\\^")) hist.add(t);
+                      }
+                      rounds.clear();
+                      if (sec[2].length() > 0) {
+                          for (String t : sec[2].split(";")) {
+                              String[] a = t.split(",");
+                              int[] r = new int[a.length];
+                              for (int z = 0; z < a.length; z++) r[z] = Integer.parseInt(a[z]);
+                              rounds.add(r);
+                          }
+                      }
+                      eng = e;
+                      for (int k = 0; k < ps.size(); k++) eng.names[k] = ps.get(k).name;
+                      inGame = true;
+                      paused = -1;
+                      return true;
+                  } catch (Exception ex) {
+                      return false;
+                  }
+              }
+
+              // Після loadState і start(): показує гру (на паузі), якщо партія ще йшла
+              public void resumeLoaded() {
+                  h.post(new Runnable() {
+                      public void run() {
+                          if (eng == null) return;
+                          broadcastLobby();
+                          if (eng.over) {
+                              newRound();
+                          } else {
+                              paused = ps.indexOf(me);
+                              for (P q : ps) {
+                                  if (q.link != null) q.link.send("START");
+                              }
+                              broadcastState();
+                          }
+                      }
+                  });
               }
 
               // ---------- боти ----------
@@ -1669,15 +1959,20 @@ jobs:
               }
 
               public void draw(Canvas c, Card k, float x, float y, float w, float h, boolean dim) {
+                  draw(c, k, x, y, w, h, dim ? 1 : 0);
+              }
+
+              // dim: 0 — світла, 1 — неактивна (на 20% світліша, ніж раніше)
+              public void draw(Canvas c, Card k, float x, float y, float w, float h, int dim) {
                   if (th.style == 0) {
                       drawClassic(c, k, x, y, w, h);
                   } else {
                       drawStyled(c, k, x, y, w, h);
                   }
-                  if (dim) {
+                  if (dim > 0) {
                       float rad = w * 0.10f;
                       fill.setStyle(Paint.Style.FILL);
-                      fill.setColor(0x77000000);
+                      fill.setColor(0x5C000000);
                       rf.set(x, y, x + w, y + h);
                       c.drawRoundRect(rf, rad, rad, fill);
                   }
@@ -2725,6 +3020,187 @@ jobs:
           }
           EOF
 
+          cat > app/src/main/java/com/example/unogryntsiv/Snd.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.media.AudioManager;
+          import android.media.MediaPlayer;
+          import android.media.SoundPool;
+
+          public class Snd {
+              public static final int BTN = 0, THROW = 1, DRAW = 2, POKE = 3, VOICE = 4, PAUSE = 5, DEL = 6, EMO = 7,
+                  RWIN = 8, RLOSE = 9, GWIN = 10, GLOSE = 11, WRONG = 12, JOIN = 13;
+              private static final String[] NAMES = {"btn", "throw", "draw", "poke", "voice", "pause", "del", "emo",
+                  "rwin", "rlose", "gwin", "glose", "wrong", "join"};
+
+              private final Context ctx;
+              private final SharedPreferences sp;
+              private SoundPool pool;
+              private final int[] ids = new int[NAMES.length];
+              private MediaPlayer mp, pv;
+              private String cur = "";
+              private boolean held;
+              public boolean sound = true, music = true;
+              public float sVol = 0.9f, mVol = 0.35f;
+
+              public Snd(Context c, SharedPreferences sp) {
+                  ctx = c.getApplicationContext();
+                  this.sp = sp;
+                  sound = sp.getBoolean("sound", true);
+                  music = sp.getBoolean("music", true);
+                  sVol = sp.getFloat("sVol", 0.9f);
+                  mVol = sp.getFloat("mVol", 0.35f);
+                  try {
+                      pool = new SoundPool(8, AudioManager.STREAM_MUSIC, 0);
+                      for (int i = 0; i < NAMES.length; i++) {
+                          int rid = ctx.getResources().getIdentifier("sfx_" + NAMES[i], "raw", ctx.getPackageName());
+                          ids[i] = rid == 0 ? 0 : pool.load(ctx, rid, 1);
+                      }
+                  } catch (Exception e) {
+                      pool = null;
+                  }
+              }
+
+              public void save() {
+                  sp.edit().putBoolean("sound", sound).putBoolean("music", music).putFloat("sVol", sVol).putFloat("mVol", mVol).commit();
+              }
+
+              public void play(int kind) {
+                  if (!sound || pool == null || kind < 0 || kind >= ids.length || ids[kind] == 0) return;
+                  try {
+                      pool.play(ids[kind], sVol, sVol, 1, 0, 1f);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
+              // ---- музика ----
+              public void music(String name) {
+                  if (name.equals(cur) && mp != null) {
+                      applyMusic();
+                      return;
+                  }
+                  cur = name;
+                  killMusic();
+                  try {
+                      int rid = ctx.getResources().getIdentifier(name, "raw", ctx.getPackageName());
+                      if (rid == 0) return;
+                      mp = MediaPlayer.create(ctx, rid);
+                      if (mp == null) return;
+                      mp.setLooping(true);
+                      mp.setVolume(mVol, mVol);
+                      if (music && !held && pv == null) mp.start();
+                  } catch (Exception e) {
+                      killMusic();
+                  }
+              }
+
+              private void killMusic() {
+                  try {
+                      if (mp != null) mp.release();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  mp = null;
+              }
+
+              private void applyMusic() {
+                  if (mp == null) return;
+                  try {
+                      mp.setVolume(mVol, mVol);
+                      boolean should = music && !held && pv == null;
+                      if (should && !mp.isPlaying()) mp.start();
+                      else if (!should && mp.isPlaying()) mp.pause();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
+              // тимчасова пауза (гра на паузі, застосунок у фоні)
+              public void hold(boolean h) {
+                  held = h;
+                  applyMusic();
+              }
+
+              public void setMusic(boolean on) {
+                  music = on;
+                  save();
+                  applyMusic();
+              }
+
+              public void setSound(boolean on) {
+                  sound = on;
+                  save();
+              }
+
+              public void setMusicVol(float v) {
+                  mVol = Math.max(0f, Math.min(1f, v));
+                  save();
+                  applyMusic();
+                  try {
+                      if (pv != null) pv.setVolume(mVol, mVol);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
+              public void setSoundVol(float v) {
+                  sVol = Math.max(0f, Math.min(1f, v));
+                  save();
+              }
+
+              // прослуховування мелодії в налаштуваннях
+              public void preview(String name) {
+                  stopPreview();
+                  try {
+                      int rid = ctx.getResources().getIdentifier(name, "raw", ctx.getPackageName());
+                      if (rid == 0) {
+                          applyMusic();
+                          return;
+                      }
+                      pv = MediaPlayer.create(ctx, rid);
+                      if (pv == null) {
+                          applyMusic();
+                          return;
+                      }
+                      pv.setVolume(Math.max(0.3f, mVol), Math.max(0.3f, mVol));
+                      applyMusic();
+                      pv.start();
+                  } catch (Exception e) {
+                      pv = null;
+                      applyMusic();
+                  }
+              }
+
+              public void stopPreview() {
+                  try {
+                      if (pv != null) pv.release();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  pv = null;
+                  applyMusic();
+              }
+
+              public boolean hasTrack(String name) {
+                  return ctx.getResources().getIdentifier(name, "raw", ctx.getPackageName()) != 0;
+              }
+
+              public void release() {
+                  stopPreview();
+                  killMusic();
+                  try {
+                      if (pool != null) pool.release();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  pool = null;
+              }
+          }
+          EOF
+
           cat > app/src/main/java/com/example/unogryntsiv/GState.java <<'EOF'
           package com.example.unogryntsiv;
 
@@ -2825,8 +3301,9 @@ jobs:
           import android.view.View;
 
           public class IconView extends View {
-              public static final int GEAR = 0, PAUSE = 1, PLAY = 2;
+              public static final int GEAR = 0, PAUSE = 1, PLAY = 2, SOUND = 3, MUSIC = 4;
               private int type;
+              private boolean crossed;
               private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
               private final RectF rf = new RectF();
               private final Path path = new Path();
@@ -2834,6 +3311,11 @@ jobs:
               public IconView(Context c, int type) {
                   super(c);
                   this.type = type;
+              }
+
+              public void setCrossed(boolean c) {
+                  crossed = c;
+                  invalidate();
               }
 
               public void setType(int t) {
@@ -2865,6 +3347,32 @@ jobs:
                   } else if (type == PAUSE) {
                       c.drawRect(cx - r * 0.75f, cy - r, cx - r * 0.2f, cy + r, p);
                       c.drawRect(cx + r * 0.2f, cy - r, cx + r * 0.75f, cy + r, p);
+                  } else if (type == SOUND) {
+                      c.drawRect(cx - r * 1.0f, cy - r * 0.38f, cx - r * 0.45f, cy + r * 0.38f, p);
+                      path.reset();
+                      path.moveTo(cx - r * 0.45f, cy - r * 0.38f);
+                      path.lineTo(cx + r * 0.15f, cy - r * 0.9f);
+                      path.lineTo(cx + r * 0.15f, cy + r * 0.9f);
+                      path.lineTo(cx - r * 0.45f, cy + r * 0.38f);
+                      path.close();
+                      c.drawPath(path, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(r * 0.2f);
+                      rf.set(cx - r * 0.45f, cy - r * 0.6f, cx + r * 0.55f, cy + r * 0.6f);
+                      c.drawArc(rf, -50, 100, false, p);
+                      rf.set(cx - r * 0.8f, cy - r * 1.0f, cx + r * 0.95f, cy + r * 1.0f);
+                      c.drawArc(rf, -50, 100, false, p);
+                      p.setStyle(Paint.Style.FILL);
+                  } else if (type == MUSIC) {
+                      c.drawCircle(cx - r * 0.45f, cy + r * 0.6f, r * 0.42f, p);
+                      c.drawRect(cx - r * 0.1f, cy - r * 0.95f, cx + r * 0.14f, cy + r * 0.6f, p);
+                      path.reset();
+                      path.moveTo(cx + r * 0.1f, cy - r * 0.95f);
+                      path.lineTo(cx + r * 0.85f, cy - r * 0.45f);
+                      path.lineTo(cx + r * 0.85f, cy - r * 0.1f);
+                      path.lineTo(cx + r * 0.1f, cy - r * 0.5f);
+                      path.close();
+                      c.drawPath(path, p);
                   } else {
                       path.reset();
                       path.moveTo(cx - r * 0.6f, cy - r);
@@ -2872,6 +3380,17 @@ jobs:
                       path.lineTo(cx - r * 0.6f, cy + r);
                       path.close();
                       c.drawPath(path, p);
+                  }
+                  if (crossed) {
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeCap(Paint.Cap.ROUND);
+                      p.setStrokeWidth(r * 0.42f);
+                      p.setColor(0xFF263238);
+                      c.drawLine(cx - r * 1.15f, cy - r * 1.15f, cx + r * 1.15f, cy + r * 1.15f, p);
+                      p.setStrokeWidth(r * 0.26f);
+                      p.setColor(0xFFFF5252);
+                      c.drawLine(cx - r * 1.15f, cy - r * 1.15f, cx + r * 1.15f, cy + r * 1.15f, p);
+                      p.setStyle(Paint.Style.FILL);
                   }
               }
           }
@@ -2958,7 +3477,8 @@ jobs:
                   rec = null;
               }
 
-              public void play(String b64) {
+              public void play(String b64, final Runnable done) {
+                  doneCb = done;
                   try {
                       byte[] d = Base64.decode(b64, Base64.NO_WRAP);
                       File f = new File(ctx.getCacheDir(), "in.amr");
@@ -2972,12 +3492,22 @@ jobs:
                       player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                           public void onCompletion(MediaPlayer mp) {
                               stopPlay();
+                              fireDone();
                           }
                       });
                       player.start();
                   } catch (Exception e) {
                       stopPlay();
+                      fireDone();
                   }
+              }
+
+              private Runnable doneCb;
+
+              private void fireDone() {
+                  Runnable r = doneCb;
+                  doneCb = null;
+                  if (r != null) r.run();
               }
 
               public void stopPlay() {
@@ -3024,11 +3554,14 @@ jobs:
                   void onAvatarLong(int idx);
 
                   void onMic(int idx, boolean down);
+
+                  void onWrong();
               }
 
               public Listener listener;
               public boolean micOk;
               public boolean hint = true;
+              public boolean picking;
               private int bgId;
               private static final int TXT = 0xFFFFFFFF;
               private final HashMap<String, Long> fresh = new HashMap<String, Long>();
@@ -3208,6 +3741,23 @@ jobs:
                                   x = W - u * 1.4f;
                                   y = side;
                               }
+                          } else if (m == 5) {
+                              if (q == 1) {
+                                  x = u * 1.4f;
+                                  y = u * 5.0f;
+                              } else if (q == 2) {
+                                  x = u * 1.4f;
+                                  y = u * 3.2f;
+                              } else if (q == 3) {
+                                  x = W / 2f;
+                                  y = top;
+                              } else if (q == 4) {
+                                  x = W - u * 1.4f;
+                                  y = u * 3.2f;
+                              } else {
+                                  x = W - u * 1.4f;
+                                  y = u * 5.0f;
+                              }
                           } else {
                               if (q == 1) {
                                   x = u * 1.4f;
@@ -3310,7 +3860,7 @@ jobs:
                       float x = hStart + i * hStep;
                       float y = hTop - (up ? hRaise : 0);
                       Card hc = g.hand.get(i);
-                      painter.draw(c, hc, x, y, hCw, hCh, !lit);
+                      painter.draw(c, hc, x, y, hCw, hCh, (lit || picking) ? 0 : 1);
                       Long fu = fresh.get(hc.enc());
                       if (fu != null) {
                           if (fu > now) {
@@ -3355,6 +3905,9 @@ jobs:
 
                   for (int i = 0; i < n; i++) {
                       if (drawPlayer(c, i, sx[i], sy[i], i == me, now, pulse)) anim = true;
+                  }
+                  for (int i = 0; i < n; i++) {
+                      if (i < emoUntil.length && emoUntil[i] > now && emoVal[i] != null) drawEmoji(c, i, sx[i], sy[i]);
                   }
 
                   if (banner != null) {
@@ -3442,6 +3995,18 @@ jobs:
                       }
                   }
                   Avatars.draw(c, cx + sx, cy, avR, avatars[idx], Avatars.photo(photos[idx]));
+                  {
+                      String pts = String.valueOf(g.totals[idx]);
+                      tp.setTextAlign(Paint.Align.RIGHT);
+                      tp.setTextSize(u * 0.34f);
+                      tp.setStyle(Paint.Style.STROKE);
+                      tp.setStrokeWidth(u * 0.07f);
+                      tp.setColor(0xFF000000);
+                      c.drawText(pts, cx - avR * 0.78f, cy - avR * 0.62f, tp);
+                      tp.setStyle(Paint.Style.FILL);
+                      tp.setColor(0xFFFFE082);
+                      c.drawText(pts, cx - avR * 0.78f, cy - avR * 0.62f, tp);
+                  }
                   tp.setStyle(Paint.Style.FILL);
                   tp.setAlpha(255);
                   tp.setTextAlign(Paint.Align.CENTER);
@@ -3488,14 +4053,27 @@ jobs:
                       c.drawArc(rf, 0f, 180f, false, p);
                       c.drawLine(mx, my + u * 0.08f, mx, my + u * 0.14f, p);
                   }
-                  if (idx < emoUntil.length && emoUntil[idx] > now && emoVal[idx] != null) {
-                      tp.setStyle(Paint.Style.FILL);
-                      tp.setTextAlign(Paint.Align.CENTER);
-                      tp.setTextSize(u * 1.0f);
-                      tp.setColor(0xFF000000);
-                      c.drawText(emoVal[idx], cx, cy - avR - u * 0.3f, tp);
-                  }
                   return anim;
+              }
+
+              // смайлик малюється поверх усього; для верхніх гравців — збоку від аватара
+              private void drawEmoji(Canvas c, int idx, float cx, float cy) {
+                  float ex, ey;
+                  if (cy < u * 2.5f) {
+                      ex = cx - avR - u * 0.85f;
+                      ey = cy;
+                  } else {
+                      ex = cx;
+                      ey = cy - avR - u * 0.75f;
+                  }
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(0xDDFFFFFF);
+                  c.drawCircle(ex, ey, u * 0.62f, p);
+                  tp.setStyle(Paint.Style.FILL);
+                  tp.setTextAlign(Paint.Align.CENTER);
+                  tp.setTextSize(u * 0.85f);
+                  tp.setColor(0xFF000000);
+                  c.drawText(emoVal[idx], ex, ey + u * 0.3f, tp);
               }
 
               private int hitMic(float x, float y) {
@@ -3602,6 +4180,7 @@ jobs:
                           if (g.legal.get(i)) {
                               listener.onPlay(g.hand.get(i));
                           } else {
+                              if (listener != null) listener.onWrong();
                               crossEnc = g.hand.get(i).enc();
                               crossUntil = System.currentTimeMillis() + 1200;
                               invalidate();
@@ -3632,8 +4211,6 @@ jobs:
           import android.graphics.Typeface;
           import android.graphics.drawable.ColorDrawable;
           import android.graphics.drawable.GradientDrawable;
-          import android.media.AudioManager;
-          import android.media.ToneGenerator;
           import android.net.Uri;
           import android.os.Build;
           import android.provider.MediaStore;
@@ -3690,9 +4267,9 @@ jobs:
               protected int bgId;
               protected int botDelay = 1500;
               protected int botSpeed = 3;
-              protected boolean soundOn = true, musicOn = true;
-              private ToneGenerator tone;
-              protected static final int SFX_CLICK = 0, SFX_MOVE = 1, SFX_OPP = 2, SFX_DRAW = 3, SFX_TURN = 4, SFX_WIN = 5, SFX_LOSE = 6;
+              protected Snd snd;
+              protected boolean holdApp, holdGame;
+              protected static final int[] MEL_DEF = {3, 6, 1, 7, 4, 2, 5};
               protected static final int[] SPEED_MS = {3000, 2200, 1500, 900, 450};
               protected static final int CAP = 0xFFCFD8DC;
               protected static final float CAPS = 0.36f;
@@ -3700,6 +4277,8 @@ jobs:
               private LinearLayout avatarTabs, photoBox;
               private Button speedBtn;
               protected String cid = "";
+              protected boolean profileChanged;
+              private String profSig = "";
 
               private EditText etNick;
               private LinearLayout avatarBox, themeBox, bgBox;
@@ -3716,8 +4295,7 @@ jobs:
                   autoPass = sp.getBoolean("auto", false);
                   showDraw = sp.getBoolean("showDraw", true);
                   hint = sp.getBoolean("hint", true);
-                  soundOn = sp.getBoolean("sound", true);
-                  musicOn = sp.getBoolean("music", true);
+                  snd = new Snd(this, sp);
                   bgId = sp.getInt("bg", 0);
                   botSpeed = Math.max(1, Math.min(5, sp.getInt("botSpeed", 3)));
                   botDelay = SPEED_MS[botSpeed - 1];
@@ -3747,7 +4325,7 @@ jobs:
               protected void savePrefs() {
                   sp.edit().putString("nick", nick).putInt("avatar", avatar).putString("photo", photo)
                       .putInt("theme", themeId).putBoolean("auto", autoPass).putBoolean("showDraw", showDraw).putBoolean("hint", hint).putInt("bg", bgId)
-                      .putInt("botSpeed", botSpeed).putBoolean("sound", soundOn).putBoolean("music", musicOn).commit();
+                      .putInt("botSpeed", botSpeed).commit();
               }
 
               protected String sendPhoto() {
@@ -3798,38 +4376,117 @@ jobs:
               }
 
               protected void sfx(int kind) {
-                  if (!soundOn) return;
-                  try {
-                      if (tone == null) tone = new ToneGenerator(AudioManager.STREAM_MUSIC, 70);
-                      switch (kind) {
-                          case SFX_CLICK:
-                              tone.startTone(ToneGenerator.TONE_PROP_BEEP, 35);
-                              break;
-                          case SFX_MOVE:
-                              tone.startTone(ToneGenerator.TONE_PROP_ACK, 120);
-                              break;
-                          case SFX_OPP:
-                              tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 80);
-                              break;
-                          case SFX_DRAW:
-                              tone.startTone(ToneGenerator.TONE_PROP_PROMPT, 90);
-                              break;
-                          case SFX_TURN:
-                              tone.startTone(ToneGenerator.TONE_PROP_BEEP, 110);
-                              break;
-                          case SFX_WIN:
-                              tone.startTone(ToneGenerator.TONE_PROP_ACK, 500);
-                              break;
-                          default:
-                              tone.startTone(ToneGenerator.TONE_PROP_NACK, 500);
-                              break;
+                  if (snd != null) snd.play(kind);
+              }
+
+              protected int bgMel(int bg) {
+                  int d = MEL_DEF[Math.max(0, Math.min(MEL_DEF.length - 1, bg))];
+                  return Math.max(1, Math.min(7, sp.getInt("mel" + bg, d)));
+              }
+
+              protected void setBgMel(int bg, int m) {
+                  sp.edit().putInt("mel" + bg, m).commit();
+              }
+
+              protected void musicFor(boolean game) {
+                  if (snd == null) return;
+                  snd.music((game ? "music" : "menu") + bgMel(bgId));
+              }
+
+              protected void updateHold() {
+                  if (snd != null) snd.hold(holdApp || holdGame);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  holdApp = true;
+                  updateHold();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  holdApp = false;
+                  updateHold();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  if (snd != null) snd.release();
+              }
+
+              protected void showVolume(final boolean music) {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv(music ? "Гучність музики" : "Гучність звуків", 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.1f));
+                  SeekBar sb = new SeekBar(this);
+                  sb.setMax(100);
+                  sb.setProgress(Math.round((music ? snd.mVol : snd.sVol) * 100f));
+                  sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar b, int p, boolean user) {
+                          if (music) snd.setMusicVol(p / 100f);
+                          else snd.setSoundVol(p / 100f);
                       }
-                  } catch (Exception e) {
-                      tone = null;
-                  }
+
+                      public void onStartTrackingTouch(SeekBar b) {
+                      }
+
+                      public void onStopTrackingTouch(SeekBar b) {
+                          if (!music) snd.play(Snd.BTN);
+                      }
+                  });
+                  box.addView(sb, lp(ViewGroup.LayoutParams.MATCH_PARENT, 1.0f, 0.1f));
+                  Dialog d = makeDialog(box, true);
+                  showSized(d, 7f);
+              }
+
+              // пара кнопок «звук» і «музика»
+              protected LinearLayout audioBar(float sizeU) {
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.setOrientation(LinearLayout.HORIZONTAL);
+                  final IconView a = new IconView(this, IconView.SOUND);
+                  final IconView m = new IconView(this, IconView.MUSIC);
+                  a.setCrossed(!snd.sound);
+                  m.setCrossed(!snd.music);
+                  a.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          snd.setSound(!snd.sound);
+                          a.setCrossed(!snd.sound);
+                          snd.play(Snd.BTN);
+                      }
+                  });
+                  a.setOnLongClickListener(new View.OnLongClickListener() {
+                      public boolean onLongClick(View v) {
+                          showVolume(false);
+                          return true;
+                      }
+                  });
+                  m.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          snd.setMusic(!snd.music);
+                          m.setCrossed(!snd.music);
+                          snd.play(Snd.BTN);
+                      }
+                  });
+                  m.setOnLongClickListener(new View.OnLongClickListener() {
+                      public boolean onLongClick(View v) {
+                          showVolume(true);
+                          return true;
+                      }
+                  });
+                  bar.addView(a, lp(sizeU, sizeU, 0.06f));
+                  bar.addView(m, lp(sizeU, sizeU, 0.06f));
+                  return bar;
+              }
+
+              private static boolean isDelete(String t) {
+                  return t.equals("Видалити") || t.equals("Прибрати") || t.equals("Стерти всю історію") || t.startsWith("Вийти") || t.equals("Вихід");
               }
 
               protected Button btn(String s, int color, final View.OnClickListener l) {
+                  final String t0 = s;
                   Button b = new Button(this);
                   b.setText(s);
                   b.setAllCaps(false);
@@ -3845,7 +4502,7 @@ jobs:
                   b.setPadding(px(0.3f), px(0.1f), px(0.3f), px(0.1f));
                   b.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
-                          sfx(SFX_CLICK);
+                          sfx(isDelete(t0) ? Snd.DEL : Snd.BTN);
                           l.onClick(v);
                       }
                   });
@@ -3877,6 +4534,8 @@ jobs:
 
               // ---------- налаштування ----------
               protected void showSettings() {
+                  profSig = nick + "|" + avatar + "|" + photo;
+                  profileChanged = false;
                   final Dialog dlg = new Dialog(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
                   ScrollView sv = new ScrollView(this);
                   sv.setBackgroundColor(0xFF1F2A30);
@@ -3927,20 +4586,12 @@ jobs:
                   photoBox = new LinearLayout(this);
                   photoRow.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                   left.addView(photoRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-                  mid.addView(left, new LinearLayout.LayoutParams(px(9.8f), px(8.4f)));
+                  LinearLayout.LayoutParams lpl = new LinearLayout.LayoutParams(px(9.8f), px(6.5f));
+                  lpl.rightMargin = px(0.3f);
+                  mid.addView(left, lpl);
 
                   LinearLayout right = new LinearLayout(this);
                   right.setOrientation(LinearLayout.VERTICAL);
-                  right.addView(onOff("Звук", soundOn, new Toggle() {
-                      public void set(boolean on) {
-                          soundOn = on;
-                      }
-                  }));
-                  right.addView(onOff("Музика", musicOn, new Toggle() {
-                      public void set(boolean on) {
-                          musicOn = on;
-                      }
-                  }));
                   right.addView(onOff("Автоматичний пас", autoPass, new Toggle() {
                       public void set(boolean on) {
                           autoPass = on;
@@ -3968,19 +4619,23 @@ jobs:
                       item.addView(speedBtn, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.85f, 0.02f));
                       right.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
                   }
-                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(8.4f), 1f);
+                  mid.addView(fancyLine(true), new LinearLayout.LayoutParams(px(0.08f), px(6.5f)));
+                  LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(6.5f), 1f);
                   rp.leftMargin = px(0.3f);
                   mid.addView(right, rp);
                   box.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-                  box.addView(tv("Тема колоди", CAPS, CAP, false), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.25f));
+                  LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(0.08f));
+                  hl.setMargins(0, px(0.25f), 0, px(0.15f));
+                  box.addView(fancyLine(false), hl);
+                  box.addView(tv("Тема колоди", CAPS, CAP, false), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.05f));
                   themeBox = new LinearLayout(this);
                   themeBox.setOrientation(LinearLayout.VERTICAL);
                   box.addView(themeBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                   preview = new Preview(this);
                   box.addView(preview, lp(ViewGroup.LayoutParams.MATCH_PARENT, 2.8f, 0.08f));
 
-                  box.addView(tv("Фон столу", CAPS, CAP, false));
+                  box.addView(tv("Фон столу та музична тема (затисніть фон — вибір мелодії)", CAPS, CAP, false));
                   bgBox = new LinearLayout(this);
                   bgBox.setOrientation(LinearLayout.VERTICAL);
                   box.addView(bgBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -4002,6 +4657,7 @@ jobs:
                           String s = etNick.getText().toString().trim().replace("|", " ").replace("~", " ").replace(";", " ");
                           if (s.length() == 0) s = "Гравець";
                           nick = s;
+                          profileChanged = !profSig.equals(nick + "|" + avatar + "|" + photo);
                           savePrefs();
                           etNick = null;
                           avatarBox = null;
@@ -4016,6 +4672,15 @@ jobs:
                   });
                   dlg.show();
                   box.requestFocus();
+              }
+
+              // гарна лінія-роздільник із плавним згасанням до країв
+              private View fancyLine(boolean vertical) {
+                  View v = new View(this);
+                  GradientDrawable g = new GradientDrawable(vertical ? GradientDrawable.Orientation.TOP_BOTTOM : GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[]{0x0090CAF9, 0xFF90CAF9, 0xFFFFE082, 0xFF90CAF9, 0x0090CAF9});
+                  v.setBackground(g);
+                  return v;
               }
 
               protected interface Toggle {
@@ -4118,10 +4783,72 @@ jobs:
                               refreshBgs();
                           }
                       });
+                      v.setOnLongClickListener(new View.OnLongClickListener() {
+                          public boolean onLongClick(View x) {
+                              showMelodyPick(id);
+                              return true;
+                          }
+                      });
                       LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(1.5f), 1f);
                       p.setMargins(px(0.06f), px(0.06f), px(0.06f), px(0.06f));
                       row.addView(v, p);
                   }
+              }
+
+              private void showMelodyPick(final int bg) {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv("Мелодія для фону «" + Bg.NAMES[bg] + "»", 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.08f));
+                  final LinearLayout list = new LinearLayout(this);
+                  list.setOrientation(LinearLayout.VERTICAL);
+                  final int[] pick = {bgMel(bg)};
+                  final String[] playing = {""};
+                  final Runnable[] fill = new Runnable[1];
+                  fill[0] = new Runnable() {
+                      public void run() {
+                          list.removeAllViews();
+                          for (int k = 1; k <= 7; k++) {
+                              final int kk = k;
+                              LinearLayout row = new LinearLayout(this_());
+                              row.setOrientation(LinearLayout.HORIZONTAL);
+                              boolean has = snd.hasTrack("music" + k);
+                              row.addView(btn("Мелодія " + k + (has ? "" : " (немає файлу)"), pick[0] == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                                  public void onClick(View v) {
+                                      pick[0] = kk;
+                                      setBgMel(bg, kk);
+                                      fill[0].run();
+                                  }
+                              }), lp(5.2f, 0.8f, 0.03f));
+                              boolean on = playing[0].equals("music" + k);
+                              row.addView(btn(on ? "■ Стоп" : "▶ Слухати", 0xFF37474F, new View.OnClickListener() {
+                                  public void onClick(View v) {
+                                      if (playing[0].equals("music" + kk)) {
+                                          playing[0] = "";
+                                          snd.stopPreview();
+                                      } else {
+                                          playing[0] = "music" + kk;
+                                          snd.preview("music" + kk);
+                                      }
+                                      fill[0].run();
+                                  }
+                              }), lp(2.6f, 0.8f, 0.03f));
+                              list.addView(row);
+                          }
+                      }
+                  };
+                  fill[0].run();
+                  box.addView(list);
+                  Dialog d = makeDialog(box, true);
+                  d.setOnDismissListener(new android.content.DialogInterface.OnDismissListener() {
+                      public void onDismiss(android.content.DialogInterface x) {
+                          snd.stopPreview();
+                      }
+                  });
+                  showSized(d, 9f);
+              }
+
+              private BaseActivity this_() {
+                  return this;
               }
 
               private class BgPreview extends View {
@@ -4542,8 +5269,6 @@ jobs:
           import android.content.Context;
           import android.content.DialogInterface;
           import android.content.pm.PackageManager;
-          import android.media.AudioManager;
-          import android.media.ToneGenerator;
           import android.os.Bundle;
           import android.os.Vibrator;
           import android.text.SpannableString;
@@ -4607,6 +5332,8 @@ jobs:
               private LinearLayout roomList;
               private boolean autoPassSent;
               private boolean settingsPaused;
+              private boolean voiceLock;
+              private boolean askedResume;
 
               private final Runnable micStop = new Runnable() {
                   public void run() {
@@ -4621,6 +5348,7 @@ jobs:
                   root = new FrameLayout(this);
                   setContentView(root);
                   showMenu();
+                  askResume();
               }
 
               @Override
@@ -4653,6 +5381,10 @@ jobs:
 
               @Override
               protected void onSettingsClosed() {
+                  if (screen != S_GAME) musicFor(false);
+                  if (profileChanged && (screen == S_GAME || screen == S_LOBBY)) {
+                      send("NAME|" + nick + "|" + (avatar < 0 ? -1 : avatar) + "|" + sendPhoto());
+                  }
                   if (settingsPaused) {
                       settingsPaused = false;
                       send("RESUME");
@@ -4710,6 +5442,7 @@ jobs:
               }
 
               private void leaveToMenu() {
+                  if (host != null && !matchFinished) host.forget();
                   if (resultDlg != null && resultDlg.isShowing()) resultDlg.dismiss();
                   if (roomDlg != null && roomDlg.isShowing()) roomDlg.dismiss();
                   showMenu();
@@ -4724,7 +5457,41 @@ jobs:
                       }).setNegativeButton("Ні", null).show();
               }
 
+              private void askResume() {
+                  if (askedResume) return;
+                  askedResume = true;
+                  final String data = sp.getString("save", "");
+                  if (data.length() == 0) return;
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.addView(tv("Продовжити гру?", 0.5f, WHITE, true), lp(WRAP, WRAP, 0.08f));
+                  box.addView(tv("Незавершена гра:", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.04f));
+                  box.addView(tv(Host.describe(data), 0.36f, WHITE, false), lp(WRAP, WRAP, 0.08f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  final Dialog[] dd = new Dialog[1];
+                  row.addView(btn("Продовжити", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          dd[0].dismiss();
+                          createRoom(data);
+                      }
+                  }), lp(4.2f, 1.0f, 0.08f));
+                  row.addView(btn("Видалити", 0xFFC62828, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          sp.edit().remove("save").commit();
+                          dd[0].dismiss();
+                      }
+                  }), lp(3.2f, 1.0f, 0.08f));
+                  box.addView(row);
+                  dd[0] = makeDialog(box, true);
+                  showSized(dd[0], 9.5f);
+              }
+
               private void createRoom() {
+                  createRoom(null);
+              }
+
+              private void createRoom(String saved) {
                   stopNet();
                   matchFinished = false;
                   isHost = true;
@@ -4741,6 +5508,19 @@ jobs:
                   };
                   host = new Host(nick, avatar < 0 ? -1 : avatar, sendPhoto(), cid, toUi);
                   host.setBotDelay(botDelay);
+                  host.setSaver(new Host.Saver() {
+                      public void save(String d) {
+                          if (d == null) sp.edit().remove("save").apply();
+                          else sp.edit().putString("save", d).apply();
+                      }
+                  });
+                  if (saved != null && !host.loadState(saved)) {
+                      toast("Не вдалося відновити гру");
+                      sp.edit().remove("save").commit();
+                      host = null;
+                      showMenu();
+                      return;
+                  }
                   ref[0] = host;
                   final Host hh = host;
                   toServer = new Link() {
@@ -4755,11 +5535,12 @@ jobs:
                       showMenu();
                       return;
                   }
-                  showLobby();
+                  if (saved != null) host.resumeLoaded();
+                  else showLobby();
               }
 
               private void joinRoom(Discovery.Room r) {
-                  if (r.inGame ? r.rejoin <= 0 : r.count >= 5) {
+                  if (r.inGame ? r.rejoin <= 0 : r.count >= 6) {
                       toast("Кімната заповнена або гра вже триває");
                       return;
                   }
@@ -4802,6 +5583,8 @@ jobs:
                       } else if (f[0].equals("START")) {
                           pendingBanner = "Поїхали";
                           lastGs = null;
+                          matchFinished = false;
+                          if (screen == S_GAME && table != null) table.showBanner("Поїхали");
                       } else if (f[0].equals("STATE")) {
                           gs = GState.parse(f);
                           if (screen != S_GAME) showGame();
@@ -4809,14 +5592,25 @@ jobs:
                       } else if (f[0].equals("EMO")) {
                           int k = pi(f[3]);
                           if (table != null && k >= 0 && k < EMOJI.length) table.showEmoji(pi(f[1]), EMOJI[k]);
-                      } else if (f[0].equals("POKEB")) {
-                          if (table != null) table.shakeAvatar(pi(f[1]));
+                          sfx(Snd.EMO);
+                      } else if (f[0].equals("VLOCK")) {
+                          voiceLock = f[1].equals("1");
+                      } else if (f[0].equals("VBUSY")) {
+                          toast(f[1].equals("2") ? "Гра на паузі" : "Зачекайте, поки прозвучить попереднє повідомлення");
                       } else if (f[0].equals("POKED")) {
                           onPoked(pi(f[1]));
                       } else if (f[0].equals("VOICE")) {
                           int from = pi(f[1]);
                           if (table != null) table.showEmoji(from, "🎤");
-                          if (voice != null) voice.play(f[3]);
+                          if (voice != null) {
+                              voice.play(f[3], new Runnable() {
+                                  public void run() {
+                                      send("VDONE");
+                                  }
+                              });
+                          } else {
+                              send("VDONE");
+                          }
                       } else if (f[0].equals("LOG")) {
                           if (wantLog) {
                               wantLog = false;
@@ -4840,6 +5634,7 @@ jobs:
               private void onLobby(String[] f) {
                   me = pi(f[1]);
                   limit = pi(f[2]);
+                  int before = players.size();
                   players.clear();
                   if (f[4].length() > 0) {
                       for (String s : f[4].split(";")) {
@@ -4847,6 +5642,7 @@ jobs:
                           if (p.length >= 6) players.add(p);
                       }
                   }
+                  if (before > 0 && players.size() > before && (screen == S_LOBBY || screen == S_GAME)) sfx(Snd.JOIN);
                   if (screen == S_GAME) {
                       applyPlayers();
                       fillRoom();
@@ -4896,9 +5692,23 @@ jobs:
                       }
                   }), lp(6.5f, 1.15f, 0.12f));
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM | Gravity.LEFT);
+                  bl.setMargins(px(0.3f), 0, 0, px(0.3f));
+                  root.addView(audioBar(1.0f), bl);
+                  FrameLayout.LayoutParams br = new FrameLayout.LayoutParams(px(3.0f), px(1.0f), Gravity.BOTTOM | Gravity.RIGHT);
+                  br.setMargins(0, 0, px(0.3f), px(0.3f));
+                  root.addView(btn("Вихід", 0xFF0F3D26, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          finish();
+                      }
+                  }), br);
+                  holdGame = false;
+                  updateHold();
+                  musicFor(false);
               }
 
               private void showHistory() {
+                  musicFor(false);
                   screen = S_HIST;
                   root.removeAllViews();
                   root.setBackgroundColor(0xFF1F2A30);
@@ -4923,6 +5733,7 @@ jobs:
 
               // ---------- пошук кімнат ----------
               private void showJoin() {
+                  musicFor(false);
                   stopNet();
                   screen = S_JOIN;
                   joinSig = "";
@@ -4972,8 +5783,8 @@ jobs:
                       return;
                   }
                   for (final Discovery.Room r : list) {
-                      boolean ok = r.inGame ? r.rejoin > 0 : r.count < 5;
-                      String t = r.name + "   " + r.count + "/5" + (r.inGame ? (r.rejoin > 0 ? "   гра триває — повернутись" : "   гра триває") : "");
+                      boolean ok = r.inGame ? r.rejoin > 0 : r.count < 6;
+                      String t = r.name + "   " + r.count + "/6" + (r.inGame ? (r.rejoin > 0 ? "   гра триває — повернутись" : "   гра триває") : "");
                       joinList.addView(btn(t, ok ? 0xFF1E88E5 : 0xFF607D8B, new View.OnClickListener() {
                           public void onClick(View v) {
                               joinRoom(r);
@@ -4984,6 +5795,7 @@ jobs:
 
               // ---------- лобі ----------
               private void showLobby() {
+                  musicFor(false);
                   stopDisc();
                   screen = S_LOBBY;
                   root.removeAllViews();
@@ -5040,7 +5852,7 @@ jobs:
                       }), lp(3f, 1.0f, 0.08f));
                       col.addView(row);
                   } else {
-                      col.addView(tv("Очікуємо, поки хост почне гру…", 0.34f, 0xFFB0BEC5, false));
+                      col.addView(tv("Очікуємо, поки Господар почне гру…", 0.34f, 0xFFB0BEC5, false));
                       col.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
                           public void onClick(View v) {
                               showMenu();
@@ -5112,14 +5924,14 @@ jobs:
                       lobbyList.addView(playerRow(i, true), lp(MATCH, WRAP, 0.06f));
                   }
                   lobbyLimit.setText("Ліміт очок: " + limit);
-                  lobbyCount.setText("Гравці: " + players.size() + " з 5 (потрібно від 2)");
+                  lobbyCount.setText("Гравці: " + players.size() + " з 6 (потрібно від 2)");
                   if (lobbyStart != null) {
                       boolean ok = players.size() >= 2;
                       lobbyStart.setEnabled(ok);
                       lobbyStart.setAlpha(ok ? 1f : 0.4f);
                   }
                   if (lobbyBot != null) {
-                      boolean ok = players.size() < 5;
+                      boolean ok = players.size() < 6;
                       lobbyBot.setEnabled(ok);
                       lobbyBot.setAlpha(ok ? 1f : 0.4f);
                   }
@@ -5131,7 +5943,13 @@ jobs:
                   t.setGravity(Gravity.CENTER);
                   t.setBackground(bg(0x66000000, 0.2f));
                   t.setPadding(px(0.15f), px(0.12f), px(0.15f), px(0.12f));
-                  t.setOnClickListener(l);
+                  final View.OnClickListener ll = l;
+                  t.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          sfx(Snd.BTN);
+                          ll.onClick(v);
+                      }
+                  });
                   return t;
               }
 
@@ -5159,6 +5977,10 @@ jobs:
                           showEmojiPicker(idx == me ? -1 : idx);
                       }
 
+                      public void onWrong() {
+                          sfx(Snd.WRONG);
+                      }
+
                       public void onAvatarLong(int idx) {
                           if (idx < 0 || idx >= players.size() || idx == me) return;
                           if (players.get(idx)[3].equals("1")) {
@@ -5172,7 +5994,13 @@ jobs:
                               }
                               return;
                           }
+                          if (gs != null && gs.paused >= 0) {
+                              toast("Під час паузи штурхати не можна");
+                              return;
+                          }
                           send("POKE|" + idx);
+                          if (table != null) table.shakeAvatar(idx);
+                          sfx(Snd.POKE);
                       }
 
                       public void onMic(int idx, boolean down) {
@@ -5197,9 +6025,15 @@ jobs:
                   });
                   tl.addView(scoreLbl, lp(2.8f, WRAP, 0.03f));
                   tl.addView(histBtn, lp(2.8f, WRAP, 0.03f));
+                  LinearLayout topLeft = new LinearLayout(this);
+                  topLeft.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout ab = audioBar(0.8f);
+                  ab.setOrientation(LinearLayout.VERTICAL);
+                  topLeft.addView(ab, lp(WRAP, WRAP, 0.0f));
+                  topLeft.addView(tl, lp(WRAP, WRAP, 0.0f));
                   FrameLayout.LayoutParams lpScore = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.LEFT);
                   lpScore.setMargins(px(0.2f), px(0.12f), 0, 0);
-                  root.addView(tl, lpScore);
+                  root.addView(topLeft, lpScore);
 
                   LinearLayout tr = new LinearLayout(this);
                   tr.setOrientation(LinearLayout.HORIZONTAL);
@@ -5208,6 +6042,7 @@ jobs:
                   ivPause.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
                           if (gs == null) return;
+                          sfx(Snd.PAUSE);
                           if (gs.paused < 0) send("PAUSE");
                           else if (gs.paused == me) send("RESUME");
                       }
@@ -5216,6 +6051,7 @@ jobs:
                   ivGear = new IconView(this, IconView.GEAR);
                   ivGear.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
+                          sfx(Snd.BTN);
                           if (gs != null && gs.paused < 0 && !gs.over) {
                               settingsPaused = true;
                               send("PAUSE");
@@ -5276,6 +6112,7 @@ jobs:
                   lpPoke.topMargin = px(1.2f);
                   root.addView(pokeLbl, lpPoke);
 
+                  musicFor(true);
                   applyPlayers();
                   if (pendingBanner != null) {
                       final String bn = pendingBanner;
@@ -5317,16 +6154,16 @@ jobs:
               private GState lastGs;
 
               private void stateSounds(GState p, GState g) {
-                  if (p == null || p.over || g.counts == null || p.counts == null || g.counts.length != p.counts.length) return;
+                  if (p == null || g.counts == null || p.counts == null || g.counts.length != p.counts.length) return;
+                  if (p.over) return;
                   boolean played = false;
                   int inc = 0;
                   for (int i = 0; i < g.counts.length; i++) {
                       if (g.counts[i] < p.counts[i]) played = true;
                       else if (g.counts[i] > p.counts[i]) inc += g.counts[i] - p.counts[i];
                   }
-                  if (played) sfx(p.cur == me ? SFX_MOVE : SFX_OPP);
-                  else if (inc > 0 && inc < 6) sfx(SFX_DRAW);
-                  else if (g.cur == me && p.cur != me && !g.over) sfx(SFX_TURN);
+                  if (played) sfx(Snd.THROW);
+                  else if (inc > 0 && inc < 6) sfx(Snd.DRAW);
               }
 
               private void applyState() {
@@ -5337,6 +6174,8 @@ jobs:
                   table.setState(gs);
                   scoreLbl.setText("Очки: " + at(gs.totals, me));
                   boolean paused = gs.paused >= 0;
+                  holdGame = paused && !settingsPaused;
+                  updateHold();
                   boolean myTurn = gs.cur == me && !gs.over && !paused;
                   setBtn(btnDraw, myTurn && gs.canDraw);
                   btnDraw.setVisibility(showDraw ? View.VISIBLE : View.GONE);
@@ -5380,17 +6219,7 @@ jobs:
                   } catch (Exception e) {
                       // ignore
                   }
-                  try {
-                      final ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_MUSIC, 80);
-                      tg.startTone(ToneGenerator.TONE_PROP_BEEP, 160);
-                      ui.postDelayed(new Runnable() {
-                          public void run() {
-                              tg.release();
-                          }
-                      }, 500);
-                  } catch (Exception e) {
-                      // ignore
-                  }
+                  sfx(Snd.POKE);
                   if (pokeLbl != null) {
                       pokeLbl.setText(pname(from) + " штурхнув вас");
                       pokeLbl.setVisibility(View.VISIBLE);
@@ -5403,6 +6232,14 @@ jobs:
               }
 
               private void startMic(int idx) {
+                  if (gs != null && gs.paused >= 0) {
+                      toast("Під час паузи голосові недоступні");
+                      return;
+                  }
+                  if (voiceLock) {
+                      toast("Зачекайте, поки прозвучить повідомлення");
+                      return;
+                  }
                   if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                       pendingMicIdx = idx;
                       requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
@@ -5410,6 +6247,7 @@ jobs:
                   }
                   micTarget = idx == me ? -1 : idx;
                   if (voice.start()) {
+                      sfx(Snd.VOICE);
                       toast("Говоріть… (до 10 с)");
                       ui.removeCallbacks(micStop);
                       ui.postDelayed(micStop, 10000);
@@ -5465,6 +6303,18 @@ jobs:
                   }
                   box.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
                   dd[0] = makeDialog(box, true);
+                  if (table != null) {
+                      table.picking = true;
+                      table.invalidate();
+                  }
+                  dd[0].setOnDismissListener(new DialogInterface.OnDismissListener() {
+                      public void onDismiss(DialogInterface x) {
+                          if (table != null) {
+                              table.picking = false;
+                              table.invalidate();
+                          }
+                      }
+                  });
                   showSized(dd[0], 10.5f);
               }
 
@@ -5504,12 +6354,22 @@ jobs:
                   sv.addView(roomList);
                   box.addView(sv, new LinearLayout.LayoutParams(MATCH, px(5.2f)));
                   final Dialog[] dd = new Dialog[1];
-                  box.addView(btn("Закрити", 0xFF455A64, new View.OnClickListener() {
+                  LinearLayout brow = new LinearLayout(this);
+                  brow.setOrientation(LinearLayout.HORIZONTAL);
+                  brow.setGravity(Gravity.CENTER_HORIZONTAL);
+                  brow.addView(btn("Додати бота", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (host == null) return;
+                          String m = host.addBot();
+                          if (m != null) toast(m);
+                      }
+                  }), lp(3.8f, 0.9f, 0.08f));
+                  brow.addView(btn("Закрити", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           dd[0].dismiss();
                       }
                   }), lp(3f, 0.9f, 0.08f));
-                  ((LinearLayout.LayoutParams) box.getChildAt(2).getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
+                  box.addView(brow, new LinearLayout.LayoutParams(MATCH, WRAP));
                   dd[0] = makeDialog(box, true);
                   roomDlg = dd[0];
                   showSized(dd[0], 14.7f);
@@ -5546,11 +6406,21 @@ jobs:
                   sv.addView(list);
                   box.addView(sv, new LinearLayout.LayoutParams(MATCH, px(5.0f)));
                   final int[] sel = {rs.size() - 1};
+                  final boolean[] allTabs = {false};
                   final Runnable[] fill = new Runnable[1];
                   fill[0] = new Runnable() {
                       public void run() {
                           tabs.removeAllViews();
-                          for (int k = 0; k < rs.size(); k++) {
+                          int from = (rs.size() > 4 && !allTabs[0]) ? rs.size() - 4 : 0;
+                          if (rs.size() > 4) {
+                              tabs.addView(btn(allTabs[0] ? "◂" : "…", 0xFF37474F, new View.OnClickListener() {
+                                  public void onClick(View v) {
+                                      allTabs[0] = !allTabs[0];
+                                      fill[0].run();
+                                  }
+                              }), lp(1.1f, 0.8f, 0.04f));
+                          }
+                          for (int k = from; k < rs.size(); k++) {
                               final int kk = k;
                               tabs.addView(btn(String.valueOf(k + 1), sel[0] == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
                                   public void onClick(View v) {
@@ -5696,11 +6566,14 @@ jobs:
               }
 
               // таблиця: стовпчик = гравець (перемоги ліворуч від аватара, всього праворуч), рядки = партії
-              private View scoreTable(int[][] rounds, int[] tot, int[] wins, int winner, float bodyU) {
-                  LinearLayout t = new LinearLayout(this);
+              private View scoreTable(final int[][] rounds, int[] tot, int[] wins, int winner, final float bodyU) {
+                  final LinearLayout t = new LinearLayout(this);
                   t.setOrientation(LinearLayout.VERTICAL);
                   t.setBackground(bg(0xFF2C3A41, 0.15f));
-                  int n = Math.min(players.size(), tot == null ? 0 : tot.length);
+                  final int n = Math.min(players.size(), tot == null ? 0 : tot.length);
+                  float colW = (13.5f - 1.4f) / (n + 1.2f);
+                  float avS = Math.min(0.85f, colW * 0.42f);
+                  float numS = Math.min(0.38f, Math.max(0.2f, (colW - avS - 0.2f) / 2f / 1.9f));
                   LinearLayout head = new LinearLayout(this);
                   head.setOrientation(LinearLayout.HORIZONTAL);
                   head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1.2f));
@@ -5711,15 +6584,17 @@ jobs:
                       LinearLayout top = new LinearLayout(this);
                       top.setOrientation(LinearLayout.HORIZONTAL);
                       top.setGravity(Gravity.CENTER_VERTICAL);
-                      TextView wv = tv(String.valueOf(at(wins, i)), 0.34f, 0xFFFFD54F, true);
+                      TextView wv = tv(String.valueOf(at(wins, i)), numS * 0.9f, 0xFFFFD54F, true);
                       wv.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                      wv.setSingleLine(true);
                       top.addView(wv, new LinearLayout.LayoutParams(0, WRAP, 1f));
                       String[] p = players.get(i);
                       Avatars.AvatarView av = new Avatars.AvatarView(this);
                       av.set(pi(p[1]), p[2], false);
-                      top.addView(av, lp(0.85f, 0.85f, 0.04f));
-                      TextView tv2 = tv(String.valueOf(at(tot, i)), 0.38f, WHITE, true);
+                      top.addView(av, lp(avS, avS, 0.03f));
+                      TextView tv2 = tv(String.valueOf(at(tot, i)), numS, WHITE, true);
                       tv2.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                      tv2.setSingleLine(true);
                       top.addView(tv2, new LinearLayout.LayoutParams(0, WRAP, 1f));
                       cc.addView(top, new LinearLayout.LayoutParams(MATCH, WRAP));
                       cc.addView(hcell((i == winner ? "★ " : "") + cutName(pname(i), 9), Theme.pcol(i), true, 0.26f));
@@ -5727,36 +6602,68 @@ jobs:
                   }
                   t.addView(head, new LinearLayout.LayoutParams(MATCH, WRAP));
                   t.addView(hline());
-                  LinearLayout body = new LinearLayout(this);
-                  body.setOrientation(LinearLayout.VERTICAL);
-                  int rc = rounds == null ? 0 : rounds.length;
-                  if (rc == 0) {
-                      body.addView(hcell("Партій ще не було", 0xFFB0BEC5, false, 0.3f));
-                  }
-                  for (int k = 0; k < rc; k++) {
-                      LinearLayout row = new LinearLayout(this);
-                      row.setOrientation(LinearLayout.HORIZONTAL);
-                      row.setGravity(Gravity.CENTER_VERTICAL);
-                      TextView l = (TextView) hcell("Партія " + (k + 1), 0xFFB0BEC5, true, 0.28f);
-                      l.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-                      l.setPadding(px(0.15f), px(0.08f), px(0.05f), px(0.08f));
-                      row.addView(l, new LinearLayout.LayoutParams(0, WRAP, 1.2f));
-                      for (int i = 0; i < n; i++) {
-                          row.addView(divider());
-                          int v = at(rounds[k], i);
-                          row.addView(hcell(String.valueOf(v), v == 0 ? 0xFF81C784 : WHITE, v == 0, 0.34f), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  final LinearLayout host2 = new LinearLayout(this);
+                  host2.setOrientation(LinearLayout.VERTICAL);
+                  t.addView(host2, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  final boolean[] all = {false};
+                  final Runnable[] fill = new Runnable[1];
+                  fill[0] = new Runnable() {
+                      public void run() {
+                          host2.removeAllViews();
+                          int rc = rounds == null ? 0 : rounds.length;
+                          int from = (rc > 3 && !all[0]) ? rc - 3 : 0;
+                          LinearLayout body = new LinearLayout(this_());
+                          body.setOrientation(LinearLayout.VERTICAL);
+                          if (rc == 0) {
+                              body.addView(hcell("Партій ще не було", 0xFFB0BEC5, false, 0.3f));
+                          }
+                          if (rc > 3) {
+                              TextView more = (TextView) hcell(all[0] ? "▲ Сховати попередні партії" : "▼ Попередні партії: " + (rc - 3), 0xFF90CAF9, true, 0.28f);
+                              more.setOnClickListener(new View.OnClickListener() {
+                                  public void onClick(View v) {
+                                      all[0] = !all[0];
+                                      fill[0].run();
+                                  }
+                              });
+                              body.addView(more, new LinearLayout.LayoutParams(MATCH, WRAP));
+                              body.addView(hline());
+                          }
+                          for (int k = from; k < rc; k++) {
+                              LinearLayout row = new LinearLayout(this_());
+                              row.setOrientation(LinearLayout.HORIZONTAL);
+                              row.setGravity(Gravity.CENTER_VERTICAL);
+                              TextView l = (TextView) hcell("Партія " + (k + 1), 0xFFB0BEC5, true, 0.28f);
+                              l.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                              l.setPadding(px(0.15f), px(0.08f), px(0.05f), px(0.08f));
+                              row.addView(l, new LinearLayout.LayoutParams(0, WRAP, 1.2f));
+                              for (int i = 0; i < n; i++) {
+                                  row.addView(divider());
+                                  int v = at(rounds[k], i);
+                                  row.addView(hcell(String.valueOf(v), v == 0 ? 0xFF81C784 : WHITE, v == 0, 0.34f), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                              }
+                              body.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                              body.addView(hline());
+                          }
+                          if (all[0] && rc > 5) {
+                              final ScrollView sv = new ScrollView(this_());
+                              sv.addView(body);
+                              host2.addView(sv, new LinearLayout.LayoutParams(MATCH, px(bodyU + 1.2f)));
+                              sv.post(new Runnable() {
+                                  public void run() {
+                                      sv.fullScroll(View.FOCUS_DOWN);
+                                  }
+                              });
+                          } else {
+                              host2.addView(body, new LinearLayout.LayoutParams(MATCH, WRAP));
+                          }
                       }
-                      body.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
-                      body.addView(hline());
-                  }
-                  if (rc > 3) {
-                      ScrollView sv = new ScrollView(this);
-                      sv.addView(body);
-                      t.addView(sv, new LinearLayout.LayoutParams(MATCH, px(bodyU)));
-                  } else {
-                      t.addView(body, new LinearLayout.LayoutParams(MATCH, WRAP));
-                  }
+                  };
+                  fill[0].run();
                   return t;
+              }
+
+              private MainActivity this_() {
+                  return this;
               }
 
               private void showScores() {
@@ -5795,7 +6702,7 @@ jobs:
                   final int loser = pi(f[2]);
                   final int winner = pi(f[3]);
                   lastGs = null;
-                  final int snd = winner == me || (over && loser != me) ? SFX_WIN : SFX_LOSE;
+                  final int snd = over ? (loser == me ? Snd.GLOSE : Snd.GWIN) : (winner == me ? Snd.RWIN : Snd.RLOSE);
                   ui.postDelayed(new Runnable() {
                       public void run() {
                           if (screen == S_GAME) sfx(snd);
@@ -5851,11 +6758,35 @@ jobs:
                   LinearLayout.LayoutParams cp = lp(4.5f, 1.0f, 0.12f);
                   cp.gravity = Gravity.CENTER_HORIZONTAL;
                   if (over) {
-                      box.addView(btn("Закрити", 0xFF455A64, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              leaveToMenu();
-                          }
-                      }), cp);
+                      if (isHost) {
+                          LinearLayout nr = new LinearLayout(this);
+                          nr.setOrientation(LinearLayout.HORIZONTAL);
+                          nr.setGravity(Gravity.CENTER_HORIZONTAL);
+                          box.addView(tv("Почати нову гру з тими самими гравцями?", 0.34f, WHITE, true), lp(WRAP, WRAP, 0.08f));
+                          nr.addView(btn("Нова гра", 0xFF2E7D32, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  if (players.size() < 2) {
+                                      toast("Потрібно щонайменше 2 гравці");
+                                      return;
+                                  }
+                                  if (resultDlg != null) resultDlg.dismiss();
+                                  if (host != null) host.startMatch();
+                              }
+                          }), lp(4.2f, 1.0f, 0.1f));
+                          nr.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  leaveToMenu();
+                              }
+                          }), lp(3.2f, 1.0f, 0.1f));
+                          box.addView(nr, new LinearLayout.LayoutParams(MATCH, WRAP));
+                      } else {
+                          box.addView(tv("Очікуємо, поки Господар вирішить, чи починати нову гру…", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.08f));
+                          box.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  leaveToMenu();
+                              }
+                          }), cp);
+                      }
                   } else if (isHost) {
                       box.addView(btn("Наступна партія", 0xFF2E7D32, new View.OnClickListener() {
                           public void onClick(View v) {
@@ -5864,7 +6795,7 @@ jobs:
                           }
                       }), cp);
                   } else {
-                      box.addView(tv("Очікуємо, поки хост почне наступну партію…", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
+                      box.addView(tv("Очікуємо, поки Господар почне наступну партію…", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
                   }
                   resultDlg = makeDialog(box, false);
                   showSized(resultDlg, 13.5f);
@@ -5873,6 +6804,21 @@ jobs:
           EOF
 
           echo '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' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_btn.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_del.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_draw.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_emo.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_glose.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_gwin.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_join.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_pause.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_poke.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_rlose.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_rwin.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_throw.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_voice.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_wrong.ogg
+          if [ -d uno_sounds ]; then cp uno_sounds/*.mp3 app/src/main/res/raw/ || true; fi
 
       - name: Build
         run: gradle assembleDebug --no-daemon
