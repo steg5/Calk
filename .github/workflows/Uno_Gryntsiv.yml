@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 14
-                  versionName "14.0"
+                  versionCode 15
+                  versionName "15.0"
               }
               signingConfigs {
                   debug {
@@ -3947,7 +3947,7 @@ jobs:
               // власні mp3 з uno_sounds (якщо є), інакше вбудований запасний звук
               private static final String[] NAMES = {"buttons|sfx_btn", "play|sfx_throw", "take|sfx_draw", "sfx_poke", "sfx_voice",
                   "sfx_pause", "trash|sfx_del", "sfx_emo", "win|sfx_rwin", "lose|sfx_rlose", "victory|sfx_gwin", "defeat|sfx_glose", "sfx_wrong", "sfx_join",
-                  "mix|sfx_draw", "sfx_pass"};
+                  "mix|sfx_draw", "pass|sfx_pass"};
 
               private final Context ctx;
               private final SharedPreferences sp;
@@ -4647,7 +4647,7 @@ jobs:
                   }
                   pw = hCw;
                   ph = hCh;
-                  cyP = u * 3.3f + ph / 2f;
+                  cyP = u * 2.72f + ph / 2f;
                   deckX = W / 2f - pw * 0.9f;
                   discX = W / 2f + pw * 0.9f;
                   if (n > 0 && sx.length == n && me < n) {
@@ -4774,15 +4774,27 @@ jobs:
                   c.drawCircle(colX, cyP, u * 0.36f, p);
                   if (n > 2) drawDir(c, deckX - pw / 2f - u * 0.8f, cyP, u * 0.36f, g.dir >= 0);
 
-                  // повідомлення про хід
-                  float msgSize = u * 0.3f;
-                  tp.setTextSize(msgSize);
-                  float tw = tp.measureText(g.msg);
-                  if (tw > W * 0.8f) msgSize = msgSize * (W * 0.8f) / tw;
-                  tp.setTextSize(msgSize);
-                  tp.setColor(TXT);
-                  tp.setTextAlign(Paint.Align.CENTER);
-                  c.drawText(g.msg, W / 2f, u * 2.95f, tp);
+                  // повідомлення про хід: окрема плашка між колодою та картами гравця
+                  if (g.msg != null && g.msg.length() > 0) {
+                      float msgSize = u * 0.28f;
+                      tp.setTextSize(msgSize);
+                      float tw = tp.measureText(g.msg);
+                      float maxW = W * 0.8f - u * 0.6f;
+                      if (tw > maxW) {
+                          msgSize = msgSize * maxW / tw;
+                          tp.setTextSize(msgSize);
+                          tw = maxW;
+                      }
+                      float pcy = cyP + ph / 2f + u * 0.12f + u * 0.23f;
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0x77000000);
+                      rf.set(W / 2f - tw / 2f - u * 0.3f, pcy - u * 0.23f, W / 2f + tw / 2f + u * 0.3f, pcy + u * 0.23f);
+                      c.drawRoundRect(rf, u * 0.23f, u * 0.23f, p);
+                      tp.setStyle(Paint.Style.FILL);
+                      tp.setColor(TXT);
+                      tp.setTextAlign(Paint.Align.CENTER);
+                      c.drawText(g.msg, W / 2f, pcy + msgSize * 0.35f, tp);
+                  }
 
                   // рука
                   c.save();
