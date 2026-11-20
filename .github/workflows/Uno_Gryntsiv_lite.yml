@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/Uno_Gryntsiv_lite*.yml'
+      - '.github/workflows/Uno_Gryntsiv_lite.yml'
 
 jobs:
   build:
@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 15
-                  versionName "15.0"
+                  versionCode 16
+                  versionName "16.0"
               }
               signingConfigs {
                   debug {
@@ -334,7 +334,20 @@ jobs:
               public boolean canPass(int p) {
                   if (over || p != cur) return false;
                   if (pendDraw > 0) return false;
-                  return pendSkip || (drawn && !anyPlayable(p));
+                  return pendSkip || (drawn && !anyPlayable(p)) || wildOnly(p);
+              }
+
+              // єдина підходяща карта — звичайний wild: його можна не кидати, а пасувати
+              public boolean wildOnly(int p) {
+                  if (over || p != cur || pendDraw > 0 || pendSkip) return false;
+                  boolean w = false;
+                  for (Card k : hands.get(p)) {
+                      if (canPlay(p, k)) {
+                          if (k.v == WILD) w = true;
+                          else return false;
+                      }
+                  }
+                  return w;
               }
 
               private boolean hasCounterD2(int p) {
@@ -1892,17 +1905,19 @@ jobs:
                   return null;
               }
 
+              public int defLevel = 1;
+
               private void addBotNow() {
                   P b = new P();
                   b.bot = true;
-                  b.level = 1;
+                  b.level = defLevel;
                   b.name = BOT_NAMES[botCounter++ % BOT_NAMES.length];
                   b.avatar = rnd.nextInt(12);
                   ps.add(b);
               }
 
               public void setLevel(int i, int lvl) {
-                  if (i < 0 || i >= ps.size() || lvl < 0 || lvl > 2) return;
+                  if (i < 0 || i >= ps.size() || lvl < 0 || lvl > 3) return;
                   P p = ps.get(i);
                   if (!p.bot) return;
                   p.level = lvl;
@@ -2149,12 +2164,16 @@ jobs:
                       if (!inGame || eng == null || eng.over || paused >= 0 || f.length < 3) return;
                       try {
                           Card k = Card.dec(f[1]);
-                          if (eng.play(i, k, pi(f[2])) == null) after();
+                          if (eng.play(i, k, pi(f[2])) == null) {
+                              watchPlay(i, k);
+                              after();
+                          }
                       } catch (Exception e) {
                           // ignore
                       }
                   } else if (c.equals("DRAW")) {
                       if (!inGame || eng == null || eng.over || paused >= 0) return;
+                      watchDraw(i);
                       if (eng.draw(i) == null) after();
                   } else if (c.equals("PASS")) {
                       if (!inGame || eng == null || eng.over || paused >= 0) return;
@@ -2273,6 +2292,7 @@ jobs:
                   for (int i = 0; i < names.length; i++) names[i] = ps.get(i).name;
                   if (starter < 0 || starter >= names.length) starter = 0;
                   eng = new Engine(names, starter);
+                  lack = new boolean[names.length][4];
                   round++;
                   paused = -1;
                   addHist("— Партія " + round + " — починає " + names[starter]);
@@ -2558,10 +2578,17 @@ jobs:
                       if (eng.canPlay(p, k)) legal.add(k);
                   }
                   if (!legal.isEmpty()) {
+                      if (lvl >= 3 && legalWildOnly(legal) && eng.canPass(p) && eng.hands.get(p).size() > 2
+                              && eng.hands.get(eng.nextOf(p)).size() > 2) {
+                          eng.pass(p);
+                          after();
+                          return;
+                      }
                       Card pick = choose(legal, p, lvl);
                       int col = pick.v >= Engine.WILD ? bestColor(p, lvl) : pick.c;
-                      eng.play(p, pick, col);
+                      if (eng.play(p, pick, col) == null) watchPlay(p, pick);
                   } else if (eng.canDraw(p)) {
+                      watchDraw(p);
                       eng.draw(p);
                   } else if (eng.canPass(p)) {
                       eng.pass(p);
@@ -2569,6 +2596,97 @@ jobs:
                       return;
                   }
                   after();
+              }
+
+              // ---------- пам'ять рівня «Легенда» ----------
+              private boolean[][] lack = new boolean[0][4];
+
+              private boolean[] lackOf(int p) {
+                  if (p >= lack.length) {
+                      boolean[][] n = new boolean[Math.max(p + 1, ps.size())][4];
+                      System.arraycopy(lack, 0, n, 0, lack.length);
+                      lack = n;
+                  }
+                  return lack[p];
+              }
+
+              // гравець взяв карту не за штрафом: у нього не було ні кольору, ні значення
+              private void watchDraw(int p) {
+                  if (eng == null || eng.pendDraw > 0 || eng.drawn || eng.curColor < 0 || eng.curColor > 3) return;
+                  lackOf(p)[eng.curColor] = true;
+              }
+
+              private void watchPlay(int p, Card k) {
+                  if (k.v < Engine.WILD && k.c >= 0 && k.c < 4) lackOf(p)[k.c] = false;
+              }
+
+              private boolean legalWildOnly(ArrayList<Card> legal) {
+                  for (Card k : legal) {
+                      if (k.v != Engine.WILD) return false;
+                  }
+                  return true;
+              }
+
+              // скільки карт кольору c ще не видно (ні в моїй руці, ні у відбої)
+              private int unseen(int p, int c) {
+                  int total = 25;
+                  for (Card k : eng.hands.get(p)) {
+                      if (k.v < Engine.WILD && k.c == c) total--;
+                  }
+                  for (Card k : eng.disc) {
+                      if (k.v < Engine.WILD && k.c == c) total--;
+                  }
+                  return Math.max(total, 0);
+              }
+
+              private int legendColor(int p) {
+                  int nxt = eng.nextOf(p);
+                  int[] cnt = colorCounts(p);
+                  boolean[] nl = lackOf(nxt);
+                  int best = 0;
+                  double bs = -1e9;
+                  for (int c = 0; c < 4; c++) {
+                      double sc = cnt[c] * 10 + (nl[c] ? 80 : 0) - unseen(p, c) * 1.2 + rnd.nextDouble();
+                      if (sc > bs) {
+                          bs = sc;
+                          best = c;
+                      }
+                  }
+                  return best;
+              }
+
+              private Card legendChoose(ArrayList<Card> legal, int p) {
+                  int nxt = eng.nextOf(p);
+                  int nextCnt = eng.hands.get(nxt).size();
+                  int myCnt = eng.hands.get(p).size();
+                  boolean[] nl = lackOf(nxt);
+                  int[] cnt = colorCounts(p);
+                  boolean two = eng.awake() == 2;
+                  Card best = null;
+                  double bs = -1e9;
+                  for (Card k : legal) {
+                      double sc;
+                      if (k.v == Engine.WILD) {
+                          sc = myCnt <= 2 ? 150 : (nextCnt <= 2 ? 120 : -100);
+                      } else if (k.v == Engine.D4) {
+                          sc = nextCnt <= 3 ? 220 : (myCnt <= 2 ? 160 : 20);
+                      } else {
+                          sc = cnt[k.c] * 10 + k.points() * 0.6;
+                          if (nl[k.c]) sc += 60;
+                          if (k.v == Engine.D2 || k.v == Engine.SKIP) {
+                              sc += nextCnt <= 2 ? 200 : 25;
+                              if (k.v == Engine.D2 && nextCnt <= 4) sc += 40;
+                          }
+                          if (k.v == Engine.REV) sc += two ? 30 : (nextCnt <= 2 ? -10 : 5);
+                          if (myCnt <= 2) sc += k.points();
+                      }
+                      sc += rnd.nextDouble();
+                      if (sc > bs) {
+                          bs = sc;
+                          best = k;
+                      }
+                  }
+                  return best == null ? legal.get(0) : best;
               }
 
               private int[] colorCounts(int p) {
@@ -2580,6 +2698,7 @@ jobs:
               }
 
               private Card choose(ArrayList<Card> legal, int p, int lvl) {
+                  if (lvl >= 3) return legendChoose(legal, p);
                   if (lvl == 0) return legal.get(rnd.nextInt(legal.size()));
                   ArrayList<Card> plain = new ArrayList<Card>();
                   for (Card k : legal) {
@@ -2623,6 +2742,7 @@ jobs:
               }
 
               private int bestColor(int p, int lvl) {
+                  if (lvl >= 3) return legendColor(p);
                   int best = rnd.nextInt(4);
                   if (lvl == 0) return best;
                   int[] cnt = colorCounts(p);
@@ -4150,13 +4270,13 @@ jobs:
                       c.drawArc(rf, -50, 100, false, p);
                       p.setStyle(Paint.Style.FILL);
                   } else if (type == MUSIC) {
-                      c.drawCircle(cx - r * 0.45f, cy + r * 0.6f, r * 0.42f, p);
-                      c.drawRect(cx - r * 0.1f, cy - r * 0.95f, cx + r * 0.14f, cy + r * 0.6f, p);
+                      c.drawCircle(cx - r * 0.4f, cy + r * 0.6f, r * 0.42f, p);
+                      c.drawRect(cx - r * 0.22f, cy - r * 0.95f, cx + r * 0.02f, cy + r * 0.6f, p);
                       path.reset();
-                      path.moveTo(cx + r * 0.1f, cy - r * 0.95f);
-                      path.lineTo(cx + r * 0.85f, cy - r * 0.45f);
-                      path.lineTo(cx + r * 0.85f, cy - r * 0.1f);
-                      path.lineTo(cx + r * 0.1f, cy - r * 0.5f);
+                      path.moveTo(cx - r * 0.22f, cy - r * 0.95f);
+                      path.lineTo(cx + r * 0.8f, cy - r * 0.45f);
+                      path.lineTo(cx + r * 0.8f, cy - r * 0.1f);
+                      path.lineTo(cx - r * 0.22f, cy - r * 0.5f);
                       path.close();
                       c.drawPath(path, p);
                   } else {
@@ -4485,7 +4605,7 @@ jobs:
               private void calc(int W, int H) {
                   u = Math.min(W / 16f, H / 9f);
                   avR = u * 0.65f;
-                  hCw = u * 1.7f;
+                  hCw = u * 1.53f;
                   hCh = hCw * 1.5f;
                   hRaise = u * 0.24f;
                   hTop = H - u * 0.12f - hCh;
@@ -4509,7 +4629,7 @@ jobs:
                   }
                   pw = hCw;
                   ph = hCh;
-                  cyP = u * 2.72f + ph / 2f;
+                  cyP = u * 2.95f + ph / 2f;
                   deckX = W / 2f - pw * 0.9f;
                   discX = W / 2f + pw * 0.9f;
                   if (n > 0 && sx.length == n && me < n) {
@@ -4573,6 +4693,27 @@ jobs:
                           sy[idx] = y;
                       }
                   }
+              }
+
+              private float aCnt, aPts;
+              private long badgeT;
+
+              private float approach(float a, float target, float step) {
+                  if (a < target) return Math.min(target, a + step);
+                  return Math.max(target, a - step);
+              }
+
+              // темна кругла плашка з числом на кутку карти
+              private void badge(Canvas c, float bx, float by, String s, float a) {
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor((((int) (0xCC * a)) << 24) | 0x00101418);
+                  c.drawCircle(bx, by, u * 0.3f, p);
+                  tp.setStyle(Paint.Style.FILL);
+                  tp.setTextAlign(Paint.Align.CENTER);
+                  tp.setTextSize(s.length() > 2 ? u * 0.26f : u * 0.34f);
+                  tp.setColor((((int) (255 * a)) << 24) | 0x00FFFFFF);
+                  c.drawText(s, bx, by + u * 0.12f, tp);
+                  tp.setAlpha(255);
               }
 
               private String cut(String s, int max) {
@@ -4696,6 +4837,27 @@ jobs:
                           c.drawLine(ccx + cr * 0.45f, ccy - cr * 0.45f, ccx - cr * 0.45f, ccy + cr * 0.45f, p);
                           anim = true;
                       }
+                  }
+                  if (g.hand.size() > 0) {
+                      long dtm = badgeT == 0 ? 0 : Math.min(100, now - badgeT);
+                      badgeT = now;
+                      float tC = g.hand.size() > 4 ? 1f : 0f, tP = g.hand.size() > 1 ? 1f : 0f;
+                      aCnt = approach(aCnt, tC, dtm / 350f);
+                      aPts = approach(aPts, tP, dtm / 350f);
+                      if (aCnt != tC || aPts != tP) anim = true;
+                      int last = g.hand.size() - 1;
+                      if (aCnt > 0.01f) {
+                          float yy = hTop - (myTurn && g.legal.get(last) && hint ? hRaise : 0);
+                          badge(c, hStart + last * hStep + hCw - u * 0.36f, yy + u * 0.36f, String.valueOf(g.hand.size()), aCnt);
+                      }
+                      if (aPts > 0.01f) {
+                          int sum = 0;
+                          for (Card hk : g.hand) sum += hk.points();
+                          float yy = hTop - (myTurn && g.legal.get(0) && hint ? hRaise : 0);
+                          badge(c, hStart + u * 0.36f, yy + u * 0.36f, String.valueOf(sum), aPts);
+                      }
+                  } else {
+                      badgeT = 0;
                   }
                   c.restore();
 
@@ -4827,12 +4989,7 @@ jobs:
                       c.drawText("Zzz", cx + avR * 0.55f, cy - avR * 0.35f, tp);
                   }
                   {
-                      int shown = g.totals[idx];
-                      if (mine) {
-                          shown = 0;
-                          for (Card hk : g.hand) shown += hk.points();
-                      }
-                      String pts = String.valueOf(shown);
+                      String pts = String.valueOf(g.totals[idx]);
                       tp.setTextAlign(Paint.Align.RIGHT);
                       tp.setTextSize(u * 0.34f);
                       tp.setStyle(Paint.Style.STROKE);
@@ -4896,7 +5053,7 @@ jobs:
                   if (idx < listening.length && listening[idx]) {
                       float mx = cx - avR * 0.9f, my = cy + avR * 0.8f;
                       p.setStyle(Paint.Style.FILL);
-                      p.setColor(0xFF2E7D32);
+                      p.setColor(0xCC37474F);
                       c.drawCircle(mx, my, u * 0.34f, p);
                       p.setColor(0xFFFFFFFF);
                       c.drawRect(mx - u * 0.17f, my - u * 0.07f, mx - u * 0.07f, my + u * 0.07f, p);
@@ -5123,7 +5280,7 @@ jobs:
               protected int avatar;
               protected int themeId;
               protected boolean autoPass;
-              protected boolean showDraw = true;
+              protected boolean showDraw;
               protected boolean hint = true;
               protected int bgId;
               protected int botDelay = 1500;
@@ -5153,8 +5310,8 @@ jobs:
                   avatar = sp.getInt("avatar", 0);
                   photo = sp.getString("photo", "-");
                   themeId = sp.getInt("theme", 0);
-                  autoPass = sp.getBoolean("auto", false);
-                  showDraw = sp.getBoolean("showDraw", true);
+                  autoPass = sp.getBoolean("auto", true);
+                  showDraw = sp.getBoolean("showDraw", false);
                   hint = sp.getBoolean("hint", true);
                   snd = new Snd(this, sp);
                   bgId = sp.getInt("bg", 0);
@@ -5375,7 +5532,7 @@ jobs:
                   b.setPadding(px(0.3f), px(0.1f), px(0.3f), px(0.1f));
                   b.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
-                          sfx(isDelete(t0) ? Snd.DEL : Snd.BTN);
+                          if (!t0.equals("Пас") && !t0.equals("Добрати")) sfx(isDelete(t0) ? Snd.DEL : Snd.BTN);
                           l.onClick(v);
                       }
                   });
@@ -5465,9 +5622,9 @@ jobs:
 
                   LinearLayout right = new LinearLayout(this);
                   right.setOrientation(LinearLayout.VERTICAL);
-                  right.addView(onOff("Автоматичний пас", autoPass, new Toggle() {
+                  right.addView(onOff("Кнопка «Пас»", !autoPass, new Toggle() {
                       public void set(boolean on) {
-                          autoPass = on;
+                          autoPass = !on;
                       }
                   }));
                   right.addView(onOff("Кнопка «Добрати»", showDraw, new Toggle() {
@@ -5475,9 +5632,9 @@ jobs:
                           showDraw = on;
                       }
                   }));
-                  right.addView(onOff("Автопідсвічування карт", hint, new Toggle() {
+                  right.addView(onOff("Вибір карт вручну", !hint, new Toggle() {
                       public void set(boolean on) {
-                          hint = on;
+                          hint = !on;
                       }
                   }));
                   if (hostMode()) {
@@ -5921,7 +6078,7 @@ jobs:
                       public void onClick(View v) {
                           dd[0].dismiss();
                       }
-                  }), lp(3.4f, 0.95f, 0.08f));
+                  }), lp(3.1f, 0.95f, 0.08f));
                   row.addView(btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
                       public void onClick(View v) {
                           try {
@@ -5937,7 +6094,7 @@ jobs:
                           }
                           dd[0].dismiss();
                       }
-                  }), lp(3.4f, 0.95f, 0.08f));
+                  }), lp(3.1f, 0.95f, 0.08f));
                   box.addView(row);
                   dd[0] = makeDialog(box, true);
                   showSized(dd[0], 7.2f);
@@ -6106,24 +6263,30 @@ jobs:
                       }
                       if (arr.length() == 0) {
                           list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
-                      } else {
-                          list.addView(btn("Стерти всю історію", 0xFFB71C1C, new View.OnClickListener() {
-                              public void onClick(View v) {
-                                  new AlertDialog.Builder(BaseActivity.this).setTitle("Стерти всю історію?")
-                                      .setPositiveButton("Так", new android.content.DialogInterface.OnClickListener() {
-                                          public void onClick(android.content.DialogInterface d, int w) {
-                                              sp.edit().putString("hist", "[]").commit();
-                                              after.run();
-                                          }
-                                      }).setNegativeButton("Ні", null).show();
-                              }
-                          }), lp(5f, 0.9f, 0.08f));
                       }
                   } catch (Exception e) {
                       list.addView(tv("Історія порожня", 0.4f, 0xFFB0BEC5, false));
                   }
                   return list;
               }
+              protected boolean hasHist() {
+                  try {
+                      return new JSONArray(sp.getString("hist", "[]")).length() > 0;
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              protected void askClearHist(final Runnable after) {
+                  new AlertDialog.Builder(this).setTitle("Стерти всю історію?")
+                      .setPositiveButton("Так", new android.content.DialogInterface.OnClickListener() {
+                          public void onClick(android.content.DialogInterface d, int w) {
+                              sp.edit().putString("hist", "[]").commit();
+                              after.run();
+                          }
+                      }).setNegativeButton("Ні", null).show();
+              }
+
               private void deleteHist(int idx) {
                   try {
                       JSONArray old = new JSONArray(sp.getString("hist", "[]"));
@@ -6175,7 +6338,7 @@ jobs:
               private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
               private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
               private static final int REQ_MIC = 21;
-              private static final String[] LEVELS = {"Аматор", "Студент", "Геній"};
+              private static final String[] LEVELS = {"Аматор", "Студент", "Геній", "Легенда"};
               private static final String[] LEVELS_SHORT = LEVELS;
 
               private FrameLayout root;
@@ -6397,6 +6560,7 @@ jobs:
                       }
                   };
                   host = new Host(nick, avatar < 0 ? -1 : avatar, sendPhoto(), cid, toUi);
+                  host.defLevel = bestLevel();
                   host.setBotDelay(botDelay);
                   host.setSaver(new Host.Saver() {
                       public void save(String d) {
@@ -6648,11 +6812,27 @@ jobs:
                       }
                   }));
                   col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
-                  col.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.setOrientation(LinearLayout.HORIZONTAL);
+                  bar.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           showMenu();
                       }
                   }), lp(3f, 0.95f, 0.1f));
+                  View sp0 = new View(this);
+                  bar.addView(sp0, new LinearLayout.LayoutParams(0, 1, 1f));
+                  if (hasHist()) {
+                      bar.addView(btn("Стерти всю історію", 0xFFB71C1C, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              askClearHist(new Runnable() {
+                                  public void run() {
+                                      showHistory();
+                                  }
+                              });
+                          }
+                      }), lp(5.2f, 0.95f, 0.1f));
+                  }
+                  col.addView(bar, new LinearLayout.LayoutParams(MATCH, WRAP));
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
               }
 
@@ -6902,8 +7082,7 @@ jobs:
                   LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   row.setGravity(Gravity.CENTER_VERTICAL);
-                  row.setBackground(bg(0xFF2C3A41, 0.2f));
-                  row.setPadding(px(0.2f), px(0.08f), px(0.3f), px(0.08f));
+                  LinearLayout levelRow = null;
                   Avatars.AvatarView av = new Avatars.AvatarView(this);
                   av.set(pi(p[1]), p[2], false);
                   row.addView(av, lp(1.0f, 1.0f, 0.05f));
@@ -6930,19 +7109,54 @@ jobs:
                       }
                       if (bot) {
                           int lv = pi(p[4]);
-                          View gap = new View(this);
-                          row.addView(gap, new LinearLayout.LayoutParams(px(0.3f), 1));
-                          for (int k = 0; k < 3; k++) {
+                          levelRow = new LinearLayout(this);
+                          levelRow.setOrientation(LinearLayout.HORIZONTAL);
+                          levelRow.setGravity(Gravity.CENTER_VERTICAL);
+                          levelRow.addView(tv("Рівень:", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                          for (int k = 0; k < LEVELS.length; k++) {
                               final int lk = k;
-                              row.addView(btn(LEVELS_SHORT[k], lv == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                              LinearLayout.LayoutParams lpk = new LinearLayout.LayoutParams(0, px(0.8f), 1f);
+                              lpk.setMargins(px(0.05f), px(0.03f), px(0.05f), px(0.03f));
+                              levelRow.addView(btn(LEVELS_SHORT[k], lv == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
                                   public void onClick(View v) {
-                                      if (host != null) host.setLevel(idx, lk);
+                                      if (host != null) {
+                                          host.setLevel(idx, lk);
+                                          countLevel(lk);
+                                      }
                                   }
-                              }), lp(2.0f, 0.8f, 0.03f));
+                              }), lpk);
                           }
                       }
                   }
-                  return row;
+                  LinearLayout outer = new LinearLayout(this);
+                  outer.setOrientation(LinearLayout.VERTICAL);
+                  outer.setBackground(bg(0xFF2C3A41, 0.2f));
+                  outer.setPadding(px(0.2f), px(0.08f), px(0.3f), px(0.08f));
+                  outer.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  if (levelRow != null) outer.addView(levelRow, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  return outer;
+              }
+
+              // найчастіше обраний рівень бота стає стандартним для нових ботів
+              private void countLevel(int lk) {
+                  try {
+                      sp.edit().putInt("bl" + lk, sp.getInt("bl" + lk, 0) + 1).commit();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  if (host != null) host.defLevel = bestLevel();
+              }
+
+              private int bestLevel() {
+                  int best = 1, bc = 0;
+                  for (int k = 0; k < LEVELS.length; k++) {
+                      int c = sp.getInt("bl" + k, 0);
+                      if (c > bc) {
+                          bc = c;
+                          best = k;
+                      }
+                  }
+                  return best;
               }
 
               private void refreshLobby() {
@@ -7040,7 +7254,7 @@ jobs:
 
                   LinearLayout tl = new LinearLayout(this);
                   tl.setOrientation(LinearLayout.VERTICAL);
-                  scoreLbl = smallBtn("Очки: 0", new View.OnClickListener() {
+                  scoreLbl = smallBtn("Очки", new View.OnClickListener() {
                       public void onClick(View v) {
                           showScores();
                       }
@@ -7208,23 +7422,23 @@ jobs:
                   fillRoom();
                   applyPlayers();
                   table.setState(gs);
-                  scoreLbl.setText("Очки: " + at(gs.totals, me));
                   boolean paused = gs.paused >= 0;
                   holdGame = paused && !settingsPaused;
                   updateHold();
                   boolean myTurn = gs.cur == me && !gs.over && !paused;
                   setBtn(btnDraw, myTurn && gs.canDraw);
                   btnDraw.setVisibility(showDraw ? View.VISIBLE : View.GONE);
-                  setBtn(btnPass, myTurn && gs.canPass);
-                  btnPass.setVisibility(autoPass && !gs.skip ? View.GONE : View.VISIBLE);
-                  btnResume.setVisibility(gs.paused == me ? View.VISIBLE : View.GONE);
-                  ivPause.setType(gs.paused == me ? IconView.PLAY : IconView.PAUSE);
-                  ivPause.setAlpha(paused && gs.paused != me ? 0.35f : 1f);
-                  if (resultDlg != null && resultDlg.isShowing() && !gs.over) resultDlg.dismiss();
                   boolean anyLegal = false;
                   for (Boolean b : gs.legal) {
                       if (b) anyLegal = true;
                   }
+                  setBtn(btnPass, myTurn && gs.canPass);
+                  // з wild пас дозволений: кнопка з'являється навіть при вимкненому показі
+                  btnPass.setVisibility(autoPass && !gs.skip && !(myTurn && gs.canPass && anyLegal) ? View.GONE : View.VISIBLE);
+                  btnResume.setVisibility(gs.paused == me ? View.VISIBLE : View.GONE);
+                  ivPause.setType(gs.paused == me ? IconView.PLAY : IconView.PAUSE);
+                  ivPause.setAlpha(paused && gs.paused != me ? 0.35f : 1f);
+                  if (resultDlg != null && resultDlg.isShowing() && !gs.over) resultDlg.dismiss();
                   if (autoPass && myTurn && gs.canPass && !gs.skip && !anyLegal) {
                       if (!autoPassSent) {
                           autoPassSent = true;
@@ -7240,6 +7454,26 @@ jobs:
               }
 
               // ---------- штурхання, голос ----------
+              private boolean autoPaused;
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  if (screen == S_GAME && gs != null && !gs.over && gs.paused < 0 && !isFinishing()) {
+                      autoPaused = true;
+                      send("PAUSE");
+                  }
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (autoPaused) {
+                      autoPaused = false;
+                      send("RESUME");
+                  }
+              }
+
               private void onPoked(int from) {
                   try {
                       Animation a = new TranslateAnimation(-px(0.35f), px(0.35f), 0, 0);
