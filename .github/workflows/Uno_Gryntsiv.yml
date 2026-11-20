@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 12
-                  versionName "12.0"
+                  versionCode 13
+                  versionName "13.0"
               }
               signingConfigs {
                   debug {
@@ -705,6 +705,666 @@ jobs:
           }
           EOF
 
+          cat > app/src/main/java/com/example/unogryntsiv/Relay.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          import java.io.BufferedReader;
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.ArrayList;
+          import java.util.LinkedHashSet;
+          import java.util.Map;
+          import java.util.Random;
+          import java.util.TreeMap;
+          import java.util.concurrent.LinkedBlockingQueue;
+          import java.util.concurrent.TimeUnit;
+
+          // Гра через інтернет: кімната живе у Firebase Realtime Database (REST + SSE, без SDK).
+          // rooms/КОД/meta, rooms/КОД/up/CID/КЛЮЧ (клієнт -> господар), rooms/КОД/down/CID/КЛЮЧ (господар -> клієнт)
+          public class Relay {
+              public static String BASE = "https://uno-gryntsiv-default-rtdb.europe-west1.firebasedatabase.app";
+              public static final String ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+              public static final String NOCON = "Не вдалося зв'язатися з Firebase. Перевірте інтернет";
+              private static final String END = "\u0000END";
+              private static long seq;
+
+              public static String newCode() {
+                  Random r = new Random();
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < 5; i++) sb.append(ALPHA.charAt(r.nextInt(ALPHA.length())));
+                  return sb.toString();
+              }
+
+              public static String cleanCode(String s) {
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < s.length(); i++) {
+                      char c = Character.toUpperCase(s.charAt(i));
+                      if (ALPHA.indexOf(c) >= 0) sb.append(c);
+                  }
+                  return sb.toString();
+              }
+
+              private static synchronized String newKey() {
+                  seq++;
+                  String a = String.valueOf(System.currentTimeMillis());
+                  String b = String.valueOf(seq % 1000000);
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = a.length(); i < 13; i++) sb.append('0');
+                  sb.append(a);
+                  for (int i = b.length(); i < 6; i++) sb.append('0');
+                  sb.append(b);
+                  return sb.toString();
+              }
+
+              // ---------- JSON ----------
+              public static String quote(String s) {
+                  StringBuilder sb = new StringBuilder("\"");
+                  for (int i = 0; i < s.length(); i++) {
+                      char c = s.charAt(i);
+                      if (c == '"') sb.append("\\\"");
+                      else if (c == '\\') sb.append("\\\\");
+                      else if (c == '\n') sb.append("\\n");
+                      else if (c == '\r') sb.append("\\r");
+                      else if (c == '\t') sb.append("\\t");
+                      else if (c < 0x20) sb.append(' ');
+                      else sb.append(c);
+                  }
+                  return sb.append('"').toString();
+              }
+
+              private static class Parser {
+                  final String s;
+                  int i;
+
+                  Parser(String s) {
+                      this.s = s;
+                  }
+
+                  void ws() {
+                      while (i < s.length() && s.charAt(i) <= ' ') i++;
+                  }
+
+                  Object value() {
+                      ws();
+                      if (i >= s.length()) return null;
+                      char c = s.charAt(i);
+                      if (c == '{') {
+                          i++;
+                          TreeMap<String, Object> m = new TreeMap<String, Object>();
+                          ws();
+                          if (i < s.length() && s.charAt(i) == '}') {
+                              i++;
+                              return m;
+                          }
+                          while (i < s.length()) {
+                              ws();
+                              String k = str();
+                              ws();
+                              if (i < s.length() && s.charAt(i) == ':') i++;
+                              Object v = value();
+                              m.put(k, v);
+                              ws();
+                              if (i < s.length() && s.charAt(i) == ',') {
+                                  i++;
+                                  continue;
+                              }
+                              if (i < s.length() && s.charAt(i) == '}') i++;
+                              break;
+                          }
+                          return m;
+                      }
+                      if (c == '"') return str();
+                      if (c == '[') {
+                          int depth = 0;
+                          while (i < s.length()) {
+                              char d = s.charAt(i++);
+                              if (d == '[') depth++;
+                              else if (d == ']' && --depth == 0) break;
+                          }
+                          return null;
+                      }
+                      int st = i;
+                      while (i < s.length() && ",}] \n\r\t".indexOf(s.charAt(i)) < 0) i++;
+                      String t = s.substring(st, i);
+                      if (t.equals("null")) return null;
+                      return t;
+                  }
+
+                  String str() {
+                      if (i >= s.length() || s.charAt(i) != '"') return "";
+                      i++;
+                      StringBuilder sb = new StringBuilder();
+                      while (i < s.length()) {
+                          char c = s.charAt(i++);
+                          if (c == '"') break;
+                          if (c == '\\' && i < s.length()) {
+                              char d = s.charAt(i++);
+                              if (d == 'n') sb.append('\n');
+                              else if (d == 'r') sb.append('\r');
+                              else if (d == 't') sb.append('\t');
+                              else if (d == 'b') sb.append('\b');
+                              else if (d == 'f') sb.append('\f');
+                              else if (d == 'u' && i + 4 <= s.length()) {
+                                  try {
+                                      sb.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                                  } catch (Exception e) {
+                                      // ignore
+                                  }
+                                  i += 4;
+                              } else sb.append(d);
+                          } else {
+                              sb.append(c);
+                          }
+                      }
+                      return sb.toString();
+                  }
+              }
+
+              public static Object parse(String s) {
+                  if (s == null) return null;
+                  try {
+                      return new Parser(s).value();
+                  } catch (Exception e) {
+                      return null;
+                  }
+              }
+
+              // ---------- HTTP ----------
+              // Повертає тіло відповіді або null, якщо запит не вдався
+              public static String http(String method, String path, String body) {
+                  try {
+                      URL u = new URL(BASE + "/" + path + ".json");
+                      HttpURLConnection c = (HttpURLConnection) u.openConnection();
+                      c.setConnectTimeout(8000);
+                      c.setReadTimeout(15000);
+                      c.setRequestMethod(method);
+                      if (body != null) {
+                          byte[] b = body.getBytes("UTF-8");
+                          c.setDoOutput(true);
+                          c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                          c.setFixedLengthStreamingMode(b.length);
+                          OutputStream o = c.getOutputStream();
+                          o.write(b);
+                          o.close();
+                      }
+                      int code = c.getResponseCode();
+                      if (code >= 300) {
+                          try {
+                              c.getErrorStream().close();
+                          } catch (Exception e) {
+                              // ignore
+                          }
+                          return null;
+                      }
+                      InputStream in = c.getInputStream();
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[4096];
+                      int n;
+                      while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                      in.close();
+                      return bo.toString("UTF-8");
+                  } catch (Exception e) {
+                      return null;
+                  }
+              }
+
+              public interface Items {
+                  void onItem(String[] segs, String line);
+              }
+
+              // ---------- читання потоку подій ----------
+              public static class Stream {
+                  private final String path;
+                  private final Items cb;
+                  private volatile boolean stopped;
+                  private volatile HttpURLConnection conn;
+                  private final LinkedHashSet<String> seen = new LinkedHashSet<String>();
+                  private final LinkedBlockingQueue<String> dels = new LinkedBlockingQueue<String>();
+
+                  public Stream(String path, Items cb) {
+                      this.path = path;
+                      this.cb = cb;
+                  }
+
+                  public void start() {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              loop();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                      Thread d = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  while (!stopped) {
+                                      String p = dels.poll(1, TimeUnit.SECONDS);
+                                      if (p != null) http("DELETE", p, null);
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                          }
+                      });
+                      d.setDaemon(true);
+                      d.start();
+                  }
+
+                  public void stop() {
+                      stopped = true;
+                      final HttpURLConnection c = conn;
+                      if (c == null) return;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  c.disconnect();
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  private void loop() {
+                      while (!stopped) {
+                          try {
+                              URL u = new URL(BASE + "/" + path + ".json");
+                              HttpURLConnection c = (HttpURLConnection) u.openConnection();
+                              conn = c;
+                              c.setConnectTimeout(8000);
+                              c.setReadTimeout(70000);
+                              c.setRequestProperty("Accept", "text/event-stream");
+                              if (c.getResponseCode() == 200) {
+                                  BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+                                  String ev = "";
+                                  String line;
+                                  while (!stopped && (line = r.readLine()) != null) {
+                                      if (line.startsWith("event:")) {
+                                          ev = line.substring(6).trim();
+                                      } else if (line.startsWith("data:")) {
+                                          event(ev, line.substring(5).trim());
+                                      }
+                                  }
+                              }
+                          } catch (Exception e) {
+                              // повторимо
+                          }
+                          if (stopped) break;
+                          try {
+                              Thread.sleep(1500);
+                          } catch (InterruptedException e) {
+                              break;
+                          }
+                      }
+                  }
+
+                  private void event(String ev, String data) {
+                      if (!ev.equals("put") && !ev.equals("patch")) return;
+                      Object o = parse(data);
+                      if (!(o instanceof Map)) return;
+                      Map<?, ?> m = (Map<?, ?>) o;
+                      Object pa = m.get("path");
+                      Object val = m.get("data");
+                      String p = pa == null ? "/" : pa.toString();
+                      if (ev.equals("put")) {
+                          walk(split(p), val);
+                      } else if (val instanceof Map) {
+                          for (Map.Entry<?, ?> e : ((Map<?, ?>) val).entrySet()) {
+                              ArrayList<String> segs = split(p);
+                              for (String s : e.getKey().toString().split("/")) {
+                                  if (s.length() > 0) segs.add(s);
+                              }
+                              walk(segs, e.getValue());
+                          }
+                      }
+                  }
+
+                  private ArrayList<String> split(String p) {
+                      ArrayList<String> r = new ArrayList<String>();
+                      for (String s : p.split("/")) {
+                          if (s.length() > 0) r.add(s);
+                      }
+                      return r;
+                  }
+
+                  private void walk(ArrayList<String> segs, Object val) {
+                      if (val == null) return;
+                      if (val instanceof Map) {
+                          for (Map.Entry<?, ?> e : ((Map<?, ?>) val).entrySet()) {
+                              ArrayList<String> n = new ArrayList<String>(segs);
+                              n.add(e.getKey().toString());
+                              walk(n, e.getValue());
+                          }
+                          return;
+                      }
+                      StringBuilder key = new StringBuilder();
+                      for (String s : segs) key.append('/').append(s);
+                      String k = key.toString();
+                      if (!seen.add(k)) return;
+                      while (seen.size() > 3000) {
+                          seen.remove(seen.iterator().next());
+                      }
+                      String[] sa = segs.toArray(new String[0]);
+                      for (String l : val.toString().split("\n")) {
+                          if (l.length() > 0) {
+                              try {
+                                  cb.onItem(sa, l);
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                          }
+                      }
+                      dels.offer(path + k);
+                  }
+              }
+
+              // ---------- запис повідомлень ----------
+              public static class Writer {
+                  private final String path;
+                  private final boolean ping;
+                  private final boolean clear;
+                  private final LinkedBlockingQueue<String> q = new LinkedBlockingQueue<String>();
+                  private volatile boolean closed;
+
+                  public Writer(String path, boolean ping, boolean clear) {
+                      this.path = path;
+                      this.ping = ping;
+                      this.clear = clear;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              loop();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void send(String line) {
+                      if (!closed) q.offer(line);
+                  }
+
+                  public void close() {
+                      if (closed) return;
+                      closed = true;
+                      q.offer(END);
+                  }
+
+                  private void loop() {
+                      if (clear) http("DELETE", path, null);
+                      try {
+                          while (true) {
+                              String first = q.poll(8, TimeUnit.SECONDS);
+                              if (first == null) {
+                                  if (!ping) continue;
+                                  first = "PING";
+                              }
+                              if (END.equals(first)) break;
+                              StringBuilder sb = new StringBuilder(first);
+                              boolean end = false;
+                              int cnt = 1;
+                              while (cnt < 40 && sb.length() < 400000) {
+                                  String x = q.poll();
+                                  if (x == null) break;
+                                  if (END.equals(x)) {
+                                      end = true;
+                                      break;
+                                  }
+                                  sb.append('\n').append(x);
+                                  cnt++;
+                              }
+                              String body = quote(sb.toString());
+                              String key = newKey();
+                              for (int a = 0; a < 3; a++) {
+                                  if (http("PUT", path + "/" + key, body) != null) break;
+                                  Thread.sleep(700);
+                              }
+                              if (end) break;
+                          }
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                  }
+              }
+
+              // ---------- посилання господаря на клієнта ----------
+              public static class RelayLink extends Link {
+                  public final String cid;
+                  private final Writer w;
+
+                  RelayLink(String code, String cid) {
+                      this.cid = cid;
+                      w = new Writer("rooms/" + code + "/down/" + cid, true, true);
+                  }
+
+                  public void send(String line) {
+                      w.send(line);
+                  }
+
+                  public void close() {
+                      w.close();
+                  }
+              }
+
+              // ---------- сторона господаря ----------
+              public static class HostSide {
+                  public interface Cb {
+                      void onLine(String cid, String line);
+
+                      void onReady(String code);
+
+                      void onError(String msg);
+                  }
+
+                  private final String cid, want;
+                  private final Cb cb;
+                  private volatile String code = "";
+                  private Stream up;
+                  private volatile boolean stopped;
+                  private final java.util.HashMap<String, Long> rx = new java.util.HashMap<String, Long>();
+
+                  public HostSide(String cid, String wantCode, Cb cb) {
+                      this.cid = cid;
+                      this.want = wantCode == null ? "" : wantCode;
+                      this.cb = cb;
+                  }
+
+                  public String code() {
+                      return code;
+                  }
+
+                  public void start() {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              open();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  private void open() {
+                      ArrayList<String> cand = new ArrayList<String>();
+                      if (want.length() > 0) cand.add(want);
+                      for (int i = 0; i < 6; i++) cand.add(newCode());
+                      String pick = null;
+                      for (String c : cand) {
+                          String meta = http("GET", "rooms/" + c + "/meta", null);
+                          if (meta == null) {
+                              cb.onError(NOCON);
+                              return;
+                          }
+                          boolean free = meta.trim().equals("null");
+                          if (!free) {
+                              Object o = parse(meta);
+                              if (o instanceof Map && cid.equals(((Map<?, ?>) o).get("h"))) free = true;
+                          }
+                          if (free) {
+                              pick = c;
+                              break;
+                          }
+                      }
+                      if (pick == null || stopped) {
+                          cb.onError("Не вдалося створити кімнату");
+                          return;
+                      }
+                      http("DELETE", "rooms/" + pick, null);
+                      if (http("PUT", "rooms/" + pick + "/meta", "{\"h\":" + quote(cid) + "}") == null) {
+                          cb.onError(NOCON);
+                          return;
+                      }
+                      code = pick;
+                      up = new Stream("rooms/" + pick + "/up", new Items() {
+                          public void onItem(String[] segs, String line) {
+                              if (segs.length != 2) return;
+                              synchronized (rx) {
+                                  rx.put(segs[0], System.currentTimeMillis());
+                              }
+                              if (line.equals("PING")) return;
+                              cb.onLine(segs[0], line);
+                          }
+                      });
+                      up.start();
+                      cb.onReady(pick);
+                  }
+
+                  public long lastRx(String c) {
+                      synchronized (rx) {
+                          Long v = rx.get(c);
+                          return v == null ? 0 : v;
+                      }
+                  }
+
+                  public void touch(String c) {
+                      synchronized (rx) {
+                          rx.put(c, System.currentTimeMillis());
+                      }
+                  }
+
+                  public RelayLink newLink(String c) {
+                      touch(c);
+                      return new RelayLink(code, c);
+                  }
+
+                  public void stop() {
+                      stopped = true;
+                      if (up != null) up.stop();
+                      final String c = code;
+                      if (c.length() > 0) {
+                          Thread t = new Thread(new Runnable() {
+                              public void run() {
+                                  http("DELETE", "rooms/" + c, null);
+                              }
+                          });
+                          t.setDaemon(true);
+                          t.start();
+                      }
+                  }
+              }
+
+              // ---------- сторона гостя ----------
+              public static class ClientSide {
+                  private final String code, cid, hello;
+                  private final Client.Cb cb;
+                  private volatile boolean stopped;
+                  private Stream down;
+                  private Writer w;
+                  public volatile String failMsg = "";
+
+                  public ClientSide(String code, String cid, String hello, Client.Cb cb) {
+                      this.code = code;
+                      this.cid = cid;
+                      this.hello = hello;
+                      this.cb = cb;
+                  }
+
+                  public void start() {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              run0();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  private void fail(String m) {
+                      failMsg = m;
+                      stop();
+                      cb.onFail();
+                  }
+
+                  private void run0() {
+                      String meta = http("GET", "rooms/" + code + "/meta", null);
+                      if (meta == null) {
+                          fail(NOCON);
+                          return;
+                      }
+                      if (meta.trim().equals("null")) {
+                          fail("Кімнату з таким кодом не знайдено");
+                          return;
+                      }
+                      http("DELETE", "rooms/" + code + "/up/" + cid, null);
+                      http("DELETE", "rooms/" + code + "/down/" + cid, null);
+                      if (stopped) return;
+                      final long[] last = {0};
+                      down = new Stream("rooms/" + code + "/down/" + cid, new Items() {
+                          public void onItem(String[] segs, String line) {
+                              last[0] = System.currentTimeMillis();
+                              if (line.equals("PING")) return;
+                              cb.onLine(line);
+                          }
+                      });
+                      down.start();
+                      w = new Writer("rooms/" + code + "/up/" + cid, true, false);
+                      w.send(hello);
+                      long t0 = System.currentTimeMillis();
+                      while (!stopped) {
+                          try {
+                              Thread.sleep(500);
+                          } catch (InterruptedException e) {
+                              return;
+                          }
+                          long now = System.currentTimeMillis();
+                          if (last[0] == 0) {
+                              if (now - t0 > 12000) {
+                                  fail("Господар не відповідає");
+                                  return;
+                              }
+                          } else if (now - last[0] > 30000) {
+                              stop();
+                              cb.onClosed();
+                              return;
+                          }
+                      }
+                  }
+
+                  public void send(String line) {
+                      Writer x = w;
+                      if (x != null) x.send(line);
+                  }
+
+                  public void stop() {
+                      stopped = true;
+                      Writer x = w;
+                      if (x != null) x.close();
+                      if (down != null) down.stop();
+                  }
+
+                  public void leave() {
+                      Writer x = w;
+                      if (x != null) x.send("BYE");
+                      stop();
+                  }
+              }
+          }
+          EOF
+
           cat > app/src/main/java/com/example/unogryntsiv/Discovery.java <<'EOF'
           package com.example.unogryntsiv;
 
@@ -941,6 +1601,7 @@ jobs:
               private final String roomName;
               private boolean voiceBusy;
               private int voiceAcks;
+              private final HashSet<P> voiceTo = new HashSet<P>();
 
               public interface Saver {
                   void save(String data);
@@ -963,6 +1624,11 @@ jobs:
                   if (!voiceBusy) return;
                   voiceBusy = false;
                   voiceAcks = 0;
+                  for (P q : voiceTo) {
+                      int qi = ps.indexOf(q);
+                      if (qi >= 0) sendAll("LIS|" + qi + "|0");
+                  }
+                  voiceTo.clear();
                   sendAll("VLOCK|0");
               }
 
@@ -983,18 +1649,47 @@ jobs:
               }
 
               public String start() {
+                  String err = setWifi(true);
+                  h.post(new Runnable() {
+                      public void run() {
+                          broadcastLobby();
+                      }
+                  });
+                  return err;
+              }
+
+              public boolean isWifi() {
+                  return server != null && !server.isClosed();
+              }
+
+              // вмикає або вимикає гру по Wi-Fi (відкритий порт і оголошення кімнати)
+              public String setWifi(boolean on) {
+                  if (!on) {
+                      if (ann != null) ann.stop();
+                      ann = null;
+                      try {
+                          if (server != null) server.close();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      server = null;
+                      return null;
+                  }
+                  if (isWifi()) return null;
+                  final ServerSocket srv;
                   try {
-                      server = new ServerSocket();
-                      server.setReuseAddress(true);
-                      server.bind(new InetSocketAddress(PORT));
+                      srv = new ServerSocket();
+                      srv.setReuseAddress(true);
+                      srv.bind(new InetSocketAddress(PORT));
                   } catch (Exception e) {
                       return "Не вдалося відкрити порт " + PORT;
                   }
+                  server = srv;
                   Thread t = new Thread(new Runnable() {
                       public void run() {
-                          while (!stopped) {
+                          while (!stopped && !srv.isClosed()) {
                               try {
-                                  Socket s = server.accept();
+                                  Socket s = srv.accept();
                                   s.setTcpNoDelay(true);
                                   final Link.SocketLink l = new Link.SocketLink(s);
                                   l.readLoop(new Link.LineSink() {
@@ -1015,7 +1710,7 @@ jobs:
                                       }
                                   });
                               } catch (Exception e) {
-                                  if (stopped) break;
+                                  if (stopped || srv.isClosed()) break;
                               }
                           }
                       }
@@ -1032,16 +1727,109 @@ jobs:
                   return null;
               }
 
+              // ---------- гра через інтернет ----------
+              public interface NetCb {
+                  void onNet(String code, String err);
+              }
+
+              private Relay.HostSide relay;
+              private final HashMap<String, Link> rlinks = new HashMap<String, Link>();
+
+              private final Runnable netCheck = new Runnable() {
+                  public void run() {
+                      if (relay == null || stopped) return;
+                      long now = System.currentTimeMillis();
+                      ArrayList<String> dead = new ArrayList<String>();
+                      for (String c : rlinks.keySet()) {
+                          if (now - relay.lastRx(c) > 30000) dead.add(c);
+                      }
+                      for (String c : dead) {
+                          Link l = rlinks.remove(c);
+                          dropped(l);
+                          l.close();
+                      }
+                      h.postDelayed(this, 5000);
+                  }
+              };
+
+              public boolean isInternet() {
+                  return relay != null;
+              }
+
+              public void startInternet(String wantCode, final NetCb cb) {
+                  if (relay != null) return;
+                  final Relay.HostSide[] self = new Relay.HostSide[1];
+                  self[0] = new Relay.HostSide(me.cid, wantCode, new Relay.HostSide.Cb() {
+                      public void onLine(final String cid, final String line) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (relay == self[0]) relayLine(cid, line);
+                              }
+                          });
+                      }
+
+                      public void onReady(final String code) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (relay != self[0]) return;
+                                  h.removeCallbacks(netCheck);
+                                  h.postDelayed(netCheck, 5000);
+                                  cb.onNet(code, null);
+                              }
+                          });
+                      }
+
+                      public void onError(final String msg) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (relay != self[0]) return;
+                                  relay = null;
+                                  cb.onNet(null, msg);
+                              }
+                          });
+                      }
+                  });
+                  relay = self[0];
+                  relay.start();
+              }
+
+              public void stopInternet() {
+                  if (relay == null) return;
+                  h.removeCallbacks(netCheck);
+                  Relay.HostSide r = relay;
+                  relay = null;
+                  r.stop();
+                  ArrayList<Link> ls = new ArrayList<Link>(rlinks.values());
+                  rlinks.clear();
+                  for (Link l : ls) {
+                      dropped(l);
+                      l.close();
+                  }
+              }
+
+              private void relayLine(String cid, String line) {
+                  if (stopped || relay == null) return;
+                  Link l = rlinks.get(cid);
+                  if (line.startsWith("HELLO|")) {
+                      if (l != null) {
+                          dropped(l);
+                          l.close();
+                      }
+                      l = relay.newLink(cid);
+                      rlinks.put(cid, l);
+                      handle(l, line);
+                      return;
+                  }
+                  if (l == null) return;
+                  handle(l, line);
+              }
+
               public void stop() {
                   stopped = true;
                   h.removeCallbacks(botRun);
                   h.removeCallbacks(voiceFree);
-                  if (ann != null) ann.stop();
-                  try {
-                      if (server != null) server.close();
-                  } catch (Exception e) {
-                      // ignore
-                  }
+                  stopInternet();
+                  setWifi(false);
                   for (P p : ps) {
                       if (p != me && p.link != null) p.link.close();
                   }
@@ -1307,11 +2095,19 @@ jobs:
                       voiceBusy = true;
                       voiceAcks = to.size();
                       sendAll("VLOCK|1");
+                      voiceTo.clear();
+                      for (P q : to) {
+                          voiceTo.add(q);
+                          sendAll("LIS|" + ps.indexOf(q) + "|1");
+                      }
                       for (P q : to) q.link.send(m);
                       h.removeCallbacks(voiceFree);
                       h.postDelayed(voiceFree, 15000);
                   } else if (c.equals("VDONE")) {
-                      if (voiceBusy && --voiceAcks <= 0) freeVoice();
+                      if (voiceBusy && voiceTo.remove(p)) {
+                          sendAll("LIS|" + i + "|0");
+                          if (--voiceAcks <= 0) freeVoice();
+                      }
                   } else if (c.equals("NAME")) {
                       if (f.length < 4) return;
                       p.name = clean(f[1]);
@@ -1857,6 +2653,40 @@ jobs:
               private final Handler h = new Handler(Looper.getMainLooper());
               private volatile Link.SocketLink link;
               private volatile boolean closed;
+              private Relay.ClientSide rel;
+              public volatile String failMsg = "";
+
+              public void connectRelay(String code, String cid, String hello, final Cb cb) {
+                  rel = new Relay.ClientSide(code, cid, hello, new Cb() {
+                      public void onLine(final String line) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (!closed) cb.onLine(line);
+                              }
+                          });
+                      }
+
+                      public void onClosed() {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (!closed) cb.onClosed();
+                              }
+                          });
+                      }
+
+                      public void onFail() {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (!closed) {
+                                      failMsg = rel == null ? "" : rel.failMsg;
+                                      cb.onFail();
+                                  }
+                              }
+                          });
+                      }
+                  });
+                  rel.start();
+              }
 
               public void connect(final String ip, final int port, final String hello, final Cb cb) {
                   Thread t = new Thread(new Runnable() {
@@ -1899,12 +2729,20 @@ jobs:
               }
 
               public void send(String line) {
+                  if (rel != null) {
+                      rel.send(line);
+                      return;
+                  }
                   Link l = link;
                   if (l != null) l.send(line);
               }
 
               public void close() {
                   closed = true;
+                  if (rel != null) {
+                      rel.leave();
+                      return;
+                  }
                   Link l = link;
                   if (l != null) {
                       l.send("BYE");
@@ -3100,7 +3938,7 @@ jobs:
                   RWIN = 8, RLOSE = 9, GWIN = 10, GLOSE = 11, WRONG = 12, JOIN = 13, MIX = 14, PASS = 15;
               // власні mp3 з uno_sounds (якщо є), інакше вбудований запасний звук
               private static final String[] NAMES = {"buttons|sfx_btn", "play|sfx_throw", "take|sfx_draw", "sfx_poke", "sfx_voice",
-                  "sfx_pause", "trash|sfx_del", "sfx_emo", "sfx_rwin", "sfx_rlose", "sfx_gwin", "sfx_glose", "sfx_wrong", "sfx_join",
+                  "sfx_pause", "trash|sfx_del", "sfx_emo", "win|sfx_rwin", "lose|sfx_rlose", "victory|sfx_gwin", "defeat|sfx_glose", "sfx_wrong", "sfx_join",
                   "mix|sfx_draw", "sfx_pass"};
 
               private final Context ctx;
@@ -3664,6 +4502,7 @@ jobs:
               private long[] emoUntil = new long[0];
               private String[] emoVal = new String[0];
               private GState g;
+              private boolean[] listening = new boolean[0];
 
               private float scroll, downX, downY, startScroll;
               private boolean moved;
@@ -3727,6 +4566,13 @@ jobs:
                       sx = new float[n];
                       sy = new float[n];
                   }
+                  invalidate();
+              }
+
+              public void setListening(int idx, boolean on) {
+                  if (idx < 0 || idx >= 8) return;
+                  if (listening.length < 8) listening = new boolean[8];
+                  listening[idx] = on;
                   invalidate();
               }
 
@@ -4156,6 +5002,25 @@ jobs:
                       c.drawArc(rf, 0f, 180f, false, p);
                       c.drawLine(mx, my + u * 0.1f, mx, my + u * 0.18f, p);
                   }
+                  if (idx < listening.length && listening[idx]) {
+                      float mx = cx - avR * 0.9f, my = cy + avR * 0.8f;
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFF2E7D32);
+                      c.drawCircle(mx, my, u * 0.34f, p);
+                      p.setColor(0xFFFFFFFF);
+                      c.drawRect(mx - u * 0.17f, my - u * 0.07f, mx - u * 0.07f, my + u * 0.07f, p);
+                      path.reset();
+                      path.moveTo(mx - u * 0.08f, my - u * 0.07f);
+                      path.lineTo(mx + u * 0.06f, my - u * 0.18f);
+                      path.lineTo(mx + u * 0.06f, my + u * 0.18f);
+                      path.lineTo(mx - u * 0.08f, my + u * 0.07f);
+                      path.close();
+                      c.drawPath(path, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(u * 0.04f);
+                      rf.set(mx - u * 0.02f, my - u * 0.12f, mx + u * 0.16f, my + u * 0.12f);
+                      c.drawArc(rf, -50f, 100f, false, p);
+                  }
                   return anim;
               }
 
@@ -4353,7 +5218,9 @@ jobs:
                   "😀", "😂", "😎", "😡",
                   "😢", "👍", "👏", "🤔",
                   "😍", "🤣", "😱", "🥳",
-                  "😴", "🙏", "🔥", "👎"
+                  "😴", "🙏", "🔥", "👎",
+                  "🤯", "😈", "🍿", "💔",
+                  "🤝", "🎉", "🙄", "🤫"
               };
               protected static final int WHITE = 0xFFFFFFFF;
 
@@ -4462,8 +5329,16 @@ jobs:
                   return Math.round(k * u);
               }
 
+              private Toast lastToast;
+
               protected void toast(String s) {
-                  Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+                  try {
+                      if (lastToast != null) lastToast.cancel();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  lastToast = Toast.makeText(this, s, Toast.LENGTH_SHORT);
+                  lastToast.show();
               }
 
               protected GradientDrawable bg(int color, float radiusU) {
@@ -4684,7 +5559,7 @@ jobs:
                   left.addView(avatarBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(3.2f)));
                   LinearLayout photoRow = new LinearLayout(this);
                   photoRow.setOrientation(LinearLayout.HORIZONTAL);
-                  photoRow.setGravity(Gravity.BOTTOM);
+                  photoRow.setGravity(Gravity.CENTER_VERTICAL);
                   photoRow.addView(btn("Моє фото", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           pickPhoto();
@@ -5041,7 +5916,9 @@ jobs:
                               refreshAvatars();
                           }
                       });
-                      photoBox.addView(pv, lp(1.2f, 1.2f, 0.02f));
+                      LinearLayout.LayoutParams plp = lp(1.75f, 1.75f, 0.02f);
+                      plp.leftMargin = px(0.45f);
+                      photoBox.addView(pv, plp);
                   }
               }
 
@@ -5392,6 +6269,7 @@ jobs:
           import android.view.animation.CycleInterpolator;
           import android.view.animation.TranslateAnimation;
           import android.widget.Button;
+          import android.widget.EditText;
           import android.widget.FrameLayout;
           import android.widget.HorizontalScrollView;
           import android.widget.LinearLayout;
@@ -5431,6 +6309,9 @@ jobs:
               private LinearLayout lobbyList;
               private TextView lobbyLimit;
               private TextView lobbyCount;
+              private LinearLayout netBox;
+              private String netCode = "";
+              private boolean netBusy;
               private Button lobbyStart;
               private Button lobbyBot;
 
@@ -5609,6 +6490,8 @@ jobs:
 
               private void createRoom(String saved) {
                   stopNet();
+                  netCode = "";
+                  netBusy = false;
                   matchFinished = false;
                   isHost = true;
                   pendingBanner = null;
@@ -5691,6 +6574,39 @@ jobs:
                   });
               }
 
+              private void joinCode(String code) {
+                  stopDisc();
+                  matchFinished = false;
+                  isHost = false;
+                  pendingBanner = null;
+                  players.clear();
+                  client = new Client();
+                  final Client cc = client;
+                  toServer = new Link() {
+                      public void send(String l) {
+                          cc.send(l);
+                      }
+                  };
+                  toast("Підключення…");
+                  client.connectRelay(code, cid, "HELLO|" + nick + "|" + (avatar < 0 ? -1 : avatar) + "|" + sendPhoto() + "|" + cid, new Client.Cb() {
+                      public void onLine(String line) {
+                          MainActivity.this.onLine(line);
+                      }
+
+                      public void onClosed() {
+                          if (screen == S_MENU) return;
+                          if (!matchFinished) toast("З'єднання втрачено");
+                          leaveToMenu();
+                      }
+
+                      public void onFail() {
+                          String m = cc.failMsg;
+                          toast(m == null || m.length() == 0 ? "Не вдалося підключитись" : m);
+                          showJoin();
+                      }
+                  });
+              }
+
               private void onLine(String line) {
                   String[] f = line.split("\\|", -1);
                   try {
@@ -5709,6 +6625,8 @@ jobs:
                           int k = pi(f[3]);
                           if (table != null && k >= 0 && k < EMOJI.length) table.showEmoji(pi(f[1]), EMOJI[k]);
                           sfx(Snd.EMO);
+                      } else if (f[0].equals("LIS")) {
+                          if (table != null) table.setListening(pi(f[1]), f[2].equals("1"));
                       } else if (f[0].equals("VLOCK")) {
                           voiceLock = f[1].equals("1");
                       } else if (f[0].equals("VBUSY")) {
@@ -5859,6 +6777,28 @@ jobs:
                   col.setOrientation(LinearLayout.VERTICAL);
                   col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
                   col.addView(tv("Кімнати у вашій Wi-Fi мережі", 0.5f, WHITE, true));
+                  LinearLayout crow = new LinearLayout(this);
+                  crow.setOrientation(LinearLayout.HORIZONTAL);
+                  crow.setGravity(Gravity.CENTER_VERTICAL);
+                  crow.addView(tv("Або код кімнати з інтернету:", 0.34f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                  final EditText etCode = new EditText(this);
+                  etCode.setSingleLine(true);
+                  etCode.setHint("XXXXX");
+                  etCode.setTextColor(WHITE);
+                  etCode.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 0.42f * u);
+                  etCode.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(8)});
+                  crow.addView(etCode, lp(3.2f, WRAP, 0.05f));
+                  crow.addView(btn("Увійти", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          String c = Relay.cleanCode(etCode.getText().toString());
+                          if (c.length() < 4) {
+                              toast("Введіть код кімнати");
+                              return;
+                          }
+                          joinCode(c);
+                      }
+                  }), lp(2.6f, 0.9f, 0.05f));
+                  col.addView(crow, new LinearLayout.LayoutParams(MATCH, WRAP));
                   ScrollView sv = new ScrollView(this);
                   joinList = new LinearLayout(this);
                   joinList.setOrientation(LinearLayout.VERTICAL);
@@ -5919,7 +6859,16 @@ jobs:
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
-                  col.addView(tv(isHost ? "Ваша кімната" : "Кімната", 0.5f, WHITE, true));
+                  if (isHost) {
+                      LinearLayout trow = new LinearLayout(this);
+                      trow.setOrientation(LinearLayout.HORIZONTAL);
+                      trow.setGravity(Gravity.CENTER_VERTICAL);
+                      trow.addView(tv("Ваша кімната", 0.5f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                      trow.addView(netBar(), new LinearLayout.LayoutParams(WRAP, WRAP));
+                      col.addView(trow, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  } else {
+                      col.addView(tv("Кімната", 0.5f, WHITE, true));
+                  }
                   lobbyCount = tv("", 0.32f, 0xFFB0BEC5, false);
                   col.addView(lobbyCount);
                   ScrollView sv = new ScrollView(this);
@@ -5977,6 +6926,78 @@ jobs:
                   }
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
                   refreshLobby();
+              }
+
+              // перемикачі Wifi / Інтернет і код кімнати
+              private LinearLayout netBar() {
+                  netBox = new LinearLayout(this);
+                  netBox.setOrientation(LinearLayout.VERTICAL);
+                  netBox.setGravity(Gravity.RIGHT);
+                  fillNetBar();
+                  return netBox;
+              }
+
+              private void fillNetBar() {
+                  if (netBox == null) return;
+                  netBox.removeAllViews();
+                  boolean w = host != null && host.isWifi();
+                  boolean n = host != null && host.isInternet();
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  row.addView(btn("Wifi", w ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (host == null) return;
+                          if (host.isWifi()) {
+                              host.setWifi(false);
+                          } else {
+                              hostErr(host.setWifi(true));
+                          }
+                          fillNetBar();
+                      }
+                  }), lp(2.4f, 0.85f, 0.04f));
+                  row.addView(btn("Інтернет", n ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (host == null || netBusy) return;
+                          if (host.isInternet()) {
+                              host.stopInternet();
+                              netCode = "";
+                              fillNetBar();
+                              return;
+                          }
+                          netBusy = true;
+                          toast("Підключення до інтернету…");
+                          final Host hh = host;
+                          hh.startInternet(sp.getString("roomCode", ""), new Host.NetCb() {
+                              public void onNet(String code, String err) {
+                                  netBusy = false;
+                                  if (host != hh) return;
+                                  if (code == null) {
+                                      toast(err);
+                                  } else {
+                                      netCode = code;
+                                      sp.edit().putString("roomCode", code).commit();
+                                  }
+                                  fillNetBar();
+                              }
+                          });
+                      }
+                  }), lp(3.0f, 0.85f, 0.04f));
+                  netBox.addView(row);
+                  if (n && netCode.length() > 0) {
+                      LinearLayout cr = new LinearLayout(this);
+                      cr.setOrientation(LinearLayout.HORIZONTAL);
+                      cr.setGravity(Gravity.CENTER_VERTICAL);
+                      cr.addView(tv("Код: " + netCode, 0.42f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.05f));
+                      cr.addView(btn("Поділитися", 0xFF1E88E5, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              android.content.Intent it = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                              it.setType("text/plain");
+                              it.putExtra(android.content.Intent.EXTRA_TEXT, "Грай зі мною в Uno Gryntsiv! Код кімнати: " + netCode);
+                              startActivity(android.content.Intent.createChooser(it, "Поділитися кодом"));
+                          }
+                      }), lp(3.0f, 0.75f, 0.04f));
+                      netBox.addView(cr);
+                  }
               }
 
               private void hostErr(String e) {
@@ -6143,7 +7164,7 @@ jobs:
                   tl.addView(histBtn, lp(2.8f, WRAP, 0.03f));
                   LinearLayout topLeft = new LinearLayout(this);
                   topLeft.setOrientation(LinearLayout.HORIZONTAL);
-                  topLeft.setGravity(Gravity.CENTER_VERTICAL);
+                  topLeft.setGravity(Gravity.TOP);
                   topLeft.addView(tl, lp(WRAP, WRAP, 0.0f));
                   if (Cfg.SOUND) {
                       LinearLayout ab = audioBar(0.9f);
@@ -6447,7 +7468,7 @@ jobs:
                   box.setOrientation(LinearLayout.VERTICAL);
                   box.addView(tv(target < 0 ? "Емоція для всіх" : "Емоція для: " + pname(target), 0.34f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
                   final Dialog[] dd = new Dialog[1];
-                  for (int r = 0; r < 2; r++) {
+                  for (int r = 0; r < 3; r++) {
                       LinearLayout row = new LinearLayout(this);
                       row.setOrientation(LinearLayout.HORIZONTAL);
                       for (int c = 0; c < 8; c++) {
@@ -6471,7 +7492,16 @@ jobs:
               private void showRoom() {
                   LinearLayout box = new LinearLayout(this);
                   box.setOrientation(LinearLayout.VERTICAL);
-                  box.addView(tv("Кімната", 0.45f, WHITE, true), lp(WRAP, WRAP, 0.05f));
+                  if (isHost) {
+                      LinearLayout trow = new LinearLayout(this);
+                      trow.setOrientation(LinearLayout.HORIZONTAL);
+                      trow.setGravity(Gravity.CENTER_VERTICAL);
+                      trow.addView(tv("Кімната", 0.45f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                      trow.addView(netBar(), new LinearLayout.LayoutParams(WRAP, WRAP));
+                      box.addView(trow, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  } else {
+                      box.addView(tv("Кімната", 0.45f, WHITE, true), lp(WRAP, WRAP, 0.05f));
+                  }
                   ScrollView sv = new ScrollView(this);
                   roomList = new LinearLayout(this);
                   roomList.setOrientation(LinearLayout.VERTICAL);
