@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 11
-                  versionName "11.0"
+                  versionCode 12
+                  versionName "12.0"
               }
               signingConfigs {
                   debug {
@@ -123,6 +123,14 @@ jobs:
           </manifest>
           EOF
 
+          cat > app/src/main/java/com/example/unogryntsiv/Cfg.java <<'EOF'
+          package com.example.unogryntsiv;
+
+          public class Cfg {
+              public static final boolean SOUND = true;
+          }
+          EOF
+
           cat > app/src/main/java/com/example/unogryntsiv/Card.java <<'EOF'
           package com.example.unogryntsiv;
 
@@ -171,6 +179,7 @@ jobs:
 
               public int n;
               public String[] names;
+              public boolean[] asleep;
               public final ArrayList<ArrayList<Card>> hands = new ArrayList<ArrayList<Card>>();
               public final ArrayList<Card> deck = new ArrayList<Card>();
               public final ArrayList<Card> disc = new ArrayList<Card>();
@@ -191,6 +200,7 @@ jobs:
               public Engine(String[] names, int starter) {
                   this.names = names;
                   this.n = names.length;
+                  this.asleep = new boolean[n];
                   for (int c = 0; c < 4; c++) {
                       deck.add(new Card(c, 0));
                       for (int v = 1; v <= 12; v++) {
@@ -224,7 +234,39 @@ jobs:
               }
 
               private int next(int p) {
-                  return ((p + dir) % n + n) % n;
+                  int q = p;
+                  for (int i = 0; i < n; i++) {
+                      q = ((q + dir) % n + n) % n;
+                      if (!asleep[q]) return q;
+                  }
+                  return q;
+              }
+
+              public int awake() {
+                  int a = 0;
+                  for (int i = 0; i < n; i++) {
+                      if (!asleep[i]) a++;
+                  }
+                  return a;
+              }
+
+              // Додає «сплячого» гравця: у поточній партії не бере участі, у наступній прокинеться
+              public void addSleeper(String name) {
+                  String[] nn = new String[n + 1];
+                  System.arraycopy(names, 0, nn, 0, n);
+                  nn[n] = name;
+                  names = nn;
+                  boolean[] na = new boolean[n + 1];
+                  System.arraycopy(asleep, 0, na, 0, n);
+                  na[n] = true;
+                  asleep = na;
+                  hands.add(new ArrayList<Card>());
+                  if (roundPts != null) {
+                      int[] r = new int[n + 1];
+                      System.arraycopy(roundPts, 0, r, 0, Math.min(n, roundPts.length));
+                      roundPts = r;
+                  }
+                  n++;
               }
 
               public int nextOf(int p) {
@@ -356,7 +398,7 @@ jobs:
                   if (idx < 0) return "nocard";
                   if (k.v >= WILD && (color < 0 || color > 3)) return "nocolor";
                   log.setLength(0);
-                  boolean counter = pendSkip && k.v == SKIP;
+                  boolean counter = (pendSkip && k.v == SKIP) || (pendDraw > 0 && (k.v == D2 || k.v == D4));
                   Card played = h.remove(idx);
                   disc.add(played);
                   curColor = k.v >= WILD ? color : k.c;
@@ -398,7 +440,7 @@ jobs:
                       msg = log.toString();
                       return null;
                   }
-                  if (k.v == REV && n == 2) {
+                  if (k.v == REV && awake() == 2) {
                       say("ходить ще раз");
                   } else {
                       cur = next(p);
@@ -444,6 +486,9 @@ jobs:
               public void swap(int i, int j) {
                   if (i == j || i < 0 || j < 0 || i >= n || j >= n) return;
                   Collections.swap(hands, i, j);
+                  boolean ta = asleep[i];
+                  asleep[i] = asleep[j];
+                  asleep[j] = ta;
                   String t = names[i];
                   names[i] = names[j];
                   names[j] = t;
@@ -461,6 +506,7 @@ jobs:
               // Прибирає гравця з партії, його карти повертаються в колоду
               public void removePlayer(int i) {
                   if (i < 0 || i >= n || n <= 2) return;
+                  if (!asleep[i] && awake() <= 2) return;
                   log.setLength(0);
                   deck.addAll(hands.remove(i));
                   Collections.shuffle(deck, rnd);
@@ -470,11 +516,24 @@ jobs:
                       if (a != i) nn[b++] = names[a];
                   }
                   names = nn;
+                  boolean[] na = new boolean[n - 1];
+                  for (int a = 0, b = 0; a < n; a++) {
+                      if (a != i) na[b++] = asleep[a];
+                  }
+                  asleep = na;
+                  if (roundPts != null && roundPts.length == n) {
+                      int[] r = new int[n - 1];
+                      for (int a = 0, b = 0; a < n; a++) {
+                          if (a != i) r[b++] = roundPts[a];
+                      }
+                      roundPts = r;
+                  }
                   n--;
                   if (winner > i) winner--;
                   say(removed + " виходить з гри");
                   if (cur == i) {
                       cur = dir > 0 ? i % n : ((i - 1) % n + n) % n;
+                      if (asleep[cur]) cur = next(cur);
                       drawn = false;
                       settle();
                   } else if (cur > i) {
@@ -515,6 +574,8 @@ jobs:
                   }
                   sb.append('\n').append(msg.replace('\n', ' ')).append('\n').append(cards(deck)).append('\n').append(cards(disc));
                   for (int i = 0; i < n; i++) sb.append('\n').append(cards(hands.get(i)));
+                  sb.append('\n');
+                  for (int i = 0; i < n; i++) sb.append(asleep[i] ? '1' : '0');
                   return sb.toString();
               }
 
@@ -544,6 +605,11 @@ jobs:
                       ArrayList<Card> h = new ArrayList<Card>();
                       fillCards(h, f[14 + i]);
                       e.hands.add(h);
+                  }
+                  e.asleep = new boolean[e.n];
+                  if (f.length > 14 + e.n) {
+                      String a = f[14 + e.n];
+                      for (int i = 0; i < e.n && i < a.length(); i++) e.asleep[i] = a.charAt(i) == '1';
                   }
                   return e;
               }
@@ -873,7 +939,6 @@ jobs:
               private final P me = new P();
               private final ArrayList<int[]> rounds = new ArrayList<int[]>();
               private final String roomName;
-              private int pendBots;
               private boolean voiceBusy;
               private int voiceAcks;
 
@@ -1012,12 +1077,23 @@ jobs:
 
               // Повертає текст-повідомлення або null
               public String addBot() {
-                  if (ps.size() + pendBots >= MAXP) return "Максимум гравців — " + MAXP;
-                  if (inGame && eng != null && !eng.over) {
-                      pendBots++;
-                      return "Бот з'явиться з наступної партії";
-                  }
+                  if (ps.size() >= MAXP) return "Максимум гравців — " + MAXP;
                   addBotNow();
+                  if (inGame && eng != null) {
+                      eng.addSleeper(ps.get(ps.size() - 1).name);
+                      for (int k = 0; k < rounds.size(); k++) {
+                          int[] r = rounds.get(k);
+                          if (r.length < ps.size()) {
+                              int[] nr = new int[ps.size()];
+                              System.arraycopy(r, 0, nr, 0, r.length);
+                              rounds.set(k, nr);
+                          }
+                      }
+                      broadcastLobby();
+                      broadcastState();
+                      persist();
+                      return "Бот спить і прокинеться з наступної партії";
+                  }
                   broadcastLobby();
                   return null;
               }
@@ -1045,7 +1121,10 @@ jobs:
                   P p = ps.get(i);
                   if (inGame) {
                       if (ps.size() <= 2) return "Має лишитись щонайменше 2 гравці";
-                      if (eng == null || eng.over) return "Зачекайте початку наступної партії";
+                      if (eng == null) return "Зачекайте початку наступної партії";
+                      boolean sl = i < eng.asleep.length && eng.asleep[i];
+                      if (eng.over && !sl) return "Зачекайте початку наступної партії";
+                      if (!sl && eng.awake() <= 2) return "Має лишитись щонайменше 2 гравці";
                       eng.removePlayer(i);
                   }
                   ps.remove(i);
@@ -1388,24 +1467,6 @@ jobs:
               }
 
               private void newRound() {
-                  boolean added = false;
-                  while (pendBots > 0 && ps.size() < MAXP) {
-                      addBotNow();
-                      added = true;
-                      pendBots--;
-                  }
-                  pendBots = 0;
-                  if (added) {
-                      for (int k = 0; k < rounds.size(); k++) {
-                          int[] r = rounds.get(k);
-                          if (r.length < ps.size()) {
-                              int[] nr = new int[ps.size()];
-                              System.arraycopy(r, 0, nr, 0, r.length);
-                              rounds.set(k, nr);
-                          }
-                      }
-                      broadcastLobby();
-                  }
                   String[] names = new String[ps.size()];
                   for (int i = 0; i < names.length; i++) names[i] = ps.get(i).name;
                   if (starter < 0 || starter >= names.length) starter = 0;
@@ -1536,6 +1597,11 @@ jobs:
                       sb.append(ps.get(j).last);
                   }
                   sb.append('|').append(paused).append('|').append(roundsStr());
+                  sb.append('|');
+                  for (int j = 0; j < n; j++) {
+                      if (j > 0) sb.append(',');
+                      sb.append(j < e.asleep.length && e.asleep[j] ? 1 : 0);
+                  }
                   return sb.toString();
               }
 
@@ -3031,9 +3097,11 @@ jobs:
 
           public class Snd {
               public static final int BTN = 0, THROW = 1, DRAW = 2, POKE = 3, VOICE = 4, PAUSE = 5, DEL = 6, EMO = 7,
-                  RWIN = 8, RLOSE = 9, GWIN = 10, GLOSE = 11, WRONG = 12, JOIN = 13;
-              private static final String[] NAMES = {"btn", "throw", "draw", "poke", "voice", "pause", "del", "emo",
-                  "rwin", "rlose", "gwin", "glose", "wrong", "join"};
+                  RWIN = 8, RLOSE = 9, GWIN = 10, GLOSE = 11, WRONG = 12, JOIN = 13, MIX = 14, PASS = 15;
+              // власні mp3 з uno_sounds (якщо є), інакше вбудований запасний звук
+              private static final String[] NAMES = {"buttons|sfx_btn", "play|sfx_throw", "take|sfx_draw", "sfx_poke", "sfx_voice",
+                  "sfx_pause", "trash|sfx_del", "sfx_emo", "sfx_rwin", "sfx_rlose", "sfx_gwin", "sfx_glose", "sfx_wrong", "sfx_join",
+                  "mix|sfx_draw", "sfx_pass"};
 
               private final Context ctx;
               private final SharedPreferences sp;
@@ -3055,7 +3123,11 @@ jobs:
                   try {
                       pool = new SoundPool(8, AudioManager.STREAM_MUSIC, 0);
                       for (int i = 0; i < NAMES.length; i++) {
-                          int rid = ctx.getResources().getIdentifier("sfx_" + NAMES[i], "raw", ctx.getPackageName());
+                          int rid = 0;
+                          String[] cand = NAMES[i].split("\\|");
+                          for (int k = 0; k < cand.length && rid == 0; k++) {
+                              rid = ctx.getResources().getIdentifier(cand[k], "raw", ctx.getPackageName());
+                          }
                           ids[i] = rid == 0 ? 0 : pool.load(ctx, rid, 1);
                       }
                   } catch (Exception e) {
@@ -3214,10 +3286,14 @@ jobs:
               public Card top;
               public ArrayList<Card> hand = new ArrayList<Card>();
               public ArrayList<Boolean> legal = new ArrayList<Boolean>();
-              public int[] counts, totals, wins, last;
+              public int[] counts, totals, wins, last, asleep = new int[0];
               public int paused = -1;
               public int[][] rounds = new int[0][];
               public String msg = "";
+
+              public boolean sleeping(int i) {
+                  return i >= 0 && i < asleep.length && asleep[i] == 1;
+              }
 
               private static int pi(String s) {
                   try {
@@ -3285,6 +3361,8 @@ jobs:
                   g.last = ints(f[17]);
                   g.paused = pi(f[18]);
                   if (f.length > 19) g.rounds = parseRounds(f[19]);
+                  if (f.length > 20) g.asleep = ints(f[20]);
+                  else g.asleep = new int[g.counts.length];
                   return g;
               }
           }
@@ -3532,6 +3610,8 @@ jobs:
           import android.content.Context;
           import android.graphics.Canvas;
           import android.graphics.Paint;
+          import android.graphics.PorterDuff;
+          import android.graphics.PorterDuffXfermode;
           import android.graphics.Path;
           import android.graphics.RectF;
           import android.graphics.Typeface;
@@ -3746,14 +3826,14 @@ jobs:
                                   x = u * 1.4f;
                                   y = u * 5.0f;
                               } else if (q == 2) {
-                                  x = u * 1.4f;
-                                  y = u * 3.2f;
+                                  x = u * 2.4f;
+                                  y = u * 2.75f;
                               } else if (q == 3) {
                                   x = W / 2f;
                                   y = top;
                               } else if (q == 4) {
-                                  x = W - u * 1.4f;
-                                  y = u * 3.2f;
+                                  x = W - u * 2.4f;
+                                  y = u * 2.75f;
                               } else {
                                   x = W - u * 1.4f;
                                   y = u * 5.0f;
@@ -3994,7 +4074,30 @@ jobs:
                           shake.remove(idx);
                       }
                   }
+                  boolean sleepy = g.sleeping(idx);
+                  if (sleepy) {
+                      float ex = avR * 2.2f;
+                      c.saveLayer(cx - ex, cy - ex, cx + ex, cy + ex, null);
+                  }
                   Avatars.draw(c, cx + sx, cy, avR, avatars[idx], Avatars.photo(photos[idx]));
+                  if (sleepy) {
+                      float ex = avR * 2.2f;
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xAA000000);
+                      p.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
+                      c.drawRect(cx - ex, cy - ex, cx + ex, cy + ex, p);
+                      p.setXfermode(null);
+                      c.restore();
+                      tp.setTextAlign(Paint.Align.CENTER);
+                      tp.setTextSize(u * 0.42f);
+                      tp.setStyle(Paint.Style.STROKE);
+                      tp.setStrokeWidth(u * 0.07f);
+                      tp.setColor(0xFF000000);
+                      c.drawText("Zzz", cx + avR * 0.55f, cy - avR * 0.35f, tp);
+                      tp.setStyle(Paint.Style.FILL);
+                      tp.setColor(0xFFB3E5FC);
+                      c.drawText("Zzz", cx + avR * 0.55f, cy - avR * 0.35f, tp);
+                  }
                   {
                       String pts = String.valueOf(g.totals[idx]);
                       tp.setTextAlign(Paint.Align.RIGHT);
@@ -4013,7 +4116,7 @@ jobs:
                   tp.setColor(TXT);
                   tp.setTextSize(u * 0.3f);
                   String nm = cut(names[idx], 12);
-                  tp.setColor(Theme.pcol(idx));
+                  tp.setColor(sleepy ? 0xFF90A4AE : Theme.pcol(idx));
                   c.drawText(nm, cx, cy + avR + u * 0.4f, tp);
                   tp.setColor(TXT);
                   if (mine) {
@@ -4021,37 +4124,37 @@ jobs:
                           tp.setColor(Theme.pcol(idx));
                           c.drawText("Ваш хід!", cx, cy + avR + u * 0.8f, tp);
                       }
-                  } else {
+                  } else if (!sleepy) {
                       String cnum = String.valueOf(g.counts[idx]);
-                      tp.setTextSize(u * 0.41f);
-                      float cwid = tp.measureText(cnum);
-                      float bx, by;
-                      if (cy < u * 2.5f) {
-                          bx = cx + avR + u * 0.2f;
-                          by = cy + u * 0.2f;
-                      } else {
-                          bx = cx - (u * 0.36f + u * 0.2f + cwid) / 2f;
-                          by = cy + avR + u * 1.05f;
-                      }
-                      painter.back(c, bx, by - u * 0.48f, u * 0.36f, u * 0.54f);
-                      tp.setTextAlign(Paint.Align.LEFT);
+                      float iw = u * 0.66f, ih = u * 0.96f;
+                      boolean leftSide = cx > getWidth() * 0.75f;
+                      float bx = leftSide ? cx - avR - u * 0.3f - iw : cx + avR + u * 0.3f;
+                      float by = cy - ih / 2f;
+                      painter.back(c, bx, by, iw, ih);
+                      tp.setTextAlign(Paint.Align.CENTER);
+                      tp.setTextSize(cnum.length() > 2 ? u * 0.3f : u * 0.4f);
+                      tp.setStyle(Paint.Style.STROKE);
+                      tp.setStrokeWidth(u * 0.07f);
+                      tp.setColor(0xFF000000);
+                      c.drawText(cnum, bx + iw / 2f, cy + u * 0.14f, tp);
+                      tp.setStyle(Paint.Style.FILL);
                       tp.setColor(TXT);
-                      c.drawText(cnum, bx + u * 0.56f, by, tp);
+                      c.drawText(cnum, bx + iw / 2f, cy + u * 0.14f, tp);
                   }
                   if (micOk && !bots[idx]) {
                       float mx = cx + avR * 0.9f, my = cy + avR * 0.8f;
                       boolean rec = micIdx == idx;
                       p.setStyle(Paint.Style.FILL);
                       p.setColor(rec ? 0xFFD50000 : 0xCC37474F);
-                      c.drawCircle(mx, my, u * (rec ? 0.34f : 0.26f), p);
+                      c.drawCircle(mx, my, u * (rec ? 0.44f : 0.34f), p);
                       p.setColor(0xFFFFFFFF);
-                      rf.set(mx - u * 0.06f, my - u * 0.14f, mx + u * 0.06f, my + u * 0.03f);
-                      c.drawRoundRect(rf, u * 0.06f, u * 0.06f, p);
+                      rf.set(mx - u * 0.078f, my - u * 0.18f, mx + u * 0.078f, my + u * 0.04f);
+                      c.drawRoundRect(rf, u * 0.078f, u * 0.078f, p);
                       p.setStyle(Paint.Style.STROKE);
-                      p.setStrokeWidth(u * 0.03f);
-                      rf.set(mx - u * 0.1f, my - u * 0.1f, mx + u * 0.1f, my + u * 0.08f);
+                      p.setStrokeWidth(u * 0.04f);
+                      rf.set(mx - u * 0.13f, my - u * 0.13f, mx + u * 0.13f, my + u * 0.1f);
                       c.drawArc(rf, 0f, 180f, false, p);
-                      c.drawLine(mx, my + u * 0.08f, mx, my + u * 0.14f, p);
+                      c.drawLine(mx, my + u * 0.1f, mx, my + u * 0.18f, p);
                   }
                   return anim;
               }
@@ -4082,7 +4185,7 @@ jobs:
                       if (bots[i]) continue;
                       float mx = sx[i] + avR * 0.9f, my = sy[i] + avR * 0.8f;
                       float dx = x - mx, dy = y - my;
-                      if (dx * dx + dy * dy <= u * 0.42f * u * 0.42f) return i;
+                      if (dx * dx + dy * dy <= u * 0.52f * u * 0.52f) return i;
                   }
                   return -1;
               }
@@ -4333,6 +4436,10 @@ jobs:
               }
 
               protected void onSettingsClosed() {
+              }
+
+              protected boolean musicIsGame() {
+                  return false;
               }
 
               protected boolean hostMode() {
@@ -4635,7 +4742,7 @@ jobs:
                   preview = new Preview(this);
                   box.addView(preview, lp(ViewGroup.LayoutParams.MATCH_PARENT, 2.8f, 0.08f));
 
-                  box.addView(tv("Фон столу та музична тема (затисніть фон — вибір мелодії)", CAPS, CAP, false));
+                  box.addView(tv(Cfg.SOUND ? "Фон столу та музична тема (затисніть фон — вибір мелодії)" : "Фон столу", CAPS, CAP, false));
                   bgBox = new LinearLayout(this);
                   bgBox.setOrientation(LinearLayout.VERTICAL);
                   box.addView(bgBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -4780,15 +4887,18 @@ jobs:
                       v.setOnClickListener(new View.OnClickListener() {
                           public void onClick(View x) {
                               bgId = id;
+                              musicFor(musicIsGame());
                               refreshBgs();
                           }
                       });
-                      v.setOnLongClickListener(new View.OnLongClickListener() {
-                          public boolean onLongClick(View x) {
-                              showMelodyPick(id);
-                              return true;
-                          }
-                      });
+                      if (Cfg.SOUND) {
+                          v.setOnLongClickListener(new View.OnLongClickListener() {
+                              public boolean onLongClick(View x) {
+                                  showMelodyPick(id);
+                                  return true;
+                              }
+                          });
+                      }
                       LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(1.5f), 1f);
                       p.setMargins(px(0.06f), px(0.06f), px(0.06f), px(0.06f));
                       row.addView(v, p);
@@ -4816,6 +4926,7 @@ jobs:
                                   public void onClick(View v) {
                                       pick[0] = kk;
                                       setBgMel(bg, kk);
+                                      if (bg == bgId) musicFor(musicIsGame());
                                       fill[0].run();
                                   }
                               }), lp(5.2f, 0.8f, 0.03f));
@@ -5380,8 +5491,13 @@ jobs:
               }
 
               @Override
+              protected boolean musicIsGame() {
+                  return screen == S_GAME;
+              }
+
+              @Override
               protected void onSettingsClosed() {
-                  if (screen != S_GAME) musicFor(false);
+                  musicFor(screen == S_GAME);
                   if (profileChanged && (screen == S_GAME || screen == S_LOBBY)) {
                       send("NAME|" + nick + "|" + (avatar < 0 ? -1 : avatar) + "|" + sendPhoto());
                   }
@@ -5694,7 +5810,7 @@ jobs:
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
                   FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM | Gravity.LEFT);
                   bl.setMargins(px(0.3f), 0, 0, px(0.3f));
-                  root.addView(audioBar(1.0f), bl);
+                  if (Cfg.SOUND) root.addView(audioBar(1.0f), bl);
                   FrameLayout.LayoutParams br = new FrameLayout.LayoutParams(px(3.0f), px(1.0f), Gravity.BOTTOM | Gravity.RIGHT);
                   br.setMargins(0, 0, px(0.3f), px(0.3f));
                   root.addView(btn("Вихід", 0xFF0F3D26, new View.OnClickListener() {
@@ -5942,7 +6058,7 @@ jobs:
                   TextView t = tv(s, 0.34f, WHITE, true);
                   t.setGravity(Gravity.CENTER);
                   t.setBackground(bg(0x66000000, 0.2f));
-                  t.setPadding(px(0.15f), px(0.12f), px(0.15f), px(0.12f));
+                  t.setPadding(px(0.15f), px(0.2f), px(0.15f), px(0.2f));
                   final View.OnClickListener ll = l;
                   t.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
@@ -6027,10 +6143,15 @@ jobs:
                   tl.addView(histBtn, lp(2.8f, WRAP, 0.03f));
                   LinearLayout topLeft = new LinearLayout(this);
                   topLeft.setOrientation(LinearLayout.HORIZONTAL);
-                  LinearLayout ab = audioBar(0.8f);
-                  ab.setOrientation(LinearLayout.VERTICAL);
-                  topLeft.addView(ab, lp(WRAP, WRAP, 0.0f));
+                  topLeft.setGravity(Gravity.CENTER_VERTICAL);
                   topLeft.addView(tl, lp(WRAP, WRAP, 0.0f));
+                  if (Cfg.SOUND) {
+                      LinearLayout ab = audioBar(0.9f);
+                      ab.setOrientation(LinearLayout.HORIZONTAL);
+                      LinearLayout.LayoutParams lpa = lp(WRAP, WRAP, 0.0f);
+                      lpa.leftMargin = px(0.15f);
+                      topLeft.addView(ab, lpa);
+                  }
                   FrameLayout.LayoutParams lpScore = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.LEFT);
                   lpScore.setMargins(px(0.2f), px(0.12f), 0, 0);
                   root.addView(topLeft, lpScore);
@@ -6162,14 +6283,17 @@ jobs:
                       if (g.counts[i] < p.counts[i]) played = true;
                       else if (g.counts[i] > p.counts[i]) inc += g.counts[i] - p.counts[i];
                   }
-                  if (played) sfx(Snd.THROW);
+                  if (g.deck - p.deck >= 3) sfx(Snd.MIX);
+                  else if (played) sfx(Snd.THROW);
                   else if (inc > 0 && inc < 6) sfx(Snd.DRAW);
+                  else if (inc == 0 && g.cur != p.cur && g.deck == p.deck) sfx(Snd.PASS);
               }
 
               private void applyState() {
                   if (table == null || gs == null) return;
                   stateSounds(lastGs, gs);
                   lastGs = gs;
+                  fillRoom();
                   applyPlayers();
                   table.setState(gs);
                   scoreLbl.setText("Очки: " + at(gs.totals, me));
@@ -6380,7 +6504,9 @@ jobs:
                   if (roomDlg == null || !roomDlg.isShowing() || roomList == null) return;
                   roomList.removeAllViews();
                   for (int i = 0; i < players.size(); i++) {
-                      roomList.addView(playerRow(i, false), lp(MATCH, WRAP, 0.05f));
+                      View pr = playerRow(i, false);
+                      if (screen == S_GAME && gs != null && !gs.over && gs.sleeping(i)) pr.setAlpha(0.45f);
+                      roomList.addView(pr, lp(MATCH, WRAP, 0.05f));
                   }
               }
 
@@ -6811,6 +6937,7 @@ jobs:
           echo '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' | base64 -d > app/src/main/res/raw/sfx_glose.ogg
           echo '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' | base64 -d > app/src/main/res/raw/sfx_gwin.ogg
           echo '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' | base64 -d > app/src/main/res/raw/sfx_join.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/sfx_pass.ogg
           echo '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' | base64 -d > app/src/main/res/raw/sfx_pause.ogg
           echo 'T2dnUwACAAAAAAAAAADLwI6YAAAAAID04P4BHgF2b3JiaXMAAAAAASJWAAAAAAAAN7AAAAAAAACpAU9nZ1MAAAAAAAAAAAAAy8COmAEAAABO+5EWDkD////////////////FA3ZvcmJpcw0AAABMYXZmNjAuMTYuMTAwAQAAAB8AAABlbmNvZGVyPUxhdmM2MC4zMS4xMDIgbGlidm9yYmlzAQV2b3JiaXMiQkNWAQBAAAAYQhAqBa1jjjrIFSGMGaKgQsopxx1C0CGjJEOIOsY1xxhjR7lkikLJgdCQVQAAQAAApBxXUHJJLeecc6MYV8xx6CDnnHPlIGfMcQkl55xzjjnnknKOMeecc6MYVw5yKS3nnHOBFEeKcacY55xzpBxHinGoGOecc20xt5JyzjnnnHPmIIdScq4155xzpBhnDnILJeecc8YgZ8xx6yDnnHOMNbfUcs4555xzzjnnnHPOOeecc4wx55xzzjnnnHNuMecWc64555xzzjnnHHPOOeeccyA0ZBUAkAAAoKEoiuIoDhAasgoAyAAAEEBxFEeRFEuxHMvRJA0IDVkFAAABAAgAAKBIhqRIiqVYjmZpniZ6oiiaoiqrsmnKsizLsuu6LhAasgoASAAAUFEUxXAUBwgNWQUAZAAACGAoiqM4juRYkqVZngeEhqwCAIAAAAQAAFAMR7EUTfEkz/I8z/M8z/M8z/M8z/M8z/M8z/M8DQgNWQUAIAAAAIIoZBgDQkNWAQBAAAAIIRoZQ51SElwKFkIcEUMdQs5DqaWD4CmFJWPSU6xBCCF87z333nvvgdCQVQAAEAAAYRQ4iIHHJAghhGIUJ0RxpiAIIYTlJFjKeegkCN2DEEK4nHvLuffeeyA0ZBUAAAgAwCCEEEIIIYQQQggppJRSSCmmmGKKKcccc8wxxyCDDDLooJNOOsmkkk46yiSjjlJrKbUUU0yx5RZjrbXWnHOvQSljjDHGGGOMMcYYY4wxxhgjCA1ZBQCAAAAQBhlkkEEIIYQUUkgppphyzDHHHANCQ1YBAIAAAAIAAAAcRVIkR3IkR5IkyZIsSZM8y7M8y7M8TdRETRVV1VVt1/ZtX/Zt39Vl3/Zl29VlXZZl3bVtXdZdXdd1Xdd1Xdd1Xdd1Xdd1XdeB0JBVAIAEAICO5DiO5DiO5EiOpEgKEBqyCgCQAQAQAICjOIrjSI7kWI4lWZImaZZneZaneZqoiR4QGrIKAAAEABAAAAAAAICiKIqjOI4kWZamaZ6neqIomqqqiqapqqpqmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpAqEhqwAACQAAHcdxHEdxHMdxJEeSJCA0ZBUAIAMAIAAAQ1EcRXIsx5I0S7M8y9NEz/RcUTZ1U1dtIDRkFQAACAAgAAAAAAAAx3M8x3M8yZM8y3M8x5M8SdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TQNCQ1YCAGQAABCTkEpOsVdGKcYktF4qpBST1HuomGJMOu2pQgYpB7mHSiGloNPeMqWQUgx7p5hCyBjqoYOQMYWw19pzz733HggNWREARAEAAMYgxhBjyDEmJYMSMcckZFIi55yUTkompaRWWsykhJhKi5FzTkonJZNSWgupZZJKayWmAgAAAhwAAAIshEJDVgQAUQAAiDFIKaQUUkoxp5hDSinHlGNIKeWcck45x5h0ECrnGHQOSqSUco45p5xzEjIHlXMOQiadAACAAAcAgAALodCQFQFAnAAAgJBzijEIEWMQQgkphVBSqpyT0kFJqYOSUkmpxZJSjJVzUjoJKXUSUiopxVhSii2kVGNpLdfSUo0txpxbjL2GlGItqdVaWqu5xVhzizX3yDlKnZTWOimtpdZqTa3V2klpLaTWYmktxtZizSnGnDMprYWWYiupxdhiyzW1mHNpLdcUY88pxp5rrLnHnIMwrdWcWss5xZh7zLHnmHMPknOUOimtdVJaS63VmlqrNZPSWmmtxpBaiy3GnFuLMWdSWiypxVhaijHFmHOLLdfQWq4pxpxTiznHWoOSsfZeWqs5xZh7iq3nmHMwNseeO0q5ltZ6Lq31XnMuQtbci2gt59RqDyrGnnPOwdjcgxCt5Zxq7D3F2HvuORjbc/Ct1uBbzUXInIPQufimezBG1dqDzLUImXMQOugidPDJeJRqLq3lXFrrPdYafM05CNFa7inG3lOLvdeem7C9ByFayz3F2IOKMfiaczA652JUrcHHnIOQtRahey9K5yCUqrUHmWtQMtcidPDF6KCLLwAAYMABACDAhDJQaMiKACBOAIBByDmlGIRKKQihhJRCKClVjEnImIOSMSellFJaCCW1ijEImWNSMsekhBJaKiW0EkppqZTSWiiltZZajCm1FkMpqYVSWiultJZaqjG1VmPEmJTMOSmZY1JKKa2VUlqrHJOSMSipg5BKKSnFUlKLlXNSMuiodBBKKqnEVFJpraTSUimlxZJSbCnFVFuLtYZSWiypxFZSajG1VFuLMdeIMSkZc1Iy56SUUlIrpbSWOSelg45K5qCkklJrpaQUM+akdA5KyiCjUlKKLaUSUyiltZJSbKWk1lqMtabUWi0ltVZSarGUEluLMdcWS02dlNZKKjGGUlprMeaaWosxlBJbKSnGkkpsrcWaW2w5hlJaLKnEVkpqsdWWY2ux5tRSjSm1mltsucaUU4+19pxaqzW1VGNrseZYW2+11pw7Ka2FUlorJcWYWouxxVhzKCW2klJspaQYW2y5thZjD6G0WEpqsaQSY2sx5hhbjqm1WltsuabUYq219hxbbj2lFmuLsebSUo01195jTTkVAAAw4AAAEGBCGSg0ZCUAEAUAABjDGGMQGqWcc05Kg5RzzknJnIMQQkqZcxBCSClzTkJKLWXOQUiptVBKSq3FFkpJqbUWCwAAKHAAAAiwQVNicYBCQ1YCAFEAAIgxSjEGoTFGKecgNMYoxRiESinGnJNQKcWYc1Ayx5yDUErmnHMQSgkhlFJKSiGEUkpJqQAAgAIHAIAAGzQlFgcoNGRFABAFAAAYY5wzziEKnaXOUiSpo9ZRayilGkuMncZWe+u50xp7bbk3lEqNqdaOa8u51d5pTT23HAsAADtwAAA7sBAKDVkJAOQBABDGKMWYc84ZhRhzzjnnDFKMOeecc4ox55yDEELFmHPOQQghc845CKGEkjnnHIQQSuicg1BKKaV0zkEIoZRSOucghFJKKZ1zEEoppZQCAIAKHAAAAmwU2ZxgJKjQkJUAQB4AAGAMQs5Jaa1hzDkILdXYMMYclJRii5yDkFKLuUbMQUgpxqA7KCm1GGzwnYSUWos5B5NSizXn3oNIqbWag8491VZzz733nGKsNefecy8AAHfBAQDswEaRzQlGggoNWQkA5AEAEAgpxZhzzhmlGHPMOeeMUowx5pxzijHGnHPOQcUYY845ByFjzDnnIISQMeaccxBC6JxzDkIIIXTOOQchhBA656CDEEIInXMQQgghhAIAgAocAAACbBTZnGAkqNCQlQBAOAAAACGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBC6JxzzjnnnHPOOeecc84555xzzjknAMi3wgHA/8HGGVaSzgpHgwsNWQkAhAMAAApBKKViEEopJZJOOimdk1BKKZGDUkrppJRSSgmllFJKCKWUUkoIHZRSQimllFJKKaWUUkoppZRSOimllFJKKaWUyjkppZNSSimlRM5JKSGUUkoppYRSSimllFJKKaWUUkoppZRSSimlhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEAgC4GxwAIBJsnGEl6axwNLjQkJUAQEgAAKAUc45KCCmUkFKomKKOQikppFJKChFjzknqHIVQUiipg8o5CKWklEIqIXXOQQclhZBSCSGVjjroKJRQUiollNI5KKWEFEpKKZWQQkipdJRSKCWVlEIqIZVSSkgllRBKCp2kVEoKqaRUUgiddJBCJyWkkkoKqZOUUiolpZRKSiV0UkIqKaUQQkqplBBKSCmlTlJJqaQUQighhZRSSiWlkkpKIZVUQgmlpJRSKKGkVFJKKaWSUikAAODAAQAgwAg6yaiyCBtNuPAAFBqyEgAgAwBAlHTWaadJIggxRZknDSnGILWkLMMQU5KJ8RRjjDkoRkMOMeSUGBdKCKGDYjwmlUPKUFG5t9Q5BcUWY3zvsRcBAAAIAgAEhAQAGCAomAEABgcIIwcCHQEEDm0AgIEImQkMCqHBQSYAPEBESAUAiQmK0oUuCCGCdBFk8cCFEzeeuOGEDm0QAAAAAAAQAPABAJBQABER0cxVWFxgZGhscHR4fICEBAAAAAAACAB8AAAkIkBERDRzFRYXGBkaGxwdHh8gIQEAAAAAAAAAAEBAQAAAAAAAIAAAAEBAT2dnUwAEDwwAAAAAAADLwI6YAgAAAOliu7AIbmuHfnJ2bmx8T9kBt5+AAxagac4/PWDZSsAvPlw7J95+bO8N88WlxLH5bHVQfboV+EhuztoHx85QHItfnMS3+Oj4YbudpEFs2Z1n/kc6+rpcrpZucatRTtFwTqVJ9tCcolC4fDiO4QPNm4/CKFmTH0bNSIPNA2RT0qRXUyVIwCKgaZTN7UCzPuATOPJOKlf0ivPBfkR/L9npsmXarDs7uC9Mpfy/cSxIcsVig2R+HUoFmo2El/5yhEzdo/cpZMrfFMgNlTdz7km45Ss7ph0QTtfSsPHoCaQvWUKw4ehyujAAmhoFAAAAt/kcAAC0rVRL23bHE2r5oOV6s/E0fzQK3di+1lJ+MeeB2Zp6s73faI+7aNP4vkyvrJ0KF4kM6XkxMnXwnXLP2GLbXLCXEOq86Wss6kVqv4EwlcE0opQWRcFaWqImo73aJ6HENCffKMlkg6BlfpDXrLGaOIEHtOPVaSDcDGHSZtYA3pkEAAAA+7YxAKCabdtmHvdc/pnyvu65CW5kIVx+5H17wuCVlKogTZctan1fWS3TlpcYwvR4zJnZRSHGxTqhoavvrR03YqpO3W1ZHW6QjULAPd15JN7rOsg67VqVsq5Bp4teUlK53qx1XzMWpxEWF8ZHVRuuoFBUcfdEebAHPho04AQAYJ+mAABJxpjNbef8QHGckU+k4OR47NfJxQCPi6MVugLMtz0xza0tHA0mGrwZldmh2RLYXq2mxj1un1qeRPKMFiaOWMGZiClexl/Jw6hhWNyG7lZok3hlU6sdsavLWe8yyedbOCnNEkHpaKQn3qlr4AQAYN8fDwAUrc5qs0TVTzXpduXlmCq9dq7ZpxlyorocU0XsWX24dPjK3RwPzV47crsyUM7jH01r/ZgVwgzgK2T8/gM9MSH4prXV3dDUzG+d0xFKCgszkOd5oP58rX4Z5xnf2coW9718uZSWh9U0ySJ/Aj4568ByANZh358TANg2k2PWur/ZAm5kO3V/Ien2lU+4x7wcQshJBARtyFLJ8oUFTT+8KSWurJDA8+YWph23lB9lHmX5KNwLzp9DZVPZ6wlxeFOYwifF8aa8ia2mSSgv4GPitRQ3yqfp5XXXUnwR3ofqwBsAgKsNUOXOtp370L3X9L1mTjNdypUzqftqLfRl5VkF+BL4S9bXaZETfZ0WaOHTYL4x/rp35m7NAQjcvnH5Mgz2c5IJtzYrqScBtza7ZzLuGd8vAIAXDdM4Uli+sbECBnDn4+zVRPUF' | base64 -d > app/src/main/res/raw/sfx_poke.ogg
           echo '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' | base64 -d > app/src/main/res/raw/sfx_rlose.ogg
