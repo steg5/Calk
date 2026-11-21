@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.diagnostics"
                   minSdk 23
                   targetSdk 26
-                  versionCode 13
-                  versionName "3.1"
+                  versionCode 14
+                  versionName "3.2"
               }
               signingConfigs {
                   debug {
@@ -1043,6 +1043,8 @@ jobs:
               Elm elm;
               volatile boolean connected, wantConn, running = true;
               volatile Set<String> supported = new HashSet<String>();
+              volatile boolean allowAll = false;
+              volatile boolean allCancel = false;
               final Set<String> enabled = new HashSet<String>();
               final List<String> graphPids = new ArrayList<String>();
               long lastTry;
@@ -1398,7 +1400,7 @@ jobs:
                       Set<String> sup = supported;
                       List<String> cols = new ArrayList<String>();
                       for (String p : REC_PIDS) {
-                          if (sup.isEmpty() || sup.contains(p)) {
+                          if (allowAll || sup.isEmpty() || sup.contains(p)) {
                               enabled.add(p);
                               CheckBox cb = checks.get(p);
                               if (cb != null) cb.setChecked(true);
@@ -1662,15 +1664,48 @@ jobs:
                   addSvcBtn(col, "Замороджений кадр (що було в момент помилки)", "Замороджений кадр", this::svcFreeze);
                   addSvcBtn(col, "Самотести ЕБУ (режим 06)", "Самотести ЕБУ (режим 06)", this::svcMode06);
                   addSvcBtn(col, "DPF, EGR, наддув, температури вихлопу", "DPF / EGR / наддув / вихлоп", this::svcExt);
+                  allowAll = prefs.getBoolean("allowAll", false);
+                  final CheckBox cbAll = new CheckBox(this);
+                  cbAll.setText("Дозволити всі параметри (навіть якщо ЕБУ їх не заявив)");
+                  cbAll.setTextColor(TXT);
+                  cbAll.setChecked(allowAll);
+                  cbAll.setOnCheckedChangeListener((v, on) -> {
+                      allowAll = on;
+                      prefs.edit().putBoolean("allowAll", on).apply();
+                      final Set<String> s0 = supported;
+                      for (Pids.Def d : Pids.ALL) {
+                          TextView nv = nameViews.get(d.pid);
+                          if (nv != null) nv.setTextColor((on || s0.isEmpty() || s0.contains(d.pid)) ? TXT : 0xFF55606A);
+                      }
+                  });
+                  col.addView(cbAll, bl());
+                  Button collect = btn("Зібрати все (повний звіт ЕБУ, кілька хвилин)");
+                  collect.setOnClickListener(v -> runCollect());
+                  LinearLayout.LayoutParams clp = bl();
+                  clp.setMargins(0, dp(3), 0, dp(3));
+                  col.addView(collect, clp);
+                  Button stopc = btn("Зупинити збір");
+                  stopc.setOnClickListener(v -> {
+                      allCancel = true;
+                      toast("Зупиняю…");
+                  });
+                  col.addView(stopc, clp);
                   Button rescan = btn("Пересканувати підтримувані параметри");
                   rescan.setOnClickListener(v -> {
                       if (!connected) {
                           toast("Спочатку підключись");
                           return;
                       }
+                      svcOut.setText("Сканую підтримувані параметри…");
+                      toast("Сканую…");
+                      clog("Пересканування підтримуваних параметрів…");
                       queue.add(() -> {
                           try {
-                              doScan();
+                              doScan(false);
+                              final String r = scanReport();
+                              rep.event("Пересканування: " + supported.size() + " PID");
+                              clog("Пересканування: знайдено " + supported.size());
+                              ui.post(() -> svcOut.setText(r));
                           } catch (IOException e) {
                               lost(e);
                           }
@@ -1805,7 +1840,7 @@ jobs:
                       if ((mask & 1L) == 0) break;
                   }
                   if (mids.isEmpty()) return "ЕБУ не віддає результати самотестів (режим 06).";
-                  StringBuilder b = new StringBuilder("Значення сирі (без перерахунку). ✗ = поза межами.\n");
+                  StringBuilder b = new StringBuilder("Значення сирі (без перерахунку). ✗ = поза межами, ? = межі не розпізнано.\n");
                   int n = 0;
                   for (int m : mids) {
                       if (++n > 40) break;
@@ -1814,12 +1849,13 @@ jobs:
                           b.append(String.format("MID %02X: немає даних\n", m));
                           continue;
                       }
+                      b.append(String.format("MID %02X raw: ", m)).append(hx(d)).append("\n");
                       for (int i = 0; i + 8 <= d.length; i += 8) {
                           int val = d[i + 2] * 256 + d[i + 3];
                           int mn = d[i + 4] * 256 + d[i + 5];
                           int mx = d[i + 6] * 256 + d[i + 7];
                           boolean bad = val < mn || val > mx;
-                          b.append(String.format("MID %02X TID %02X: %d  [%d…%d] %s\n", m, d[i], val, mn, mx, bad ? "✗" : "ok"));
+                          b.append(String.format("MID %02X TID %02X: %d  [%d…%d] %s\n", m, d[i], val, mn, mx, mn > mx ? "?" : (bad ? "✗" : "ok")));
                       }
                   }
                   return b.toString();
@@ -1833,11 +1869,141 @@ jobs:
                       {"0172", "Вестгейт"}, {"0173", "Тиск вихлопу"}, {"0174", "Оберти турбіни"},
                       {"0175", "Темп. турбіни A"}, {"0177", "Темп. наддувного повітря"}};
 
+              void allProgress(final String s) {
+                  ui.post(() -> svcOut.setText(s));
+              }
+
+              void runCollect() {
+                  if (!connected) {
+                      toast("Спочатку підключись");
+                      return;
+                  }
+                  allCancel = false;
+                  svcOut.setText("Зібрати все: починаю…");
+                  clog("Збір усіх даних ЕБУ…");
+                  queue.add(() -> {
+                      try {
+                          final String r = collectAll();
+                          rep.event("Збір даних завершено");
+                          ui.post(() -> svcOut.setText(r));
+                      } catch (IOException e) {
+                          lost(e);
+                      }
+                  });
+              }
+
+              String collectAll() throws IOException {
+                  final StringBuilder b = new StringBuilder();
+                  b.append("ЗБІР ДАНИХ ЕБУ\n");
+                  b.append("ELM: ").append(elm.version).append(" | ").append(elm.proto).append(" | ").append(elm.volts).append("\n");
+                  b.append("Дозволити всі: ").append(allowAll).append("\n");
+                  b.append("PID за заявою ЕБУ: ").append(supported.isEmpty() ? "(порожньо)" : join(new java.util.TreeSet<String>(supported))).append("\n\n");
+                  try {
+                      try {
+                          elm.send("ATSH7E0", 1000);
+                      } catch (IOException ignored) {
+                      }
+                      b.append("== Режим 01 (відповіді на PID 00–FF) ==\n");
+                      for (int p = 0; p <= 0xFF && !allCancel; p++) {
+                          String q = String.format("01%02X", p);
+                          if (p % 8 == 0) allProgress("Зібрати все: режим 01, " + p + "/255");
+                          String r = elm.send(q, 1200).replace('\n', ' ').trim();
+                          String u = r.toUpperCase().replace(" ", "");
+                          if (u.startsWith("41")) b.append(q).append(": ").append(r).append("\n");
+                          else if (!u.isEmpty() && !u.contains("NODATA")) b.append(q).append(" ! ").append(r).append("\n");
+                      }
+                      if (!allCancel) {
+                          allProgress("Зібрати все: коди несправностей…");
+                          b.append("\n== Помилки ==\n");
+                          for (String m : new String[]{"03", "07", "0A"}) {
+                              b.append("Режим ").append(m).append(": ").append(elm.send(m, 3000).replace('\n', ' ')).append("\n");
+                          }
+                          allProgress("Зібрати все: режим 09…");
+                          b.append("\n== Режим 09 ==\n");
+                          for (String p : new String[]{"00", "02", "04", "06", "08", "0A"}) {
+                              b.append("09").append(p).append(": ").append(elm.send("09" + p, 3000).replace('\n', ' ')).append("\n");
+                          }
+                          allProgress("Зібрати все: режим 06…");
+                          b.append("\n== Режим 06 ==\n").append(svcMode06()).append("\n");
+                      }
+                      if (!allCancel) {
+                          int[][] rng = {{0xF100, 0xF1FF}, {0xF400, 0xF4FF}, {0xDD00, 0xDDFF}, {0x0000, 0x0FFF}};
+                          int total = 0;
+                          for (int[] r : rng) total += r[1] - r[0] + 1;
+                          int done = 0, found = 0;
+                          long deadline = System.currentTimeMillis() + 12 * 60 * 1000L;
+                          java.util.Map<String, Integer> neg = new java.util.TreeMap<String, Integer>();
+                          b.append("== Режим 22 (позитивні відповіді) ==\n");
+                          String stopMsg = "";
+                          outer:
+                          for (int[] r : rng) {
+                              for (int p = r[0]; p <= r[1]; p++) {
+                                  if (allCancel) {
+                                      stopMsg = "зупинено користувачем";
+                                      break outer;
+                                  }
+                                  if (System.currentTimeMillis() > deadline) {
+                                      stopMsg = "вичерпано ліміт часу";
+                                      break outer;
+                                  }
+                                  String q = String.format("22%04X", p);
+                                  String resp = elm.send(q, 800).replace('\n', ' ').trim();
+                                  String u = resp.toUpperCase().replace(" ", "");
+                                  done++;
+                                  if (u.startsWith("62")) {
+                                      found++;
+                                      b.append(q).append(": ").append(resp).append("\n");
+                                  } else if (u.startsWith("7F")) {
+                                      String k = u.length() >= 6 ? u.substring(0, 6) : u;
+                                      Integer c = neg.get(k);
+                                      neg.put(k, c == null ? 1 : c + 1);
+                                  }
+                                  if (found == 0 && neg.isEmpty() && done >= 40) {
+                                      stopMsg = "ЕБУ не відповідає на режим 22";
+                                      break outer;
+                                  }
+                                  if (done % 10 == 0) {
+                                      allProgress("Зібрати все: режим 22, " + done + "/" + total + ", знайдено " + found);
+                                  }
+                              }
+                          }
+                          b.append("Перевірено ").append(done).append(" з ").append(total).append(", знайдено ").append(found);
+                          if (!stopMsg.isEmpty()) b.append(" (").append(stopMsg).append(")");
+                          b.append("\n");
+                          for (java.util.Map.Entry<String, Integer> e : neg.entrySet()) {
+                              b.append("негативна ").append(e.getKey()).append(": ").append(e.getValue()).append("\n");
+                          }
+                      }
+                      if (allCancel) b.append("\n(збір зупинено, звіт неповний)\n");
+                  } finally {
+                      try {
+                          elm.send("ATSH7DF", 1000);
+                      } catch (IOException ignored) {
+                      }
+                  }
+                  String full = b.toString();
+                  String where = "";
+                  try {
+                      ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                      cm.setPrimaryClip(ClipData.newPlainText("diag", full));
+                      java.io.File dir = getExternalFilesDir(null) != null ? getExternalFilesDir(null) : getFilesDir();
+                      java.io.File f = new java.io.File(dir, "collect_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",
+                              java.util.Locale.US).format(new java.util.Date()) + ".txt");
+                      java.io.FileWriter w = new java.io.FileWriter(f);
+                      w.write(full);
+                      w.close();
+                      where = "Готово. Звіт скопійовано в буфер і збережено: " + f.getAbsolutePath() + "\n\n";
+                  } catch (Throwable ex) {
+                      where = "Готово. Звіт скопійовано в буфер.\n\n";
+                  }
+                  return where + full;
+              }
+
               String svcExt() throws IOException {
                   StringBuilder b = new StringBuilder("Сирі байти; розшифровку температур дано за стандартом J1979.\n");
                   Set<String> sup = supported;
                   for (String[] e : EXT) {
-                      if (!sup.isEmpty() && !sup.contains(e[0])) {
+                      if (!allowAll && !sup.isEmpty() && !sup.contains(e[0])) {
                           b.append(e[1]).append(": ЕБУ не підтримує\n");
                           continue;
                       }
@@ -2009,6 +2175,28 @@ jobs:
               }
 
               void doScan() throws IOException {
+                  doScan(true);
+              }
+
+              String scanReport() throws IOException {
+                  Set<String> s = supported;
+                  StringBuilder b = new StringBuilder();
+                  if (s.isEmpty()) {
+                      String raw = elm.send("0100", 5000).replace('\n', ' ');
+                      b.append("ЕБУ не віддав список підтримуваних PID.\nВідповідь на 0100: ").append(raw.isEmpty() ? "(тиша)" : raw);
+                      b.append("\nЗаведи двигун і повтори. Можна ввімкнути «Дозволити всі параметри».");
+                      return b.toString();
+                  }
+                  java.util.TreeSet<String> ts = new java.util.TreeSet<String>(s);
+                  b.append("Підтримується параметрів: ").append(ts.size()).append("\n");
+                  for (String p : ts) {
+                      Pids.Def d = Pids.find(p);
+                      b.append(p).append(d != null ? "  " + d.name : "  (невідомий)").append("\n");
+                  }
+                  return b.toString();
+              }
+
+              void doScan(boolean full) throws IOException {
                   List<String> sup = elm.scanSupported();
                   final Set<String> set = new HashSet<String>(sup);
                   supported = set;
@@ -2024,13 +2212,13 @@ jobs:
                   }
                   ui.post(() -> {
                       for (Pids.Def d : Pids.ALL) {
-                          boolean ok = set.isEmpty() || set.contains(d.pid);
+                          boolean ok = allowAll || set.isEmpty() || set.contains(d.pid);
                           nameViews.get(d.pid).setTextColor(ok ? TXT : 0xFF55606A);
                       }
                   });
                   setStatus(set.isEmpty() ? "ЕБУ двигуна (7E0) мовчить — заведи двигун" : "ЕБУ двигуна (7E0): відповідає, параметрів: " + set.size(), set.isEmpty() ? 0xFFFFB74D : GRN);
-                  scanModules();
-                  if (!set.isEmpty()) {
+                  if (full) scanModules();
+                  if (full && !set.isEmpty()) {
                       clog("Готово — зв'язок встановлено");
                       ui.post(() -> {
                           connOpen = false;
@@ -2068,7 +2256,7 @@ jobs:
               void pollOne() throws IOException {
                   Pids.Def d = Pids.ALL[idx];
                   Set<String> sup = supported;
-                  boolean ok = enabled.contains(d.pid) && (sup.isEmpty() || sup.contains(d.pid)) && (rep.recording || cycle % d.period == 0);
+                  boolean ok = enabled.contains(d.pid) && (allowAll || sup.isEmpty() || sup.contains(d.pid)) && (rep.recording || cycle % d.period == 0);
                   if (ok) {
                       any = true;
                       query(d);
