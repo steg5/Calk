@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 16
-                  versionName "16.0"
+                  versionCode 17
+                  versionName "17.0"
               }
               signingConfigs {
                   debug {
@@ -1590,6 +1590,7 @@ jobs:
                   int total, wins, last;
                   String cid = "";
                   boolean replaced;
+                  boolean dnd;
               }
 
               private final ArrayList<P> ps = new ArrayList<P>();
@@ -1909,12 +1910,42 @@ jobs:
 
               public int defLevel = 1;
 
+              private int freeAvatar() {
+                  ArrayList<Integer> ok = new ArrayList<Integer>();
+                  for (int a = 0; a < 12; a++) if (!avatarUsed(a)) ok.add(a);
+                  if (ok.isEmpty()) {
+                      for (int a = 12; a < Avatars.TOTAL; a++) if (!avatarUsed(a)) ok.add(a);
+                  }
+                  if (ok.isEmpty()) return rnd.nextInt(12);
+                  return ok.get(rnd.nextInt(ok.size()));
+              }
+
+              private boolean avatarUsed(int a) {
+                  for (P q : ps) if (q.avatar == a && q.photo.equals("-")) return true;
+                  for (P q : ps) if (q.avatar == a) return true;
+                  return false;
+              }
+
+              public void setHostDnd(boolean on) {
+                  if (ps.isEmpty()) return;
+                  ps.get(0).dnd = on;
+                  if (inGame && eng != null) broadcastState();
+              }
+
+              private boolean blocked(P from, P to) {
+                  if (to != null && !to.bot && to.dnd && to != from) {
+                      if (from.link != null) from.link.send("BLOCK|" + to.name.replace("|", " "));
+                      return true;
+                  }
+                  return false;
+              }
+
               private void addBotNow() {
                   P b = new P();
                   b.bot = true;
                   b.level = defLevel;
                   b.name = BOT_NAMES[botCounter++ % BOT_NAMES.length];
-                  b.avatar = rnd.nextInt(12);
+                  b.avatar = freeAvatar();
                   ps.add(b);
               }
 
@@ -2075,10 +2106,13 @@ jobs:
                       int t = pi(f[1]);
                       String m = "EMO|" + i + "|" + t + "|" + pi(f[2]);
                       if (t < 0 || t >= ps.size()) {
-                          sendAll(m);
+                          for (P q : ps) {
+                              if (q.link != null && (q == p || !q.dnd)) q.link.send(m);
+                          }
                       } else {
-                          if (p.link != null) p.link.send(m);
                           P q = ps.get(t);
+                          if (blocked(p, q)) return;
+                          if (p.link != null) p.link.send(m);
                           if (q != p && q.link != null) q.link.send(m);
                       }
                   } else if (c.equals("POKE")) {
@@ -2090,6 +2124,7 @@ jobs:
                       if (last != null && now - last < 1500) return;
                       pokeAt.put(p, now);
                       P q = ps.get(t);
+                      if (blocked(p, q)) return;
                       if (!q.bot && q.link != null) {
                           q.link.send("POKED|" + i);
                       }
@@ -2108,10 +2143,11 @@ jobs:
                       ArrayList<P> to = new ArrayList<P>();
                       if (t < 0 || t >= ps.size()) {
                           for (P q : ps) {
-                              if (q != p && !q.bot && q.link != null) to.add(q);
+                              if (q != p && !q.bot && !q.dnd && q.link != null) to.add(q);
                           }
                       } else {
                           P q = ps.get(t);
+                          if (q != p && blocked(p, q)) return;
                           if (q != p && !q.bot && q.link != null) to.add(q);
                       }
                       if (to.isEmpty()) return;
@@ -2131,6 +2167,9 @@ jobs:
                           sendAll("LIS|" + i + "|0");
                           if (--voiceAcks <= 0) freeVoice();
                       }
+                  } else if (c.equals("DND")) {
+                      p.dnd = f.length > 1 && f[1].equals("1");
+                      if (inGame && eng != null) broadcastState();
                   } else if (c.equals("NAME")) {
                       if (f.length < 4) return;
                       p.name = clean(f[1]);
@@ -2244,7 +2283,7 @@ jobs:
                           p.replaced = true;
                           p.level = 1;
                           p.name = BOT_NAMES[botCounter++ % BOT_NAMES.length];
-                          p.avatar = rnd.nextInt(12);
+                          p.avatar = freeAvatar();
                           p.photo = "-";
                           if (eng != null && i < eng.names.length) eng.names[i] = p.name;
                       }
@@ -2425,6 +2464,11 @@ jobs:
                   for (int j = 0; j < n; j++) {
                       if (j > 0) sb.append(',');
                       sb.append(j < e.asleep.length && e.asleep[j] ? 1 : 0);
+                  }
+                  sb.append('|');
+                  for (int j = 0; j < n; j++) {
+                      if (j > 0) sb.append(',');
+                      sb.append(ps.get(j).dnd ? 1 : 0);
                   }
                   return sb.toString();
               }
@@ -4252,10 +4296,14 @@ jobs:
               public Card top;
               public ArrayList<Card> hand = new ArrayList<Card>();
               public ArrayList<Boolean> legal = new ArrayList<Boolean>();
-              public int[] counts, totals, wins, last, asleep = new int[0];
+              public int[] counts, totals, wins, last, asleep = new int[0], dnd = new int[0];
               public int paused = -1;
               public int[][] rounds = new int[0][];
               public String msg = "";
+
+              public boolean dndOf(int i) {
+                  return i >= 0 && i < dnd.length && dnd[i] == 1;
+              }
 
               public boolean sleeping(int i) {
                   return i >= 0 && i < asleep.length && asleep[i] == 1;
@@ -4329,6 +4377,7 @@ jobs:
                   if (f.length > 19) g.rounds = parseRounds(f[19]);
                   if (f.length > 20) g.asleep = ints(f[20]);
                   else g.asleep = new int[g.counts.length];
+                  if (f.length > 21) g.dnd = ints(f[21]);
                   return g;
               }
           }
@@ -4602,6 +4651,8 @@ jobs:
                   void onMic(int idx, boolean down);
 
                   void onWrong();
+
+                  void onDnd();
               }
 
               public Listener listener;
@@ -4939,7 +4990,7 @@ jobs:
 
                   // рука
                   c.save();
-                  c.clipRect(areaL - u * 0.1f, 0, areaR + u * 0.1f, H);
+                  c.clipRect(areaL - u * 0.5f, 0, areaR + u * 0.5f, H);
                   for (int i = 0; i < g.hand.size(); i++) {
                       boolean lg = g.legal.get(i);
                       boolean lit = myTurn && (lg || !hint);
@@ -4986,13 +5037,13 @@ jobs:
                       int last = g.hand.size() - 1;
                       if (aCnt > 0.01f) {
                           float yy = hTop - (myTurn && g.legal.get(last) && hint ? hRaise : 0);
-                          badge(c, hStart + last * hStep + hCw - u * 0.36f, yy + u * 0.36f, String.valueOf(g.hand.size()), aCnt);
+                          badge(c, hStart + last * hStep + hCw - u * 0.04f, yy + u * 0.04f, String.valueOf(g.hand.size()), aCnt);
                       }
                       if (aPts > 0.01f) {
                           int sum = 0;
                           for (Card hk : g.hand) sum += hk.points();
                           float yy = hTop - (myTurn && g.legal.get(0) && hint ? hRaise : 0);
-                          badge(c, hStart + u * 0.36f, yy + u * 0.36f, String.valueOf(sum), aPts);
+                          badge(c, hStart + u * 0.04f, yy + u * 0.04f, String.valueOf(sum), aPts);
                       }
                   } else {
                       badgeT = 0;
@@ -5127,16 +5178,18 @@ jobs:
                       c.drawText("Zzz", cx + avR * 0.55f, cy - avR * 0.35f, tp);
                   }
                   {
+                      boolean leftDeck = cx > getWidth() * 0.75f;
+                      float py = leftDeck ? cy - avR * 1.0f : cy - avR * 0.62f;
                       String pts = String.valueOf(g.totals[idx]);
                       tp.setTextAlign(Paint.Align.RIGHT);
                       tp.setTextSize(u * 0.34f);
                       tp.setStyle(Paint.Style.STROKE);
                       tp.setStrokeWidth(u * 0.07f);
                       tp.setColor(0xFF000000);
-                      c.drawText(pts, cx - avR * 0.78f, cy - avR * 0.62f, tp);
+                      c.drawText(pts, cx - avR * 0.78f, py, tp);
                       tp.setStyle(Paint.Style.FILL);
                       tp.setColor(0xFFFFE082);
-                      c.drawText(pts, cx - avR * 0.78f, cy - avR * 0.62f, tp);
+                      c.drawText(pts, cx - avR * 0.78f, py, tp);
                   }
                   tp.setStyle(Paint.Style.FILL);
                   tp.setAlpha(255);
@@ -5187,6 +5240,15 @@ jobs:
                       rf.set(mx - u * 0.13f, my - u * 0.13f, mx + u * 0.13f, my + u * 0.1f);
                       c.drawArc(rf, 0f, 180f, false, p);
                       c.drawLine(mx, my + u * 0.1f, mx, my + u * 0.18f, p);
+                  }
+                  if (!bots[idx] && (mine || g.dndOf(idx))) {
+                      float dx0 = cx + avR * 0.9f, dy0 = cy - avR * 0.8f;
+                      boolean on = g.dndOf(idx);
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(on ? 0xFFD50000 : 0xCC37474F);
+                      c.drawCircle(dx0, dy0, u * 0.34f, p);
+                      p.setColor(0xFFFFFFFF);
+                      c.drawRoundRect(rectF(dx0 - u * 0.17f, dy0 - u * 0.04f, dx0 + u * 0.17f, dy0 + u * 0.04f), u * 0.04f, u * 0.04f, p);
                   }
                   if (idx < listening.length && listening[idx]) {
                       float mx = cx - avR * 0.9f, my = cy + avR * 0.8f;
@@ -5241,6 +5303,20 @@ jobs:
                   return -1;
               }
 
+              private RectF rectF(float l, float t, float r, float b) {
+                  rf.set(l, t, r, b);
+                  return rf;
+              }
+
+              private boolean hitDnd(float x, float y) {
+                  if (me < 0 || me >= sx.length || me >= n) return false;
+                  float mx = sx[me] + avR * 0.9f, my = sy[me] - avR * 0.8f;
+                  float dx = x - mx, dy = y - my;
+                  return dx * dx + dy * dy <= u * 0.52f * u * 0.52f;
+              }
+
+              private boolean dndPress;
+
               private int hitAvatar(float x, float y) {
                   for (int i = 0; i < n && i < sx.length; i++) {
                       float dx = x - sx[i], dy = y - sy[i];
@@ -5262,8 +5338,13 @@ jobs:
                       longFired = false;
                       pressIdx = -1;
                       micIdx = -1;
+                      dndPress = false;
                       if (g != null) {
                           calc(getWidth(), getHeight());
+                          if (hitDnd(x, y)) {
+                              dndPress = true;
+                              return true;
+                          }
                           int mi = hitMic(x, y);
                           if (mi >= 0) {
                               micIdx = mi;
@@ -5280,7 +5361,7 @@ jobs:
                       return true;
                   }
                   if (a == MotionEvent.ACTION_MOVE) {
-                      if (micIdx >= 0) return true;
+                      if (micIdx >= 0 || dndPress) return true;
                       if (Math.abs(x - downX) > slop || Math.abs(y - downY) > slop) {
                           if (!moved) {
                               moved = true;
@@ -5298,6 +5379,11 @@ jobs:
                   }
                   if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
                       lh.removeCallbacks(longRun);
+                      if (dndPress) {
+                          dndPress = false;
+                          if (a == MotionEvent.ACTION_UP && listener != null) listener.onDnd();
+                          return true;
+                      }
                       if (micIdx >= 0) {
                           int mi = micIdx;
                           micIdx = -1;
@@ -6686,6 +6772,7 @@ jobs:
                   netBusy = false;
                   matchFinished = false;
                   isHost = true;
+                  dndSent = false;
                   pendingBanner = null;
                   final Host[] ref = new Host[1];
                   Link toUi = new Link() {
@@ -6739,6 +6826,7 @@ jobs:
                   stopDisc();
                   matchFinished = false;
                   isHost = false;
+                  dndSent = false;
                   pendingBanner = null;
                   players.clear();
                   client = new Client();
@@ -6771,6 +6859,7 @@ jobs:
                   stopDisc();
                   matchFinished = false;
                   isHost = false;
+                  dndSent = false;
                   pendingBanner = null;
                   players.clear();
                   client = new Client();
@@ -6824,6 +6913,8 @@ jobs:
                           voiceLock = f[1].equals("1");
                       } else if (f[0].equals("VBUSY")) {
                           toast(f[1].equals("2") ? "Гра на паузі" : "Зачекайте, поки прозвучить попереднє повідомлення");
+                      } else if (f[0].equals("BLOCK")) {
+                          toast("Гравець (" + f[1] + ") заблокував сповіщення");
                       } else if (f[0].equals("POKED")) {
                           onPoked(pi(f[1]));
                       } else if (f[0].equals("VOICE")) {
@@ -6858,7 +6949,22 @@ jobs:
                   }
               }
 
+              private boolean dndSent;
+
+              private void applyDnd() {
+                  boolean on = sp.getBoolean("dnd", false);
+                  if (isHost) {
+                      if (host != null) host.setHostDnd(on);
+                  } else {
+                      send("DND|" + (on ? 1 : 0));
+                  }
+              }
+
               private void onLobby(String[] f) {
+                  if (!dndSent) {
+                      dndSent = true;
+                      if (sp.getBoolean("dnd", false)) applyDnd();
+                  }
                   me = pi(f[1]);
                   limit = pi(f[2]);
                   int before = players.size();
@@ -7220,50 +7326,49 @@ jobs:
                   LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   row.setGravity(Gravity.CENTER_VERTICAL);
-                  LinearLayout levelRow = null;
                   Avatars.AvatarView av = new Avatars.AvatarView(this);
                   av.set(pi(p[1]), p[2], false);
                   row.addView(av, lp(1.0f, 1.0f, 0.05f));
                   final boolean hostRow = p.length > 6 && p[6].equals("1");
                   String label = bot ? p[0] : (p[0] + (hostRow ? " - господар" : " - гість"));
-                  row.addView(tv(label, 0.38f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  row.addView(tv(label, bot && isHost ? 0.3f : 0.38f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
                   if (isHost) {
-                      row.addView(btn("↑", 0xFF455A64, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              if (host != null) hostErr(host.moveSeat(idx, -1));
-                          }
-                      }), lp(0.9f, 0.8f, 0.03f));
-                      row.addView(btn("↓", 0xFF455A64, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              if (host != null) hostErr(host.moveSeat(idx, 1));
-                          }
-                      }), lp(0.9f, 0.8f, 0.03f));
-                      if (!hostRow) {
-                          row.addView(btn(bot ? "Прибрати" : "Видалити", 0xFFC62828, new View.OnClickListener() {
-                              public void onClick(View v) {
-                                  if (host != null) hostErr(host.removePlayer(idx));
-                              }
-                          }), lp(2.5f, 0.8f, 0.05f));
-                      }
                       if (bot) {
                           int lv = pi(p[4]);
-                          levelRow = new LinearLayout(this);
-                          levelRow.setOrientation(LinearLayout.HORIZONTAL);
-                          levelRow.setGravity(Gravity.CENTER_VERTICAL);
-                          levelRow.addView(tv("Рівень:", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
                           for (int k = 0; k < LEVELS.length; k++) {
                               final int lk = k;
-                              LinearLayout.LayoutParams lpk = new LinearLayout.LayoutParams(0, px(0.8f), 1f);
-                              lpk.setMargins(px(0.05f), px(0.03f), px(0.05f), px(0.03f));
-                              levelRow.addView(btn(LEVELS_SHORT[k], lv == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                              Button lb = btn(LEVELS_SHORT[k], lv == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
                                   public void onClick(View v) {
                                       if (host != null) {
                                           host.setLevel(idx, lk);
                                           countLevel(lk);
                                       }
                                   }
-                              }), lpk);
+                              });
+                              lb.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 0.26f * u);
+                              lb.setPadding(px(0.05f), px(0.1f), px(0.05f), px(0.1f));
+                              row.addView(lb, lp(1.65f, 0.8f, 0.02f));
                           }
+                      }
+                      row.addView(btn("↑", 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (host != null) hostErr(host.moveSeat(idx, -1));
+                          }
+                      }), lp(0.8f, 0.8f, 0.02f));
+                      row.addView(btn("↓", 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (host != null) hostErr(host.moveSeat(idx, 1));
+                          }
+                      }), lp(0.8f, 0.8f, 0.02f));
+                      if (!hostRow) {
+                          Button rb = btn(bot ? "Прибрати" : "Видалити", 0xFFC62828, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  if (host != null) hostErr(host.removePlayer(idx));
+                              }
+                          });
+                          rb.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 0.28f * u);
+                          rb.setPadding(px(0.05f), px(0.1f), px(0.05f), px(0.1f));
+                          row.addView(rb, lp(2.0f, 0.8f, 0.02f));
                       }
                   }
                   LinearLayout outer = new LinearLayout(this);
@@ -7271,7 +7376,6 @@ jobs:
                   outer.setBackground(bg(0xFF2C3A41, 0.2f));
                   outer.setPadding(px(0.2f), px(0.08f), px(0.3f), px(0.08f));
                   outer.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
-                  if (levelRow != null) outer.addView(levelRow, new LinearLayout.LayoutParams(MATCH, WRAP));
                   return outer;
               }
 
@@ -7381,6 +7485,13 @@ jobs:
                           send("POKE|" + idx);
                           if (table != null) table.shakeAvatar(idx);
                           sfx(Snd.POKE);
+                      }
+
+                      public void onDnd() {
+                          boolean on = !sp.getBoolean("dnd", false);
+                          sp.edit().putBoolean("dnd", on).apply();
+                          applyDnd();
+                          toast(on ? "Сповіщення вимкнено" : "Сповіщення увімкнено");
                       }
 
                       public void onMic(int idx, boolean down) {
@@ -7789,7 +7900,7 @@ jobs:
                   box.addView(brow, new LinearLayout.LayoutParams(MATCH, WRAP));
                   dd[0] = makeDialog(box, true);
                   roomDlg = dd[0];
-                  showSized(dd[0], 14.7f);
+                  showSized(dd[0], 15.6f);
                   fillRoom();
               }
 
