@@ -1,0 +1,1482 @@
+name: Gryntsiv_Games
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/Gryntsiv_Games.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Write project
+        run: |
+          mkdir -p app/src/main/java/com/example/gryntsivgames app/src/main/res/drawable app/src/main/res/raw
+          echo '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' | base64 -d > debug.keystore
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'GryntsivGames'
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.gryntsivgames'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.gryntsivgames"
+                  minSdk 23
+                  targetSdk 26
+                  versionCode 1
+                  versionName "0.1"
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+          tasks.withType(JavaCompile).configureEach {
+              options.encoding = 'UTF-8'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+              <application
+                  android:label="Gryntsiv Games"
+                  android:icon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:usesCleartextTraffic="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+                      android:windowSoftInputMode="stateHidden|adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Board.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import java.util.ArrayList;
+          import java.util.Random;
+
+          public class Board {
+              public static final int N = 10;
+              public static final int[] FLEET = {4, 3, 3, 2, 2, 2, 1, 1, 1, 1};
+
+              public static class Ship {
+                  public int len, r, c, idx;
+                  public boolean h = true, placed;
+
+                  public boolean has(int rr, int cc) {
+                      if (!placed) return false;
+                      if (h) return rr == r && cc >= c && cc < c + len;
+                      return cc == c && rr >= r && rr < r + len;
+                  }
+              }
+
+              public final Ship[] ships = new Ship[FLEET.length];
+              // 0 нічого, 1 мимо, 2 влучання, 3 потоплено
+              public final int[] shot = new int[N * N];
+
+              public Board() {
+                  for (int i = 0; i < ships.length; i++) {
+                      ships[i] = new Ship();
+                      ships[i].len = FLEET[i];
+                      ships[i].idx = i;
+                  }
+              }
+
+              public int shipAt(int r, int c) {
+                  for (Ship s : ships) {
+                      if (s.has(r, c)) return s.idx;
+                  }
+                  return -1;
+              }
+
+              public boolean canPlace(int r, int c, int len, boolean h, int ignore) {
+                  int er = h ? r : r + len - 1;
+                  int ec = h ? c + len - 1 : c;
+                  if (r < 0 || c < 0 || er >= N || ec >= N) return false;
+                  for (int rr = r - 1; rr <= er + 1; rr++) {
+                      for (int cc = c - 1; cc <= ec + 1; cc++) {
+                          if (rr < 0 || cc < 0 || rr >= N || cc >= N) continue;
+                          int id = shipAt(rr, cc);
+                          if (id >= 0 && id != ignore) return false;
+                      }
+                  }
+                  return true;
+              }
+
+              public void place(int idx, int r, int c, boolean h) {
+                  Ship s = ships[idx];
+                  s.r = r;
+                  s.c = c;
+                  s.h = h;
+                  s.placed = true;
+              }
+
+              public void clear() {
+                  for (Ship s : ships) s.placed = false;
+              }
+
+              public boolean allPlaced() {
+                  for (Ship s : ships) if (!s.placed) return false;
+                  return true;
+              }
+
+              public void randomize(Random rnd) {
+                  while (true) {
+                      clear();
+                      boolean ok = true;
+                      for (int i = 0; i < ships.length && ok; i++) {
+                          boolean done = false;
+                          for (int t = 0; t < 300 && !done; t++) {
+                              boolean h = rnd.nextBoolean();
+                              int r = rnd.nextInt(N), c = rnd.nextInt(N);
+                              if (canPlace(r, c, ships[i].len, h, i)) {
+                                  place(i, r, c, h);
+                                  done = true;
+                              }
+                          }
+                          if (!done) ok = false;
+                      }
+                      if (ok) return;
+                  }
+              }
+
+              public boolean sunk(Ship s) {
+                  for (int k = 0; k < s.len; k++) {
+                      int r = s.h ? s.r : s.r + k;
+                      int c = s.h ? s.c + k : s.c;
+                      if (shot[r * N + c] < 2) return false;
+                  }
+                  return true;
+              }
+
+              // 0 мимо, 1 влучив, 2 потопив
+              public int shoot(int cell) {
+                  int r = cell / N, c = cell % N;
+                  int id = shipAt(r, c);
+                  if (id < 0) {
+                      shot[cell] = 1;
+                      return 0;
+                  }
+                  shot[cell] = 2;
+                  Ship s = ships[id];
+                  if (!sunk(s)) return 1;
+                  for (int k = 0; k < s.len; k++) {
+                      int rr = s.h ? s.r : s.r + k;
+                      int cc = s.h ? s.c + k : s.c;
+                      shot[rr * N + cc] = 3;
+                  }
+                  for (int rr = s.r - 1; rr <= (s.h ? s.r : s.r + s.len - 1) + 1; rr++) {
+                      for (int cc = s.c - 1; cc <= (s.h ? s.c + s.len - 1 : s.c) + 1; cc++) {
+                          if (rr < 0 || cc < 0 || rr >= N || cc >= N) continue;
+                          if (shot[rr * N + cc] == 0) shot[rr * N + cc] = 1;
+                      }
+                  }
+                  return 2;
+              }
+
+              public boolean allSunk() {
+                  for (Ship s : ships) if (!sunk(s)) return false;
+                  return true;
+              }
+
+              public ArrayList<Integer> aliveLens() {
+                  ArrayList<Integer> l = new ArrayList<Integer>();
+                  for (Ship s : ships) if (!sunk(s)) l.add(s.len);
+                  return l;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Bot.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import java.util.ArrayList;
+          import java.util.Random;
+
+          public class Bot {
+              public static final String[] LEVELS = {"Аматор", "Студент", "Геній", "Легенда"};
+              private final int level;
+              private final Random rnd = new Random();
+              private static final int N = Board.N;
+
+              public Bot(int level) {
+                  this.level = level;
+              }
+
+              private int pick(ArrayList<Integer> l) {
+                  return l.get(rnd.nextInt(l.size()));
+              }
+
+              private ArrayList<Integer> unknown(int[] s) {
+                  ArrayList<Integer> l = new ArrayList<Integer>();
+                  for (int i = 0; i < s.length; i++) if (s[i] == 0) l.add(i);
+                  return l;
+              }
+
+              private void add(ArrayList<Integer> l, int[] s, int r, int c) {
+                  if (r < 0 || c < 0 || r >= N || c >= N) return;
+                  if (s[r * N + c] == 0 && !l.contains(r * N + c)) l.add(r * N + c);
+              }
+
+              // клітинки навколо підбитих (не потоплених) палуб
+              private ArrayList<Integer> targets(int[] s, boolean line) {
+                  ArrayList<Integer> l = new ArrayList<Integer>();
+                  ArrayList<Integer> hits = new ArrayList<Integer>();
+                  for (int i = 0; i < s.length; i++) if (s[i] == 2) hits.add(i);
+                  if (hits.isEmpty()) return l;
+                  if (line && hits.size() >= 2) {
+                      int a = hits.get(0), b = hits.get(hits.size() - 1);
+                      int ra = a / N, ca = a % N, rb = b / N, cb = b % N;
+                      if (ra == rb) {
+                          int lo = Math.min(ca, cb), hi = Math.max(ca, cb);
+                          add(l, s, ra, lo - 1);
+                          add(l, s, ra, hi + 1);
+                      } else if (ca == cb) {
+                          int lo = Math.min(ra, rb), hi = Math.max(ra, rb);
+                          add(l, s, lo - 1, ca);
+                          add(l, s, hi + 1, ca);
+                      }
+                      if (!l.isEmpty()) return l;
+                  }
+                  for (int h : hits) {
+                      int r = h / N, c = h % N;
+                      add(l, s, r - 1, c);
+                      add(l, s, r + 1, c);
+                      add(l, s, r, c - 1);
+                      add(l, s, r, c + 1);
+                  }
+                  return l;
+              }
+
+              public int next(Board b) {
+                  int[] s = b.shot;
+                  if (level == 0) return pick(unknown(s));
+                  if (level == 1) {
+                      ArrayList<Integer> t = targets(s, false);
+                      return t.isEmpty() ? pick(unknown(s)) : pick(t);
+                  }
+                  if (level == 2) {
+                      ArrayList<Integer> t = targets(s, true);
+                      if (!t.isEmpty()) return pick(t);
+                      ArrayList<Integer> par = new ArrayList<Integer>();
+                      for (int i = 0; i < s.length; i++) {
+                          if (s[i] == 0 && ((i / N + i % N) % 2 == 0)) par.add(i);
+                      }
+                      return par.isEmpty() ? pick(unknown(s)) : pick(par);
+                  }
+                  return legend(b);
+              }
+
+              private int legend(Board b) {
+                  int[] s = b.shot;
+                  int[] score = new int[N * N];
+                  ArrayList<Integer> lens = b.aliveLens();
+                  boolean anyHit = false;
+                  boolean[] blocked = new boolean[N * N];
+                  for (int i = 0; i < s.length; i++) {
+                      if (s[i] != 2) continue;
+                      anyHit = true;
+                      int r0 = i / N, c0 = i % N;
+                      for (int dr = -1; dr <= 1; dr += 2) {
+                          for (int dc = -1; dc <= 1; dc += 2) {
+                              int rr = r0 + dr, cc = c0 + dc;
+                              if (rr >= 0 && cc >= 0 && rr < N && cc < N) blocked[rr * N + cc] = true;
+                          }
+                      }
+                  }
+                  for (int len : lens) {
+                      for (int dir = 0; dir < 2; dir++) {
+                          if (len == 1 && dir == 1) continue;
+                          for (int r = 0; r < N; r++) {
+                              for (int c = 0; c < N; c++) {
+                                  int er = dir == 1 ? r + len - 1 : r;
+                                  int ec = dir == 0 ? c + len - 1 : c;
+                                  if (er >= N || ec >= N) continue;
+                                  boolean ok = true;
+                                  int hits = 0;
+                                  for (int k = 0; k < len && ok; k++) {
+                                      int v = s[(dir == 1 ? r + k : r) * N + (dir == 0 ? c + k : c)];
+                                      if (v == 1 || v == 3 || blocked[(dir == 1 ? r + k : r) * N + (dir == 0 ? c + k : c)]) ok = false;
+                                      else if (v == 2) hits++;
+                                  }
+                                  if (!ok) continue;
+                                  int w = 1 + hits * hits * 60;
+                                  if (anyHit && hits == 0) w = 1;
+                                  for (int k = 0; k < len; k++) {
+                                      int cell = (dir == 1 ? r + k : r) * N + (dir == 0 ? c + k : c);
+                                      if (s[cell] == 0) score[cell] += w;
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  int best = -1;
+                  ArrayList<Integer> bl = new ArrayList<Integer>();
+                  for (int i = 0; i < s.length; i++) {
+                      if (s[i] != 0) continue;
+                      if (score[i] > best) {
+                          best = score[i];
+                          bl.clear();
+                      }
+                      if (score[i] == best) bl.add(i);
+                  }
+                  return bl.isEmpty() ? pick(unknown(s)) : pick(bl);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Painter.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+
+          public class Painter {
+              public static final String[] THEMES = {"Кораблі", "Машини", "Поїзди", "Жуки", "Лего"};
+              private static final int[] CAR = {0xFFE53935, 0xFF1E88E5, 0xFFFDD835, 0xFF43A047, 0xFF8E24AA, 0xFFFB8C00};
+              private static final int[] BRICK = {0xFFE53935, 0xFF1E88E5, 0xFFFDD835, 0xFF43A047, 0xFFFB8C00, 0xFF8E24AA};
+              private static final Path path = new Path();
+              private static final RectF rf = new RectF();
+
+              private static void fill(Canvas c, Paint p, int col) {
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(col);
+              }
+
+              private static void rr(Canvas c, Paint p, float l, float t, float r, float b, float rad, int col) {
+                  fill(c, p, col);
+                  rf.set(l, t, r, b);
+                  c.drawRoundRect(rf, rad, rad, p);
+              }
+
+              private static void circle(Canvas c, Paint p, float x, float y, float r, int col) {
+                  fill(c, p, col);
+                  c.drawCircle(x, y, r, p);
+              }
+
+              // малює фігуру довжини len у клітинках; (x,y) — лівий верхній кут, cell — розмір клітинки
+              public static void draw(Canvas c, Paint p, int theme, float x, float y, float cell, int len, boolean horiz, int variant) {
+                  c.save();
+                  if (horiz) {
+                      c.translate(x, y);
+                  } else {
+                      c.translate(x + cell, y);
+                      c.rotate(90, 0, 0);
+                  }
+                  drawH(c, p, theme, cell, len, variant);
+                  c.restore();
+              }
+
+              private static void drawH(Canvas c, Paint p, int theme, float s, int len, int v) {
+                  float w = len * s;
+                  switch (theme) {
+                      case 1:
+                          for (int k = 0; k < len; k++) car(c, p, k * s, s, CAR[(v + k) % CAR.length]);
+                          break;
+                      case 2:
+                          for (int k = 0; k < len; k++) {
+                              float x = k * s;
+                              if (k == len - 1) loco(c, p, x, s);
+                              else wagon(c, p, x, s, BRICK[(v + k) % BRICK.length]);
+                          }
+                          break;
+                      case 3:
+                          bug(c, p, w, s, len, v);
+                          break;
+                      case 4:
+                          lego(c, p, w, s, len, BRICK[v % BRICK.length]);
+                          break;
+                      default:
+                          ship(c, p, w, s, len);
+                  }
+              }
+
+              private static void ship(Canvas c, Paint p, float w, float s, int len) {
+                  float pad = s * 0.08f;
+                  path.reset();
+                  path.moveTo(pad, s * 0.2f);
+                  path.lineTo(w - s * 0.5f, s * 0.2f);
+                  path.lineTo(w - pad, s * 0.5f);
+                  path.lineTo(w - s * 0.5f, s * 0.8f);
+                  path.lineTo(pad, s * 0.8f);
+                  path.close();
+                  fill(c, p, 0xFF78909C);
+                  c.drawPath(path, p);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(s * 0.05f);
+                  p.setColor(0xFF37474F);
+                  c.drawPath(path, p);
+                  rr(c, p, pad + s * 0.1f, s * 0.32f, w - s * 0.6f, s * 0.68f, s * 0.06f, 0xFFB0BEC5);
+                  if (len == 1) {
+                      circle(c, p, w * 0.45f, s * 0.5f, s * 0.16f, 0xFFECEFF1);
+                      return;
+                  }
+                  rr(c, p, w * 0.38f, s * 0.3f, w * 0.38f + s * 0.55f, s * 0.7f, s * 0.08f, 0xFFECEFF1);
+                  if (len >= 3) rr(c, p, w * 0.38f + s * 0.12f, s * 0.38f, w * 0.38f + s * 0.43f, s * 0.62f, s * 0.04f, 0xFFD32F2F);
+                  circle(c, p, w * 0.17f, s * 0.5f, s * 0.12f, 0xFF455A64);
+              }
+
+              private static void car(Canvas c, Paint p, float x, float s, int col) {
+                  rr(c, p, x + s * 0.1f, s * 0.22f, x + s * 0.92f, s * 0.78f, s * 0.14f, col);
+                  rr(c, p, x + s * 0.38f, s * 0.3f, x + s * 0.72f, s * 0.7f, s * 0.07f, 0xFF263238);
+                  rr(c, p, x + s * 0.2f, s * 0.12f, x + s * 0.32f, s * 0.24f, s * 0.03f, 0xFF212121);
+                  rr(c, p, x + s * 0.64f, s * 0.12f, x + s * 0.76f, s * 0.24f, s * 0.03f, 0xFF212121);
+                  rr(c, p, x + s * 0.2f, s * 0.76f, x + s * 0.32f, s * 0.88f, s * 0.03f, 0xFF212121);
+                  rr(c, p, x + s * 0.64f, s * 0.76f, x + s * 0.76f, s * 0.88f, s * 0.03f, 0xFF212121);
+                  circle(c, p, x + s * 0.88f, s * 0.35f, s * 0.05f, 0xFFFFF59D);
+                  circle(c, p, x + s * 0.88f, s * 0.65f, s * 0.05f, 0xFFFFF59D);
+              }
+
+              private static void wheels(Canvas c, Paint p, float x, float s) {
+                  circle(c, p, x + s * 0.28f, s * 0.84f, s * 0.1f, 0xFF212121);
+                  circle(c, p, x + s * 0.72f, s * 0.84f, s * 0.1f, 0xFF212121);
+              }
+
+              private static void wagon(Canvas c, Paint p, float x, float s, int col) {
+                  rr(c, p, x, s * 0.45f, x + s, s * 0.52f, 0, 0xFF424242);
+                  rr(c, p, x + s * 0.06f, s * 0.2f, x + s * 0.94f, s * 0.78f, s * 0.08f, col);
+                  rr(c, p, x + s * 0.18f, s * 0.3f, x + s * 0.38f, s * 0.5f, s * 0.03f, 0xFFE3F2FD);
+                  rr(c, p, x + s * 0.62f, s * 0.3f, x + s * 0.82f, s * 0.5f, s * 0.03f, 0xFFE3F2FD);
+                  wheels(c, p, x, s);
+              }
+
+              private static void loco(Canvas c, Paint p, float x, float s) {
+                  rr(c, p, x, s * 0.45f, x + s * 0.5f, s * 0.52f, 0, 0xFF424242);
+                  rr(c, p, x + s * 0.06f, s * 0.34f, x + s * 0.94f, s * 0.78f, s * 0.1f, 0xFFB71C1C);
+                  rr(c, p, x + s * 0.1f, s * 0.14f, x + s * 0.45f, s * 0.4f, s * 0.04f, 0xFF7F0000);
+                  rr(c, p, x + s * 0.58f, s * 0.14f, x + s * 0.74f, s * 0.36f, s * 0.04f, 0xFF212121);
+                  circle(c, p, x + s * 0.9f, s * 0.56f, s * 0.06f, 0xFFFFF59D);
+                  wheels(c, p, x, s);
+              }
+
+              private static void bug(Canvas c, Paint p, float w, float s, int len, int v) {
+                  int col = v % 2 == 0 ? 0xFF558B2F : 0xFFD84315;
+                  int dark = 0xFF1B2A12;
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(s * 0.06f);
+                  p.setColor(dark);
+                  for (int k = 0; k < len; k++) {
+                      float cx = k * s + s * 0.5f;
+                      c.drawLine(cx - s * 0.12f, s * 0.5f, cx - s * 0.28f, s * 0.08f, p);
+                      c.drawLine(cx + s * 0.12f, s * 0.5f, cx + s * 0.28f, s * 0.08f, p);
+                      c.drawLine(cx - s * 0.12f, s * 0.5f, cx - s * 0.28f, s * 0.92f, p);
+                      c.drawLine(cx + s * 0.12f, s * 0.5f, cx + s * 0.28f, s * 0.92f, p);
+                  }
+                  for (int k = 0; k < len - 1; k++) {
+                      float cx = k * s + s * 0.5f;
+                      rf.set(cx - s * 0.46f, s * 0.2f, cx + s * 0.46f, s * 0.8f);
+                      fill(c, p, k % 2 == 0 ? col : 0xFF7CB342);
+                      c.drawOval(rf, p);
+                      circle(c, p, cx, s * 0.5f, s * 0.09f, dark);
+                  }
+                  float hx = (len - 1) * s + s * 0.5f;
+                  circle(c, p, hx, s * 0.5f, s * 0.36f, dark);
+                  circle(c, p, hx + s * 0.14f, s * 0.36f, s * 0.08f, 0xFFFFFFFF);
+                  circle(c, p, hx + s * 0.14f, s * 0.64f, s * 0.08f, 0xFFFFFFFF);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setColor(dark);
+                  c.drawLine(hx + s * 0.3f, s * 0.4f, hx + s * 0.48f, s * 0.2f, p);
+                  c.drawLine(hx + s * 0.3f, s * 0.6f, hx + s * 0.48f, s * 0.8f, p);
+              }
+
+              private static void lego(Canvas c, Paint p, float w, float s, int len, int col) {
+                  rr(c, p, s * 0.05f, s * 0.12f, w - s * 0.05f, s * 0.92f, s * 0.07f, ((col >> 1) & 0x7F7F7F) | 0xFF000000);
+                  rr(c, p, s * 0.05f, s * 0.12f, w - s * 0.05f, s * 0.84f, s * 0.07f, col);
+                  for (int k = 0; k < len; k++) {
+                      float cx = k * s + s * 0.5f;
+                      circle(c, p, cx, s * 0.5f, s * 0.24f, 0x55000000);
+                      circle(c, p, cx, s * 0.46f, s * 0.24f, col);
+                      circle(c, p, cx - s * 0.06f, s * 0.4f, s * 0.08f, 0x66FFFFFF);
+                  }
+              }
+
+              // ---- поле ----
+              public static void board(Canvas c, Paint p, Board b, float ox, float oy, float cell, boolean showShips, int theme, int lastCell, boolean labels) {
+                  int n = Board.N;
+                  float sz = cell * n;
+                  rr(c, p, ox, oy, ox + sz, oy + sz, cell * 0.12f, 0xFF1565C0);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(Math.max(1f, cell * 0.03f));
+                  p.setColor(0x66BBDEFB);
+                  for (int i = 0; i <= n; i++) {
+                      c.drawLine(ox + i * cell, oy, ox + i * cell, oy + sz, p);
+                      c.drawLine(ox, oy + i * cell, ox + sz, oy + i * cell, p);
+                  }
+                  if (labels) {
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFFB0BEC5);
+                      p.setTextSize(cell * 0.45f);
+                      p.setTextAlign(Paint.Align.CENTER);
+                      String abc = "АБВГДЕЖЗИК";
+                      for (int i = 0; i < n; i++) {
+                          c.drawText(String.valueOf(abc.charAt(i)), ox + i * cell + cell / 2, oy - cell * 0.18f, p);
+                          c.drawText(String.valueOf(i + 1), ox - cell * 0.32f, oy + i * cell + cell * 0.66f, p);
+                      }
+                  }
+                  for (Board.Ship s : b.ships) {
+                      if (!s.placed) continue;
+                      boolean sunk = b.sunk(s);
+                      if (!showShips && !sunk) continue;
+                      draw(c, p, theme, ox + s.c * cell, oy + s.r * cell, cell, s.len, s.h, s.idx);
+                      if (sunk) {
+                          float w = s.h ? s.len * cell : cell, h = s.h ? cell : s.len * cell;
+                          rr(c, p, ox + s.c * cell + cell * 0.04f, oy + s.r * cell + cell * 0.04f, ox + s.c * cell + w - cell * 0.04f, oy + s.r * cell + h - cell * 0.04f, cell * 0.1f, 0x66B71C1C);
+                      }
+                  }
+                  for (int i = 0; i < n * n; i++) {
+                      int v = b.shot[i];
+                      if (v == 0) continue;
+                      float cx = ox + (i % n) * cell + cell / 2, cy = oy + (i / n) * cell + cell / 2;
+                      if (v == 1) {
+                          circle(c, p, cx, cy, cell * 0.11f, 0xFFE1F5FE);
+                      } else {
+                          p.setStyle(Paint.Style.STROKE);
+                          p.setStrokeWidth(cell * 0.1f);
+                          p.setColor(v == 3 ? 0xFF8B0000 : 0xFFFF1744);
+                          float d = cell * 0.26f;
+                          c.drawLine(cx - d, cy - d, cx + d, cy + d, p);
+                          c.drawLine(cx - d, cy + d, cx + d, cy - d, p);
+                      }
+                  }
+                  if (lastCell >= 0) {
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(cell * 0.08f);
+                      p.setColor(0xFFFFEB3B);
+                      rf.set(ox + (lastCell % n) * cell + cell * 0.06f, oy + (lastCell / n) * cell + cell * 0.06f,
+                          ox + (lastCell % n) * cell + cell * 0.94f, oy + (lastCell / n) * cell + cell * 0.94f);
+                      c.drawRoundRect(rf, cell * 0.1f, cell * 0.1f, p);
+                  }
+                  p.setStyle(Paint.Style.FILL);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Snd.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.media.AudioManager;
+          import android.media.SoundPool;
+
+          public class Snd {
+              public static final int BTN = 0, SHOT = 1, MISS = 2, HIT = 3, SUNK = 4, WIN = 5, LOSE = 6, PLACE = 7;
+              // власні mp3 (якщо є), інакше вбудований звук
+              private static final String[] NAMES = {"buttons|bs_btn", "bs_shot", "bs_miss", "bs_hit", "bs_sunk", "bs_win", "bs_lose", "bs_place"};
+              private SoundPool pool;
+              private final int[] ids = new int[NAMES.length];
+              private final SharedPreferences sp;
+              public boolean sound = true;
+
+              public Snd(Context c, SharedPreferences sp) {
+                  this.sp = sp;
+                  sound = sp.getBoolean("sound", true);
+                  Context ctx = c.getApplicationContext();
+                  try {
+                      pool = new SoundPool(8, AudioManager.STREAM_MUSIC, 0);
+                      for (int i = 0; i < NAMES.length; i++) {
+                          int rid = 0;
+                          String[] cand = NAMES[i].split("\\|");
+                          for (int k = 0; k < cand.length && rid == 0; k++) {
+                              rid = ctx.getResources().getIdentifier(cand[k], "raw", ctx.getPackageName());
+                          }
+                          ids[i] = rid == 0 ? 0 : pool.load(ctx, rid, 1);
+                      }
+                  } catch (Exception e) {
+                      pool = null;
+                  }
+              }
+
+              public void setSound(boolean on) {
+                  sound = on;
+                  sp.edit().putBoolean("sound", on).commit();
+              }
+
+              public void play(int kind) {
+                  if (!sound || pool == null || kind < 0 || kind >= ids.length || ids[kind] == 0) return;
+                  try {
+                      pool.play(ids[kind], 0.9f, 0.9f, 1, 0, 1f);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
+              public void release() {
+                  try {
+                      if (pool != null) pool.release();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  pool = null;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/PlaceView.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.RectF;
+          import android.view.MotionEvent;
+          import android.view.View;
+
+          public class PlaceView extends View {
+              public interface Listener {
+                  void onChanged();
+
+                  void onSound(int kind);
+              }
+
+              public Board board = new Board();
+              public Listener listener;
+              public int theme;
+              private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private float ox, oy, cell, trayX, trayY, trayCell, trayW, trayH;
+              private Board.Ship pick;
+              private boolean fromBoard, moved;
+              private int origR, origC;
+              private boolean origH;
+              private float downX, downY, fx, fy, offR, offC;
+
+              public PlaceView(Context c) {
+                  super(c);
+              }
+
+              private void calc() {
+                  float W = getWidth(), H = getHeight();
+                  float u = Math.min(W / 16f, H / 9f);
+                  cell = Math.min(H * 0.8f, W * 0.5f) / 10f;
+                  ox = u * 0.9f;
+                  oy = (H - cell * 10) / 2f + u * 0.2f;
+                  trayX = ox + cell * 10 + u * 0.8f;
+                  trayW = W - trayX - u * 0.4f;
+                  trayCell = Math.min(cell * 0.8f, trayW / 2f / 4.3f);
+                  trayY = u * 1.1f;
+                  trayH = u * 0.95f;
+              }
+
+              private float slotX(int i) {
+                  return trayX + (i % 2) * (trayW / 2f);
+              }
+
+              private float slotY(int i) {
+                  return trayY + (i / 2) * trayH;
+              }
+
+              private Board.Ship trayAt(float x, float y) {
+                  for (Board.Ship s : board.ships) {
+                      if (s.placed || s == pick) continue;
+                      float sx = slotX(s.idx), sy = slotY(s.idx);
+                      if (x >= sx - trayCell * 0.2f && x <= sx + s.len * trayCell + trayCell * 0.2f && y >= sy - trayCell * 0.2f && y <= sy + trayCell * 1.2f) return s;
+                  }
+                  return null;
+              }
+
+              private int cellAt(float x, float y, boolean any) {
+                  int c = (int) Math.floor((x - ox) / cell), r = (int) Math.floor((y - oy) / cell);
+                  if (c < 0 || r < 0 || c >= 10 || r >= 10) return -1;
+                  return r * 10 + c;
+              }
+
+              @Override
+              protected void onDraw(Canvas cv) {
+                  calc();
+                  float W = getWidth(), H = getHeight();
+                  float u = Math.min(W / 16f, H / 9f);
+                  cv.drawColor(0xFF0D2847);
+                  Painter.board(cv, p, board, ox, oy, cell, true, theme, -1, true);
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(0xFFFFFFFF);
+                  p.setTextAlign(Paint.Align.LEFT);
+                  p.setTextSize(u * 0.5f);
+                  cv.drawText("Розстав кораблі", trayX, u * 0.75f, p);
+                  for (Board.Ship s : board.ships) {
+                      if (s.placed || s == pick) continue;
+                      Painter.draw(cv, p, theme, slotX(s.idx), slotY(s.idx), trayCell, s.len, true, s.idx);
+                  }
+                  if (pick != null) {
+                      if (fx >= ox - cell && fx <= ox + cell * 11 && fy >= oy - cell && fy <= oy + cell * 11) {
+                          int cc = (int) Math.floor((fx - ox) / cell) - (int) offC, rr = (int) Math.floor((fy - oy) / cell) - (int) offR;
+                          boolean ok = board.canPlace(rr, cc, pick.len, pick.h, pick.idx);
+                          float w = pick.h ? pick.len * cell : cell, h = pick.h ? cell : pick.len * cell;
+                          p.setStyle(Paint.Style.FILL);
+                          p.setColor(ok ? 0x5500E676 : 0x55FF1744);
+                          RectF r = new RectF(ox + cc * cell, oy + rr * cell, ox + cc * cell + w, oy + rr * cell + h);
+                          cv.drawRoundRect(r, cell * 0.1f, cell * 0.1f, p);
+                          Painter.draw(cv, p, theme, ox + cc * cell, oy + rr * cell, cell, pick.len, pick.h, pick.idx);
+                      } else {
+                          Painter.draw(cv, p, theme, fx - offC * cell - cell / 2, fy - offR * cell - cell / 2, cell, pick.len, pick.h, pick.idx);
+                      }
+                  }
+              }
+
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  calc();
+                  float x = e.getX(), y = e.getY();
+                  int a = e.getAction();
+                  if (a == MotionEvent.ACTION_DOWN) {
+                      moved = false;
+                      downX = x;
+                      downY = y;
+                      fx = x;
+                      fy = y;
+                      int ci = cellAt(x, y, false);
+                      if (ci >= 0) {
+                          int id = board.shipAt(ci / 10, ci % 10);
+                          if (id >= 0) {
+                              pick = board.ships[id];
+                              fromBoard = true;
+                              origR = pick.r;
+                              origC = pick.c;
+                              origH = pick.h;
+                              offR = ci / 10 - pick.r;
+                              offC = ci % 10 - pick.c;
+                              pick.placed = false;
+                              invalidate();
+                              return true;
+                          }
+                      }
+                      Board.Ship t = trayAt(x, y);
+                      if (t != null) {
+                          pick = t;
+                          fromBoard = false;
+                          pick.h = true;
+                          offR = 1;
+                          offC = 0;
+                          invalidate();
+                      }
+                      return true;
+                  }
+                  if (pick == null) return true;
+                  if (a == MotionEvent.ACTION_MOVE) {
+                      fx = x;
+                      fy = y;
+                      if (Math.abs(x - downX) + Math.abs(y - downY) > cell * 0.3f) moved = true;
+                      invalidate();
+                      return true;
+                  }
+                  if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                      Board.Ship s = pick;
+                      pick = null;
+                      boolean done = false;
+                      if (a == MotionEvent.ACTION_UP) {
+                          if (fromBoard && !moved) {
+                              boolean nh = !origH;
+                              int nr = origR, nc = origC;
+                              if (board.canPlace(nr, nc, s.len, nh, s.idx)) {
+                                  board.place(s.idx, nr, nc, nh);
+                                  done = true;
+                                  if (listener != null) listener.onSound(Snd.PLACE);
+                              }
+                          } else if (fromBoard && x > ox + cell * 10 + cell * 0.5f) {
+                              done = true;
+                          } else {
+                              int ci = cellAt(x, y, true);
+                              if (ci >= 0) {
+                                  int cc = ci % 10 - (int) offC, rr = ci / 10 - (int) offR;
+                                  if (board.canPlace(rr, cc, s.len, s.h, s.idx)) {
+                                      board.place(s.idx, rr, cc, s.h);
+                                      done = true;
+                                      if (listener != null) listener.onSound(Snd.PLACE);
+                                  }
+                              }
+                          }
+                      }
+                      if (!done && fromBoard) board.place(s.idx, origR, origC, origH);
+                      invalidate();
+                      if (listener != null) listener.onChanged();
+                  }
+                  return true;
+              }
+
+              public void randomize() {
+                  board.randomize(new java.util.Random());
+                  invalidate();
+                  if (listener != null) listener.onChanged();
+              }
+
+              public void clearAll() {
+                  board.clear();
+                  invalidate();
+                  if (listener != null) listener.onChanged();
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/BattleView.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.view.MotionEvent;
+          import android.view.View;
+
+          public class BattleView extends View {
+              public interface Listener {
+                  void onShoot(int cell);
+              }
+
+              public Board mine, enemy;
+              public Listener listener;
+              public int theme;
+              public String msg = "";
+              public boolean myTurn, reveal;
+              public int lastMine = -1, lastEnemy = -1;
+              private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private float ex, ey, ec, mx, my, mc;
+
+              public BattleView(Context c) {
+                  super(c);
+              }
+
+              private void calc() {
+                  float W = getWidth(), H = getHeight();
+                  float u = Math.min(W / 16f, H / 9f);
+                  ec = Math.min(H * 0.78f, W * 0.52f) / 10f;
+                  ex = W - u * 0.7f - ec * 10;
+                  ey = H - u * 0.5f - ec * 10;
+                  mc = ec * 0.6f;
+                  mx = u * 1.0f;
+                  my = ey;
+              }
+
+              @Override
+              protected void onDraw(Canvas cv) {
+                  calc();
+                  float W = getWidth(), H = getHeight();
+                  float u = Math.min(W / 16f, H / 9f);
+                  cv.drawColor(0xFF0D2847);
+                  if (mine == null || enemy == null) return;
+                  Painter.board(cv, p, enemy, ex, ey, ec, reveal, theme, lastEnemy, true);
+                  Painter.board(cv, p, mine, mx, my, mc, true, theme, lastMine, false);
+                  p.setStyle(Paint.Style.FILL);
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTextSize(u * 0.42f);
+                  p.setColor(myTurn ? 0xFF69F0AE : 0xFFFFD54F);
+                  cv.drawText(msg, (ex - u * 0.3f) / 2f + u * 0.3f, u * 0.65f, p);
+                  p.setTextAlign(Paint.Align.LEFT);
+                  p.setTextSize(u * 0.36f);
+                  p.setColor(0xFFB0BEC5);
+                  cv.drawText("Ваше поле", mx, my - u * 0.15f, p);
+                  cv.drawText("Поле ворога", ex, ey - ec * 0.7f, p);
+                  // залишок флоту ворога
+                  float sy = my + mc * 10 + u * 0.35f;
+                  cv.drawText("Флот ворога:", mx, sy + u * 0.3f, p);
+                  float x0 = mx, y0 = sy + u * 0.55f, sq = u * 0.22f;
+                  for (Board.Ship s : enemy.ships) {
+                      boolean dead = enemy.sunk(s);
+                      p.setColor(dead ? 0xFFD32F2F : 0xFF90A4AE);
+                      for (int k = 0; k < s.len; k++) {
+                          cv.drawRect(x0 + k * (sq + 2), y0, x0 + k * (sq + 2) + sq, y0 + sq, p);
+                      }
+                      x0 += s.len * (sq + 2) + sq * 0.8f;
+                      if (x0 > mx + mc * 10 - sq * 3) {
+                          x0 = mx;
+                          y0 += sq + 4;
+                      }
+                  }
+              }
+
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  if (e.getAction() != MotionEvent.ACTION_UP) return true;
+                  calc();
+                  int c = (int) Math.floor((e.getX() - ex) / ec), r = (int) Math.floor((e.getY() - ey) / ec);
+                  if (c < 0 || r < 0 || c >= 10 || r >= 10) return true;
+                  if (listener != null) listener.onShoot(r * 10 + c);
+                  return true;
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/MainActivity.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.app.Dialog;
+          import android.content.DialogInterface;
+          import android.content.SharedPreferences;
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.Paint;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.ColorDrawable;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.util.DisplayMetrics;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          import java.util.Random;
+
+          public class MainActivity extends Activity {
+              private static final int S_MENU = 0, S_SEA = 1, S_PLACE = 2, S_BATTLE = 3, S_SET = 4;
+              private static final int WHITE = 0xFFFFFFFF;
+              private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+              private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
+
+              private final Handler ui = new Handler(Looper.getMainLooper());
+              private final Random rnd = new Random();
+              private SharedPreferences sp;
+              private Snd snd;
+              private FrameLayout root;
+              private float u;
+              private int screen, prevScreen, theme, level, gen;
+              private Board mine, enemy;
+              private Bot bot;
+              private BattleView bv;
+              private boolean over;
+              private Dialog endDlg;
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  sp = getSharedPreferences("gg", MODE_PRIVATE);
+                  theme = sp.getInt("theme", 0);
+                  snd = new Snd(this, sp);
+                  DisplayMetrics dm = getResources().getDisplayMetrics();
+                  float big = Math.max(dm.widthPixels, dm.heightPixels);
+                  float small = Math.min(dm.widthPixels, dm.heightPixels);
+                  u = Math.min(big / 16f, small / 9f);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  root = new FrameLayout(this);
+                  setContentView(root);
+                  showMenu();
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean focus) {
+                  super.onWindowFocusChanged(focus);
+                  if (focus) {
+                      getWindow().getDecorView().setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                              | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                              | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  gen++;
+                  if (snd != null) snd.release();
+              }
+
+              private int px(float k) {
+                  return (int) (k * u);
+              }
+
+              private GradientDrawable bg(int color, float radiusU) {
+                  GradientDrawable d = new GradientDrawable();
+                  d.setColor(color);
+                  d.setCornerRadius(radiusU * u);
+                  return d;
+              }
+
+              private TextView tv(String s, float size, int color, boolean bold) {
+                  TextView t = new TextView(this);
+                  t.setText(s);
+                  t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
+                  t.setTextColor(color);
+                  if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
+                  return t;
+              }
+
+              private Button btn(String s, int color, final View.OnClickListener l) {
+                  Button b = new Button(this);
+                  b.setText(s);
+                  b.setAllCaps(false);
+                  b.setTextColor(WHITE);
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.4f * u);
+                  b.setTypeface(Typeface.DEFAULT_BOLD);
+                  b.setBackground(bg(color, 0.2f));
+                  b.setStateListAnimator(null);
+                  b.setMinHeight(0);
+                  b.setMinimumHeight(0);
+                  b.setMinWidth(0);
+                  b.setMinimumWidth(0);
+                  b.setPadding(px(0.2f), px(0.1f), px(0.2f), px(0.1f));
+                  b.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          snd.play(Snd.BTN);
+                          l.onClick(v);
+                      }
+                  });
+                  return b;
+              }
+
+              private LinearLayout.LayoutParams lp(float w, float h, float m) {
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w < 0 ? (int) w : px(w), h < 0 ? (int) h : px(h));
+                  int k = px(m);
+                  p.setMargins(k, k, k, k);
+                  return p;
+              }
+
+              private LinearLayout column() {
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setGravity(Gravity.CENTER);
+                  return col;
+              }
+
+              private void begin(int s) {
+                  gen++;
+                  prevScreen = screen;
+                  screen = s;
+                  if (endDlg != null) {
+                      try {
+                          endDlg.dismiss();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      endDlg = null;
+                  }
+                  root.removeAllViews();
+                  root.setBackgroundColor(0xFF0D2847);
+              }
+
+              // ---------- меню ----------
+              private void showMenu() {
+                  begin(S_MENU);
+                  LinearLayout col = column();
+                  col.addView(tv("Gryntsiv Games", 0.95f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
+                  col.addView(tv("Оберіть гру", 0.4f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.2f));
+                  col.addView(btn("Морський бій", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), lp(7.5f, 1.1f, 0.12f));
+                  col.addView(btn("Налаштування", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSettings();
+                      }
+                  }), lp(7.5f, 1.1f, 0.12f));
+                  col.addView(btn("Вихід", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          finish();
+                      }
+                  }), lp(7.5f, 1.1f, 0.12f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+              }
+
+              private void showSea() {
+                  begin(S_SEA);
+                  LinearLayout col = column();
+                  col.addView(tv("Морський бій", 0.8f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
+                  col.addView(tv("Проти бота — оберіть рівень:", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.15f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  for (int k = 0; k < Bot.LEVELS.length; k++) {
+                      final int lk = k;
+                      row.addView(btn(Bot.LEVELS[k], 0xFF2E7D32, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              showPlace(lk);
+                          }
+                      }), lp(3.2f, 1.1f, 0.1f));
+                  }
+                  col.addView(row);
+                  col.addView(btn("По Wi-Fi (незабаром)", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                      }
+                  }), lp(7.5f, 1.0f, 0.1f));
+                  col.addView(btn("Через інтернет (незабаром)", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                      }
+                  }), lp(7.5f, 1.0f, 0.1f));
+                  LinearLayout row2 = new LinearLayout(this);
+                  row2.setOrientation(LinearLayout.HORIZONTAL);
+                  row2.addView(btn("Налаштування", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSettings();
+                      }
+                  }), lp(3.6f, 1.0f, 0.1f));
+                  row2.addView(btn("Назад", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showMenu();
+                      }
+                  }), lp(3.6f, 1.0f, 0.1f));
+                  col.addView(row2);
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+              }
+
+              // ---------- розстановка ----------
+              private void showPlace(int lvl) {
+                  level = lvl;
+                  begin(S_PLACE);
+                  final PlaceView pv = new PlaceView(this);
+                  pv.theme = theme;
+                  root.addView(pv, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  final Button done = btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (!pv.board.allPlaced()) return;
+                          startBattle(pv.board);
+                      }
+                  });
+                  pv.listener = new PlaceView.Listener() {
+                      public void onChanged() {
+                          done.setAlpha(pv.board.allPlaced() ? 1f : 0.4f);
+                      }
+
+                      public void onSound(int kind) {
+                          snd.play(kind);
+                      }
+                  };
+                  done.setAlpha(0.4f);
+                  LinearLayout panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  LinearLayout r1 = new LinearLayout(this);
+                  r1.addView(btn("Випадково", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          pv.randomize();
+                      }
+                  }), new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  r1.addView(btn("Очистити", 0xFF6D4C41, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          pv.clearAll();
+                      }
+                  }), new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  LinearLayout r2 = new LinearLayout(this);
+                  r2.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  r2.addView(done, new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  for (int i = 0; i < 2; i++) {
+                      LinearLayout r = i == 0 ? r1 : r2;
+                      for (int k = 0; k < r.getChildCount(); k++) {
+                          ((LinearLayout.LayoutParams) r.getChildAt(k).getLayoutParams()).setMargins(px(0.08f), px(0.08f), px(0.08f), px(0.08f));
+                      }
+                      panel.addView(r, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  }
+                  panel.addView(tv("Перетягуйте кораблі на поле. Дотик до корабля на полі — повернути.", 0.28f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.08f));
+                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(px(6.3f), WRAP);
+                  fp.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+                  fp.setMargins(0, 0, px(0.4f), px(0.5f));
+                  root.addView(panel, fp);
+              }
+
+              // ---------- бій ----------
+              private void startBattle(Board my) {
+                  begin(S_BATTLE);
+                  mine = my;
+                  for (int i = 0; i < mine.shot.length; i++) mine.shot[i] = 0;
+                  enemy = new Board();
+                  enemy.randomize(rnd);
+                  bot = new Bot(level);
+                  over = false;
+                  bv = new BattleView(this);
+                  bv.theme = theme;
+                  bv.mine = mine;
+                  bv.enemy = enemy;
+                  bv.myTurn = rnd.nextBoolean();
+                  bv.msg = bv.myTurn ? "Ви починаєте — стріляйте!" : "Першим стріляє бот";
+                  bv.listener = new BattleView.Listener() {
+                      public void onShoot(int cell) {
+                          myShot(cell);
+                      }
+                  };
+                  root.addView(bv, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  Button give = btn("Здатися", 0xFF8E2424, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          askSurrender();
+                      }
+                  });
+                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(px(2.4f), px(0.8f));
+                  fp.gravity = Gravity.TOP | Gravity.LEFT;
+                  fp.setMargins(px(0.3f), px(0.2f), 0, 0);
+                  root.addView(give, fp);
+                  if (!bv.myTurn) botLater(900);
+              }
+
+              private void myShot(int cell) {
+                  if (over || !bv.myTurn || enemy.shot[cell] != 0) return;
+                  int res = enemy.shoot(cell);
+                  bv.lastEnemy = cell;
+                  sounds(res);
+                  if (enemy.allSunk()) {
+                      bv.msg = "Усі кораблі бота потоплено!";
+                      endGame(true);
+                  } else if (res == 0) {
+                      bv.msg = "Мимо. Хід бота";
+                      bv.myTurn = false;
+                      botLater(1000);
+                  } else {
+                      bv.msg = res == 2 ? "Потоплено! Стріляйте ще" : "Влучили! Стріляйте ще";
+                  }
+                  bv.invalidate();
+              }
+
+              private void botLater(int ms) {
+                  final int g = gen;
+                  ui.postDelayed(new Runnable() {
+                      public void run() {
+                          if (g == gen && !over) botShot();
+                      }
+                  }, ms);
+              }
+
+              private void botShot() {
+                  int cell = bot.next(mine);
+                  int res = mine.shoot(cell);
+                  bv.lastMine = cell;
+                  sounds(res);
+                  if (mine.allSunk()) {
+                      bv.msg = "Бот потопив усі ваші кораблі";
+                      endGame(false);
+                  } else if (res == 0) {
+                      bv.msg = "Бот схибив. Ваш хід";
+                      bv.myTurn = true;
+                  } else {
+                      bv.msg = res == 2 ? "Бот потопив ваш корабель" : "Бот влучив";
+                      botLater(900);
+                  }
+                  bv.invalidate();
+              }
+
+              private void sounds(final int res) {
+                  snd.play(Snd.SHOT);
+                  final int g = gen;
+                  ui.postDelayed(new Runnable() {
+                      public void run() {
+                          if (g == gen) snd.play(res == 0 ? Snd.MISS : (res == 1 ? Snd.HIT : Snd.SUNK));
+                      }
+                  }, 260);
+              }
+
+              private void endGame(final boolean win) {
+                  over = true;
+                  bv.myTurn = false;
+                  bv.reveal = true;
+                  final int g = gen;
+                  ui.postDelayed(new Runnable() {
+                      public void run() {
+                          if (g != gen) return;
+                          snd.play(win ? Snd.WIN : Snd.LOSE);
+                          showEnd(win);
+                      }
+                  }, 1300);
+              }
+
+              private void showEnd(boolean win) {
+                  LinearLayout box = column();
+                  box.addView(tv(win ? "Перемога!" : "Поразка", 0.8f, win ? 0xFF69F0AE : 0xFFFF8A80, true), lp(WRAP, WRAP, 0.1f));
+                  box.addView(tv(win ? "Флот бота знищено" : "Ваш флот знищено", 0.38f, WHITE, false), lp(WRAP, WRAP, 0.1f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.addView(btn("Реванш", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showPlace(level);
+                      }
+                  }), lp(3.2f, 1.0f, 0.1f));
+                  row.addView(btn("В меню", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), lp(3.2f, 1.0f, 0.1f));
+                  box.addView(row);
+                  LinearLayout wrap = new LinearLayout(this);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setBackground(bg(0xFF263238, 0.3f));
+                  wrap.setPadding(px(0.5f), px(0.4f), px(0.5f), px(0.4f));
+                  wrap.addView(box);
+                  Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar);
+                  d.setContentView(wrap);
+                  d.setCancelable(false);
+                  if (d.getWindow() != null) d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                  endDlg = d;
+                  d.show();
+              }
+
+              private void askSurrender() {
+                  if (over) return;
+                  new AlertDialog.Builder(this).setTitle("Здатися?")
+                      .setPositiveButton("Так", new DialogInterface.OnClickListener() {
+                          public void onClick(DialogInterface d, int w) {
+                              showSea();
+                          }
+                      }).setNegativeButton("Ні", null).show();
+              }
+
+              // ---------- налаштування ----------
+              private class Prev extends View {
+                  private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                  Prev(MainActivity a) {
+                      super(a);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      float cell = u * 0.9f;
+                      Painter.draw(c, p, theme, u * 0.2f, u * 0.2f, cell, 4, true, 0);
+                      Painter.draw(c, p, theme, u * 0.2f, u * 1.3f, cell, 3, true, 1);
+                      Painter.draw(c, p, theme, u * 0.2f + cell * 4.3f, u * 0.2f, cell, 2, true, 3);
+                      Painter.draw(c, p, theme, u * 0.2f + cell * 4.3f, u * 1.3f, cell, 1, true, 2);
+                      Painter.draw(c, p, theme, u * 0.2f + cell * 6.0f, u * 1.3f, cell, 3, false, 4);
+                  }
+              }
+
+              private void showSettings() {
+                  final int back = screen == S_SEA ? S_SEA : S_MENU;
+                  begin(S_SET);
+                  LinearLayout col = column();
+                  col.addView(tv("Налаштування", 0.7f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
+                  col.addView(tv("Тема фігур", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.08f));
+                  final Prev prev = new Prev(this);
+                  final Button[] tb = new Button[Painter.THEMES.length];
+                  LinearLayout row = new LinearLayout(this);
+                  for (int k = 0; k < tb.length; k++) {
+                      final int tk = k;
+                      tb[k] = btn(Painter.THEMES[k], k == theme ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              theme = tk;
+                              sp.edit().putInt("theme", theme).commit();
+                              for (int j = 0; j < tb.length; j++) tb[j].setBackground(bg(j == theme ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
+                              prev.invalidate();
+                          }
+                      });
+                      row.addView(tb[k], lp(2.8f, 0.95f, 0.06f));
+                  }
+                  col.addView(row);
+                  col.addView(prev, lp(9.5f, 2.4f, 0.1f));
+                  final Button sb = btn(snd.sound ? "Звук: увімкнено" : "Звук: вимкнено", snd.sound ? 0xFF2E7D32 : 0xFF455A64, null);
+                  sb.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          snd.setSound(!snd.sound);
+                          snd.play(Snd.BTN);
+                          sb.setText(snd.sound ? "Звук: увімкнено" : "Звук: вимкнено");
+                          sb.setBackground(bg(snd.sound ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
+                      }
+                  });
+                  col.addView(sb, lp(7.5f, 1.0f, 0.1f));
+                  col.addView(btn("Готово", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (back == S_SEA) showSea();
+                          else showMenu();
+                      }
+                  }), lp(7.5f, 1.0f, 0.1f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (screen == S_MENU) {
+                      finish();
+                  } else if (screen == S_SEA) {
+                      showMenu();
+                  } else if (screen == S_PLACE) {
+                      showSea();
+                  } else if (screen == S_BATTLE) {
+                      askSurrender();
+                  } else {
+                      if (prevScreen == S_SEA) showSea();
+                      else showMenu();
+                  }
+              }
+          }
+          EOF
+
+          echo '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' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+          echo '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' | base64 -d > app/src/main/res/raw/bs_btn.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/bs_hit.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/bs_lose.ogg
+          echo 'T2dnUwACAAAAAAAAAABNTT7cAAAAAC+BJwgBHgF2b3JiaXMAAAAAASJWAAAAAAAAHp0AAAAAAACpAU9nZ1MAAAAAAAAAAAAATU0+3AEAAACnqfqsDkD////////////////FA3ZvcmJpcw0AAABMYXZmNjAuMTYuMTAwAQAAAB8AAABlbmNvZGVyPUxhdmM2MC4zMS4xMDIgbGlidm9yYmlzAQV2b3JiaXMiQkNWAQBAAAAYQhAqBa1jjjrIFSGMGaKgQsopxx1C0CGjJEOIOsY1xxhjR7lkikLJgdCQVQAAQAAApBxXUHJJLeecc6MYV8xx6CDnnHPlIGfMcQkl55xzjjnnknKOMeecc6MYVw5yKS3nnHOBFEeKcacY55xzpBxHinGoGOecc20xt5JyzjnnnHPmIIdScq4155xzpBhnDnILJeecc8YgZ8xx6yDnnHOMNbfUcs4555xzzjnnnHPOOeecc4wx55xzzjnnnHNuMecWc64555xzzjnnHHPOOeeccyA0ZBUAkAAAoKEoiuIoDhAasgoAyAAAEEBxFEeRFEuxHMvRJA0IDVkFAAABAAgAAKBIhqRIiqVYjmZpniZ6oiiaoiqrsmnKsizLsuu6LhAasgoASAAAUFEUxXAUBwgNWQUAZAAACGAoiqM4juRYkqVZngeEhqwCAIAAAAQAAFAMR7EUTfEkz/I8z/M8z/M8z/M8z/M8z/M8z/M8DQgNWQUAIAAAAIIoZBgDQkNWAQBAAAAIIRoZQ51SElwKFkIcEUMdQs5DqaWD4CmFJWPSU6xBCCF87z333nvvgdCQVQAAEAAAYRQ4iIHHJAghhGIUJ0RxpiAIIYTlJFjKeegkCN2DEEK4nHvLuffeeyA0ZBUAAAgAwCCEEEIIIYQQQggppJRSSCmmmGKKKcccc8wxxyCDDDLooJNOOsmkkk46yiSjjlJrKbUUU0yx5RZjrbXWnHOvQSljjDHGGGOMMcYYY4wxxhgjCA1ZBQCAAAAQBhlkkEEIIYQUUkgppphyzDHHHANCQ1YBAIAAAAIAAAAcRVIkR3IkR5IkyZIsSZM8y7M8y7M8TdRETRVV1VVt1/ZtX/Zt39Vl3/Zl29VlXZZl3bVtXdZdXdd1Xdd1Xdd1Xdd1Xdd1XdeB0JBVAIAEAICO5DiO5DiO5EiOpEgKEBqyCgCQAQAQAICjOIrjSI7kWI4lWZImaZZneZaneZqoiR4QGrIKAAAEABAAAAAAAICiKIqjOI4kWZamaZ6neqIomqqqiqapqqpqmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpAqEhqwAACQAAHcdxHEdxHMdxJEeSJCA0ZBUAIAMAIAAAQ1EcRXIsx5I0S7M8y9NEz/RcUTZ1U1dtIDRkFQAACAAgAAAAAAAAx3M8x3M8yZM8y3M8x5M8SdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TQNCQ1YCAGQAABCTkEpOsVdGKcYktF4qpBST1HuomGJMOu2pQgYpB7mHSiGloNPeMqWQUgx7p5hCyBjqoYOQMYWw19pzz733HggNWREARAEAAMYgxhBjyDEmJYMSMcckZFIi55yUTkompaRWWsykhJhKi5FzTkonJZNSWgupZZJKayWmAgAAAhwAAAIshEJDVgQAUQAAiDFIKaQUUkoxp5hDSinHlGNIKeWcck45x5h0ECrnGHQOSqSUco45p5xzEjIHlXMOQiadAACAAAcAgAALodCQFQFAnAAAgJBzijEIEWMQQgkphVBSqpyT0kFJqYOSUkmpxZJSjJVzUjoJKXUSUiopxVhSii2kVGNpLdfSUo0txpxbjL2GlGItqdVaWqu5xVhzizX3yDlKnZTWOimtpdZqTa3V2klpLaTWYmktxtZizSnGnDMprYWWYiupxdhiyzW1mHNpLdcUY88pxp5rrLnHnIMwrdWcWss5xZh7zLHnmHMPknOUOimtdVJaS63VmlqrNZPSWmmtxpBaiy3GnFuLMWdSWiypxVhaijHFmHOLLdfQWq4pxpxTiznHWoOSsfZeWqs5xZh7iq3nmHMwNseeO0q5ltZ6Lq31XnMuQtbci2gt59RqDyrGnnPOwdjcgxCt5Zxq7D3F2HvuORjbc/Ct1uBbzUXInIPQufimezBG1dqDzLUImXMQOugidPDJeJRqLq3lXFrrPdYafM05CNFa7inG3lOLvdeem7C9ByFayz3F2IOKMfiaczA652JUrcHHnIOQtRahey9K5yCUqrUHmWtQMtcidPDF6KCLLwAAYMABACDAhDJQaMiKACBOAIBByDmlGIRKKQihhJRCKClVjEnImIOSMSellFJaCCW1ijEImWNSMsekhBJaKiW0EkppqZTSWiiltZZajCm1FkMpqYVSWiultJZaqjG1VmPEmJTMOSmZY1JKKa2VUlqrHJOSMSipg5BKKSnFUlKLlXNSMuiodBBKKqnEVFJpraTSUimlxZJSbCnFVFuLtYZSWiypxFZSajG1VFuLMdeIMSkZc1Iy56SUUlIrpbSWOSelg45K5qCkklJrpaQUM+akdA5KyiCjUlKKLaUSUyiltZJSbKWk1lqMtabUWi0ltVZSarGUEluLMdcWS02dlNZKKjGGUlprMeaaWosxlBJbKSnGkkpsrcWaW2w5hlJaLKnEVkpqsdWWY2ux5tRSjSm1mltsucaUU4+19pxaqzW1VGNrseZYW2+11pw7Ka2FUlorJcWYWouxxVhzKCW2klJspaQYW2y5thZjD6G0WEpqsaQSY2sx5hhbjqm1WltsuabUYq219hxbbj2lFmuLsebSUo01195jTTkVAAAw4AAAEGBCGSg0ZCUAEAUAABjDGGMQGqWcc05Kg5RzzknJnIMQQkqZcxBCSClzTkJKLWXOQUiptVBKSq3FFkpJqbUWCwAAKHAAAAiwQVNicYBCQ1YCAFEAAIgxSjEGoTFGKecgNMYoxRiESinGnJNQKcWYc1Ayx5yDUErmnHMQSgkhlFJKSiGEUkpJqQAAgAIHAIAAGzQlFgcoNGRFABAFAAAYY5wzziEKnaXOUiSpo9ZRayilGkuMncZWe+u50xp7bbk3lEqNqdaOa8u51d5pTT23HAsAADtwAAA7sBAKDVkJAOQBABDGKMWYc84ZhRhzzjnnDFKMOeecc4ox55yDEELFmHPOQQghc845CKGEkjnnHIQQSuicg1BKKaV0zkEIoZRSOucghFJKKZ1zEEoppZQCAIAKHAAAAmwU2ZxgJKjQkJUAQB4AAGAMQs5Jaa1hzDkILdXYMMYclJRii5yDkFKLuUbMQUgpxqA7KCm1GGzwnYSUWos5B5NSizXn3oNIqbWag8491VZzz733nGKsNefecy8AAHfBAQDswEaRzQlGggoNWQkA5AEAEAgpxZhzzhmlGHPMOeeMUowx5pxzijHGnHPOQcUYY845ByFjzDnnIISQMeaccxBC6JxzDkIIIXTOOQchhBA656CDEEIInXMQQgghhAIAgAocAAACbBTZnGAkqNCQlQBAOAAAACGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBC6JxzzjnnnHPOOeecc84555xzzjknAMi3wgHA/8HGGVaSzgpHgwsNWQkAhAMAAApBKKViEEopJZJOOimdk1BKKZGDUkrppJRSSgmllFJKCKWUUkoIHZRSQimllFJKKaWUUkoppZRSOimllFJKKaWUyjkppZNSSimlRM5JKSGUUkoppYRSSimllFJKKaWUUkoppZRSSimlhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEAgC4GxwAIBJsnGEl6axwNLjQkJUAQEgAAKAUc45KCCmUkFKomKKOQikppFJKChFjzknqHIVQUiipg8o5CKWklEIqIXXOQQclhZBSCSGVjjroKJRQUiollNI5KKWEFEpKKZWQQkipdJRSKCWVlEIqIZVSSkgllRBKCp2kVEoKqaRUUgiddJBCJyWkkkoKqZOUUiolpZRKSiV0UkIqKaUQQkqplBBKSCmlTlJJqaQUQighhZRSSiWlkkpKIZVUQgmlpJRSKKGkVFJKKaWSUikAAODAAQAgwAg6yaiyCBtNuPAAFBqyEgAgAwBAlHTWaadJIggxRZknDSnGILWkLMMQU5KJ8RRjjDkoRkMOMeSUGBdKCKGDYjwmlUPKUFG5t9Q5BcUWY3zvsRcBAAAIAgAEhAQAGCAomAEABgcIIwcCHQEEDm0AgIEImQkMCqHBQSYAPEBESAUAiQmK0oUuCCGCdBFk8cCFEzeeuOGEDm0QAAAAAAAQAPABAJBQABER0cxVWFxgZGhscHR4fICEBAAAAAAACAB8AAAkIkBERDRzFRYXGBkaGxwdHh8gIQEAAAAAAAAAAEBAQAAAAAAAIAAAAEBAT2dnUwAEESsAAAAAAABNTT7cAgAAAMuZpG4ZaWd/d4B/dnyAgXmHe3JyfnZwc3ZueF5nOPTS0AcswABYgKZZLC/+t4ZKd/btGZvPwiOllyc8vjTcM3KxwUgoeH5huRVHBL/4zrEgCILxfslmD6OEscDZk/GJe8T7f6X9xvzTU6PUc5BIHZNeHR2PCdCHn64GqUE25qtBdjOAh1EzABxd0woPwAFLB02t2v2QL9/YpG8/kGV503glnHZsTRkGg4kjxsje42CH7Uv2N4bRDJrwdM+oCf2mNgtasRx+8xEaKNsxRf+I415X9NRqy/FGPTKnGZebRp76sUTpAN/qfm4fQy+RZeVaqF6tAADABToHoGLbzpZXPNxvNUkYtk/+szrh4s9k1qv05piHm8FiHpvXXnd/V54H+jWwmru/ejyHqF0tzomMUnqqZ7WARisNYx5uKq+YrTcPsAWUJNlrKSMH8R0l3AdXIgPeFWRxZClF9gdFF3caPiHKqr31MC/aMqiwrHEBPpg+FAEAwAVQLdq2bdsu1/sFW+e2xGiWUmmW3gdvoCxQCgNdePo4q54b0dpA6e22Fm503RjBI+OnaWVgclRAt4yY9FCs1VlICat09FRQinHQ5L9qQfOhQ2UXl0Elt6HTwUpZ7qpJgFW9cCKWGeVuVSCPIjDttNU+mL4IBgAAOyCpS+tt2xamNRh40HG9fsLho3EzHHXzuhUi8rsjzbiao02b/ANdXKA7d+st8wulnnF87AqxijqdyDqNH7O0Md6yzzt3i3EOquMD5rTBnIOuxtT77CIk1+HgsbOfEWQjh156FfMYeSq+PjtNoXkPSPfPq6122vP6xl6YPgADAIAL1ZNmrVK02qJs69UfWp+nWtK7ppqysVTDkFjZiUSQEKtjyqG6I/e9XW5Y0m6YV/bDlFIhEo2QR7lgkVn30HOew5r0xSmkj8haNi130iEjp9hgnxj+hBOpdeTQxjWh1309A+qrk82+Ra8t2vPTOGBCbExa/UXHbQW+Rz4UAQDAxQdUi7bNHMNIsPKaepYyPjwOB9PFpWRbB4g9XSlZNddYsx/b+eBANaplmW65etlqY18hPknKNoNF2qU5Hi4kkxIFCCdvkGx/AkFredw4tFtcl+7+5TgK9/6oSxA5rOdSCLNc1adRN+5/XQ7S2SEUPije8gYAADuQaNp2ImHzwINx0zZx4qRPGCv5ydb+dY/uVvhSfWnpIIaj56CH4XIH7k/Nm4zlCiXt5beNZd6oLX94BynciVyOrBIRRrUon7fnGbtwiwuv5SrDw/hs6ll9H1jNsCyl1q0Xb30KdsJBcRI25/5kyZjS6i7hFH44XgEDAIAdLMGsVou2EzQSPn188WxlfWdC08TzOdQx7PR/vnM2HtdZdOyuVRn9n71SVJXnHdN6vulGLEJi6lEwCBTzZnbPhh+XmB5ri4xySbnK1g+JEkSnRT0oRbbBE5x413Ph6MKJI5VlCQgHG6yH7zYwrsQpzslea0eTujcC/hfeAg0AgB30QrVt1VN0QnIeGBMv3Qcjawbbf+XsgZDRGSKfbfiuUqcA9lDRMr69kVsT9LI2FxwpiBMtKMG4yTAdr2NN6Z7BavBmHx1U+8MguE4lHlva+xQROvF4cEfWQgWytMbkuMhX8vG7CHHD4CwfIu34oUV/bZo36bbPPVYCHufdLgAAwA5A29K2OWfMx7Z+ye1fLgnHs7bp/XTR+V6vG40rN++AqVRNJPHmq7/rJSl5R/MpZQaNGrInmrRa7+XaPvNuiKCSXpI1XrxQvN0MH8btZ2yY18ENQwM/C7m4lHp+ON/2xs5eOX3fui0v63tXwv8OMJLRAJ7X3QYDAIAL9lFtV0vaRSGSXsznl8NfXHw+UA+iOVTnyQyQcuauQJAtc2NQD4FFvb8uL/y0nG8BsV4f0Ii70lb3LCXaxnGRfWe6jIxT2LJf0lnZG2TuzH1TWbnttJRaFGudahjcHts/pX6YpjLNjc0mp9KVy2oa4AOJzMOKwn0DSr8TE8byFx63XbUAIIADUC26pG3LY2XpL/wEY1eJoZvY6ZHTNbeHY0Yc9TV7ln4GT4GlrXMlp7N6+pLqQ2pExvbKm12n2YlxzjC0nsRcoBB0de4a9RPkl9bX0Osg2atydqb08J80YS/fRUARiJeop6iMuKQjaoLIlFJabvW4vfPeW76X7XsnAKhwAFqzbedsRq5lc+yF5P3l5VY4bBgKw8hRnzvswHBsW4bgXQuR6CmhEY3nV5ga0zQPtokA+YjCpI5l1dW8whvwdDKjmT9iilpgh1RrGif+EElyfm3u7UkoHj2ou6rXAvm0TTWjqNvKWsz8E76HraMNACbs4KBoO2bbNlXvuufyr2XwtmXoWZJ+tOllZVIfbLQr0RCPfeFvafrZOP/zbPbmzaGxV8jvqtC0AEVSRHfWj+2tYkuU2+Ezd4MxHsXK66OEnoAmSAgdEcvbuZpjdU7Ap1Bi0wC4knCQ2knxG76H7YETAEw4AKOYtBPM4YSD7ctf/rnr1LK9fO2H+UfGEYdBNrGdEcdG1DO8DU/GUKffd0tuxHpOzzU3f/rJh5vLN2tzf+tVXdJ30oCfVR/z9d5K5n5ewD+Pbg5nt3hku4vSjTVgXiHxcNh7+fGtbNSaamywn0vRDS6ntQ/Xlb5Xjd4JAA4uvqA1m9u2s0GW56t/wpvupe2A0RHJQxO0MKFID6y5WkixJdR7uqUNg6Owzf+UvNkgVVZjG4IU0IS814jL3Xm89WTodcoCbbi2zv7nUjFilXJvMQmM/KxvsyDoy9hIpG6vRZShxVVJJQ6KPhkkvADeN/XZBwAi7KCPUC3FbDlgDv5ZvPwxaB47K8f3LXu8ltovMsUQG2Xb/m0XKe4lMisrjphLI++Wkl3EPG27l9a/LfYzi35frOnoItp6JoOlEZtNZXexv0AEvdxeCDwtyvaZUlaL/Ma2RL2E0S4JvWU23he10RsAcrhwUF8y23aCPMtJ6/nxgo2dkXx13BuD0HIJlZV7n2Su18C5VhcJc7zLc3tzEdTAmzK9UY8iJlSZu+3iXK7LB0ImJqZ1J9AQJyV+egF8tL04FZL0rayMLgs0E9Omt4F31VY/m0cb1+h98vpqAN4H5dEPAHI4ADPBGOM2LgvriP3WWGh462a7Wa4qHefKtrvOm9HMrXVd6Oh+yBE3uk/1IdLe5xzM0++sfLF7LmrkwqkwvK7U5/OJHlsJwNPidjOkCSxI6BVxVozbUp8FtXFZFW3nnAqlUJqpxdq0MhaYSaDJWwz+98TRDwByuOBQLUpODnw32L77/tz9upqTkhMu6FggMKW1tZBcT/Hmi4rjJg+buw5TuhMLj8ovvl3qg1b0IfQ+gRRHalvW+VUrTfOdK3bNzQqvDUlW1rLfdmNVxyvdtF/POidps1GGQdAeH0tjAfbHFHUGADlc4GmbkG3bAmmW1k3ND/v3r/bLrerV+2qOlIbnOHuhXBCPkn+iSS4BOnnJKKHvPVDz6MTxe2/KdBr2UGid6VlyLvUei7gvfTmh7VAi1PCi0lSS4hckMUElrJIpG42WjCN4gtT91qBRpNF2GflorR2eDvRKnBjGi4GmqfhuK7R+t9U/JmRdNpttpd9MOiMMtp3F8P6w9Y9eKhf4VjLi2tiWGAO+azT99XMqSWwYCBCjHDSximK/ZbjlNqng3YTE81mfYxTghOetYstXmbK2yjz0ROBIGJoDAFgA9zX0pO29fdPctPpw3W0c190aDZ+mvekXFnNpKTBzOtawPk4cNumhTqWwvPzfyZ843+Rs5avt0/ffX8/RSZ8jzfufKeoT+T4/3eRJKJ10OrTKwOtNqztnbKdgOwUM/JzyBnpC1wJwQmX0Zyw57YCmdxdtgB6+X0sjB8C1HIFIVfclgBC1rWfjSOYpKAb0z+8dUROKtwM=' | base64 -d > app/src/main/res/raw/bs_miss.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/bs_place.ogg
+          echo 'T2dnUwACAAAAAAAAAACq1YF2AAAAAHRpG18BHgF2b3JiaXMAAAAAASJWAAAAAAAAHp0AAAAAAACpAU9nZ1MAAAAAAAAAAAAAqtWBdgEAAAC+sAkjDkD////////////////FA3ZvcmJpcw0AAABMYXZmNjAuMTYuMTAwAQAAAB8AAABlbmNvZGVyPUxhdmM2MC4zMS4xMDIgbGlidm9yYmlzAQV2b3JiaXMiQkNWAQBAAAAYQhAqBa1jjjrIFSGMGaKgQsopxx1C0CGjJEOIOsY1xxhjR7lkikLJgdCQVQAAQAAApBxXUHJJLeecc6MYV8xx6CDnnHPlIGfMcQkl55xzjjnnknKOMeecc6MYVw5yKS3nnHOBFEeKcacY55xzpBxHinGoGOecc20xt5JyzjnnnHPmIIdScq4155xzpBhnDnILJeecc8YgZ8xx6yDnnHOMNbfUcs4555xzzjnnnHPOOeecc4wx55xzzjnnnHNuMecWc64555xzzjnnHHPOOeeccyA0ZBUAkAAAoKEoiuIoDhAasgoAyAAAEEBxFEeRFEuxHMvRJA0IDVkFAAABAAgAAKBIhqRIiqVYjmZpniZ6oiiaoiqrsmnKsizLsuu6LhAasgoASAAAUFEUxXAUBwgNWQUAZAAACGAoiqM4juRYkqVZngeEhqwCAIAAAAQAAFAMR7EUTfEkz/I8z/M8z/M8z/M8z/M8z/M8z/M8DQgNWQUAIAAAAIIoZBgDQkNWAQBAAAAIIRoZQ51SElwKFkIcEUMdQs5DqaWD4CmFJWPSU6xBCCF87z333nvvgdCQVQAAEAAAYRQ4iIHHJAghhGIUJ0RxpiAIIYTlJFjKeegkCN2DEEK4nHvLuffeeyA0ZBUAAAgAwCCEEEIIIYQQQggppJRSSCmmmGKKKcccc8wxxyCDDDLooJNOOsmkkk46yiSjjlJrKbUUU0yx5RZjrbXWnHOvQSljjDHGGGOMMcYYY4wxxhgjCA1ZBQCAAAAQBhlkkEEIIYQUUkgppphyzDHHHANCQ1YBAIAAAAIAAAAcRVIkR3IkR5IkyZIsSZM8y7M8y7M8TdRETRVV1VVt1/ZtX/Zt39Vl3/Zl29VlXZZl3bVtXdZdXdd1Xdd1Xdd1Xdd1Xdd1XdeB0JBVAIAEAICO5DiO5DiO5EiOpEgKEBqyCgCQAQAQAICjOIrjSI7kWI4lWZImaZZneZaneZqoiR4QGrIKAAAEABAAAAAAAICiKIqjOI4kWZamaZ6neqIomqqqiqapqqpqmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpmqZpAqEhqwAACQAAHcdxHEdxHMdxJEeSJCA0ZBUAIAMAIAAAQ1EcRXIsx5I0S7M8y9NEz/RcUTZ1U1dtIDRkFQAACAAgAAAAAAAAx3M8x3M8yZM8y3M8x5M8SdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TdM0TQNCQ1YCAGQAABCTkEpOsVdGKcYktF4qpBST1HuomGJMOu2pQgYpB7mHSiGloNPeMqWQUgx7p5hCyBjqoYOQMYWw19pzz733HggNWREARAEAAMYgxhBjyDEmJYMSMcckZFIi55yUTkompaRWWsykhJhKi5FzTkonJZNSWgupZZJKayWmAgAAAhwAAAIshEJDVgQAUQAAiDFIKaQUUkoxp5hDSinHlGNIKeWcck45x5h0ECrnGHQOSqSUco45p5xzEjIHlXMOQiadAACAAAcAgAALodCQFQFAnAAAgJBzijEIEWMQQgkphVBSqpyT0kFJqYOSUkmpxZJSjJVzUjoJKXUSUiopxVhSii2kVGNpLdfSUo0txpxbjL2GlGItqdVaWqu5xVhzizX3yDlKnZTWOimtpdZqTa3V2klpLaTWYmktxtZizSnGnDMprYWWYiupxdhiyzW1mHNpLdcUY88pxp5rrLnHnIMwrdWcWss5xZh7zLHnmHMPknOUOimtdVJaS63VmlqrNZPSWmmtxpBaiy3GnFuLMWdSWiypxVhaijHFmHOLLdfQWq4pxpxTiznHWoOSsfZeWqs5xZh7iq3nmHMwNseeO0q5ltZ6Lq31XnMuQtbci2gt59RqDyrGnnPOwdjcgxCt5Zxq7D3F2HvuORjbc/Ct1uBbzUXInIPQufimezBG1dqDzLUImXMQOugidPDJeJRqLq3lXFrrPdYafM05CNFa7inG3lOLvdeem7C9ByFayz3F2IOKMfiaczA652JUrcHHnIOQtRahey9K5yCUqrUHmWtQMtcidPDF6KCLLwAAYMABACDAhDJQaMiKACBOAIBByDmlGIRKKQihhJRCKClVjEnImIOSMSellFJaCCW1ijEImWNSMsekhBJaKiW0EkppqZTSWiiltZZajCm1FkMpqYVSWiultJZaqjG1VmPEmJTMOSmZY1JKKa2VUlqrHJOSMSipg5BKKSnFUlKLlXNSMuiodBBKKqnEVFJpraTSUimlxZJSbCnFVFuLtYZSWiypxFZSajG1VFuLMdeIMSkZc1Iy56SUUlIrpbSWOSelg45K5qCkklJrpaQUM+akdA5KyiCjUlKKLaUSUyiltZJSbKWk1lqMtabUWi0ltVZSarGUEluLMdcWS02dlNZKKjGGUlprMeaaWosxlBJbKSnGkkpsrcWaW2w5hlJaLKnEVkpqsdWWY2ux5tRSjSm1mltsucaUU4+19pxaqzW1VGNrseZYW2+11pw7Ka2FUlorJcWYWouxxVhzKCW2klJspaQYW2y5thZjD6G0WEpqsaQSY2sx5hhbjqm1WltsuabUYq219hxbbj2lFmuLsebSUo01195jTTkVAAAw4AAAEGBCGSg0ZCUAEAUAABjDGGMQGqWcc05Kg5RzzknJnIMQQkqZcxBCSClzTkJKLWXOQUiptVBKSq3FFkpJqbUWCwAAKHAAAAiwQVNicYBCQ1YCAFEAAIgxSjEGoTFGKecgNMYoxRiESinGnJNQKcWYc1Ayx5yDUErmnHMQSgkhlFJKSiGEUkpJqQAAgAIHAIAAGzQlFgcoNGRFABAFAAAYY5wzziEKnaXOUiSpo9ZRayilGkuMncZWe+u50xp7bbk3lEqNqdaOa8u51d5pTT23HAsAADtwAAA7sBAKDVkJAOQBABDGKMWYc84ZhRhzzjnnDFKMOeecc4ox55yDEELFmHPOQQghc845CKGEkjnnHIQQSuicg1BKKaV0zkEIoZRSOucghFJKKZ1zEEoppZQCAIAKHAAAAmwU2ZxgJKjQkJUAQB4AAGAMQs5Jaa1hzDkILdXYMMYclJRii5yDkFKLuUbMQUgpxqA7KCm1GGzwnYSUWos5B5NSizXn3oNIqbWag8491VZzz733nGKsNefecy8AAHfBAQDswEaRzQlGggoNWQkA5AEAEAgpxZhzzhmlGHPMOeeMUowx5pxzijHGnHPOQcUYY845ByFjzDnnIISQMeaccxBC6JxzDkIIIXTOOQchhBA656CDEEIInXMQQgghhAIAgAocAAACbBTZnGAkqNCQlQBAOAAAACGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBC6JxzzjnnnHPOOeecc84555xzzjknAMi3wgHA/8HGGVaSzgpHgwsNWQkAhAMAAApBKKViEEopJZJOOimdk1BKKZGDUkrppJRSSgmllFJKCKWUUkoIHZRSQimllFJKKaWUUkoppZRSOimllFJKKaWUyjkppZNSSimlRM5JKSGUUkoppYRSSimllFJKKaWUUkoppZRSSimlhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEAgC4GxwAIBJsnGEl6axwNLjQkJUAQEgAAKAUc45KCCmUkFKomKKOQikppFJKChFjzknqHIVQUiipg8o5CKWklEIqIXXOQQclhZBSCSGVjjroKJRQUiollNI5KKWEFEpKKZWQQkipdJRSKCWVlEIqIZVSSkgllRBKCp2kVEoKqaRUUgiddJBCJyWkkkoKqZOUUiolpZRKSiV0UkIqKaUQQkqplBBKSCmlTlJJqaQUQighhZRSSiWlkkpKIZVUQgmlpJRSKKGkVFJKKaWSUikAAODAAQAgwAg6yaiyCBtNuPAAFBqyEgAgAwBAlHTWaadJIggxRZknDSnGILWkLMMQU5KJ8RRjjDkoRkMOMeSUGBdKCKGDYjwmlUPKUFG5t9Q5BcUWY3zvsRcBAAAIAgAEhAQAGCAomAEABgcIIwcCHQEEDm0AgIEImQkMCqHBQSYAPEBESAUAiQmK0oUuCCGCdBFk8cCFEzeeuOGEDm0QAAAAAAAQAPABAJBQABER0cxVWFxgZGhscHR4fICEBAAAAAAACAB8AAAkIkBERDRzFRYXGBkaGxwdHh8gIQEAAAAAAAAAAEBAQAAAAAAAIAAAAEBAT2dnUwAEwiYAAAAAAACq1YF2AgAAAOUG9poWaVuDeHZ6eG5zb2podHJvcGtnb2trJ4xRu+B2N7EJwAI09e35UmjRNKV1xz/Ly7qVsNC5VS1OwqHF5ot9ocFnExbK4vn/1qD6ESH/W/1CwDHJ6jiw1HEAJb0a5PFx+U3emVvrfP4sjgPMBDriWTjEcXpwMPIjvLqJKQpavItQcXRTAHjf5wCAc8qLpW9Z9tbLeaniRU3cK/cse/qlDq4SpKVSwif0DeKTOUteeNjulO71Oipyn6NG/qkTdIO+S4uxnDluMq7gbaSeY8aViWzuRZMPNRwcxvEBXAO6e1WgAQCwz18XAFaqlbCdoprzHIv6ew+Vzm5lNjxtv0ccwsOw7uJb7dtk2EmKicL0kEMB74pJDMo1hFEa+G/Xw3QnaSpxVBGykSYoGI92GJJo6CU/VKlXWvGNxOnp9CIfWpQoA3PGMhDdk+Ft5VBaUbxCt5OZ1CJKM6Bn9GxR3q0PMx5LBQAAAPv2syYANBNF27mwkmLrJg0n6sRdK7GbnblV5zLAaqOt0/A59zBlJKKnDR3GrXKheecH0ZnrTfML5Y5kUg6cms5fOM8UhFCWZT4WAtqhT6fC8J5Do5Yx35prxa9mkP2aHmkcabdKDpDcKpadL85TK2W7A14rZWADALBvmwAA1YRt24z11xc8Xa9HMTpjm7qieV2xMYXTkmQMb7JzSw0t1YWEegBcX5oZl9lm9pIqXXP3Rl7gv8NO/05UWbejRUKsZUL4ZOZQiqZ5EPJWFMQmBGGYekVpd8U6wydLLFsTWyXauReExMVBOwaeCkUAAAB2bZsOAKrZTti2boIOl7rNEpNuOTnuOKOCxHq7f35e7NfsQARiMoK80pfal7KygH7As3ctnPLNs1ktK9jW/mSc7j/GGUbj5AoNOF+yaORMN7HHHKVQCPC0WSVKwBwX19biQgbnTGGT+agb93Cy9HqwY2OmCZ7qJKAAALDvb30AULWtjtn2zelb0RwIbUtnPFzhQz3lMPBVEWrJTUQu4zCRozfInRD5VlNI5D3UWEILPkRbhji3Bm/rRPwoHolcSBNPewgg0/Am5N4bZejspaVa+2jqjByZJUYRbqnwWbHIbPazrvAHxytwumBHH77aVOAEABX2HUoAkKgwJ2d7OuiFbdpY0dvXTREeK11dz72KocxChLqPFYsxSN13Em1xNa7nySilEif6dDflvQ716hI1cAddoTWou+QSgNZUw5IzFIVb7/b8wQUqSdR7l3ctAi08qIBljG0URJYCvqo0YAOACns6AIBh20zMjj+a26tbjdx4KGvNHFYV1N7yOut+DNKeesjccNxjZmloWUH3VOdpHrSrPYtmw2NmEo2KAHa2uiEGQrjcqu37FEvOeIqqb0IrynNKK17ct1htmYt+gCd3D40dsC2RnGutrcoKNh6aZKABgA77rxkAKNq2Y3KvF2JrNy62Hlu75VKjGUpmd8+QBZ4IGya2lvFp4WnZDPlu3aN8i+SpgHKm/MOKllm8b9jwzbyzp/owkNgddAtr63xvgxef6i8MdCYx0A3PaT2ltB4Bg8ZIsZ3NG7ieBD56VOAEAB32twEAKJ1zknMfFVLHxdXs/uiqjtoPRBw0KMBjiJ2n4d3r5oEvz7v9e00pjd1wsB5vKw14K8yIuTIJWgZi9bbGxYNWvBWecW/96EV8sSWYnM3dtre6XM5S5t3ZFqwkqEFKhwNeSURgAACw698FACgyOSYNDoyLunSdUXNRWrjkbNRNEKUpN5UfE9sEF+lrxjLH6NcFpWaPm2/A19gbzmHUdHOahXXTo2gdv+UiaPeq59/Px3JE53VOtGLoVCcjKSs/+L2p4vkw00/x7544BAAAAPunOgGAajEkO36ua5tqwdlMh1dCE2+sg2fqSdPJVKfu+FL3CJ1E9WsUioT2z12MoMBtNzaGpbf1PbfbA6LyvYbx8W67ldarb/fViuwtrfpxvWyrvwzTfrKXzCrDMmdqfWx8Bgg/T+ccm1N7JTwAvhgkoAEAsHd4AQDVBGdMzvckvm4sVqGSR/UxbyO896fHjlmYmVEPaBdTFdqlzlB6SWbmpMn/wBQUv9KNL8S98QmwDTNxNj4Z84ipn/A2cuSOEHc0hpeS5bO+4oDvCJ4Siq0yN0WrrfvoBrkTrHVEedk1PuijoAAAsN/UAACqCVsSe9AptgM1Jza35tkrd9Szdbe6asoplzrxdfSg0KZaqFEMUTUlkRDbF9LcgjA7uiSaQvLqrDFWQJCHohSlmGw/DzOjVmN7ixRywF+t5qyzfvfapLa++r5xqh/XMBx0OzMAHsjDoAEAsHd4AlhA1dkh2ZPLqnhBiQI/zrSRD2Jx9bpX+ZLHBVMgzxl9fLY8oo+abHg5iszVlesX0OcrbarpC12eWLkiMG5J2feAq+5qtVzm08qwNXCOfO3K+/a+mUW8l1F9TvlAfCjGORIfvpz9Af63Q2AAALDrpgMAqkUuSbvl6WyLYhottYqdjOp1+cpKMo9kg6F8Biio72OsmYwMAtwhWOn9vbkitEOIi+wzSi/vGPct1bqady0tr5JxJq1uU3vyx+cYGK0sRbFyq43r7Skte6yV7nU76xkBvpcDsAAA2P8MAKDI5MR0XtuUg3M3jnu05kQxGbznZh5aE6uLFJg4lmVIo6pa7yeO7oA29WkrFZ2IFx46tD7OD1uIxns1EuTng/6a7/x1d601lcxz1pSkvJp4DbW462JoaTv64zn6Jt5nE2ADALB/BACo2k5Omk6Vur8mZ1pVM1HvdXreMCeXdau5vyLZ/fK+b2rUWhxycBuC2Hxm5q9OQqjc61xFXaiSndQKVa36wMxHiqz+zzke5eVWOPiGKhge9/FRzPZqDlF8a+zcWU/s5DdGS6oOAR5IM2ADgAVXS0DRdo7Z+is8OJtjHrYOzve97SCSDzaot6M1PE9Zadx2LCMnGmVv5jTNVAIlInajsqaU347z6F8pgF/PFmBSW7lkZBY9ZVzuO4UC/XzlLKwAXpvJP5R6X1gPt5sp1VZk41YD/hdLwQkAFuy0MCCRcLKdvT5ZE9f43toNlzdtTZvtDD1SlP5xBMvLp8/tl4OMdYgR7nxr2ZRzsZo10AzwQZ6wtHUyg3e0FXD/ynUnFQINilV+jXFTGFsED6spTOw1TzWHp7LBquBJM3VKCwse+Plz/gAQgQTmKAAAGFXXIu93gLKPZLS1BYq5Pkab3G8uAeCtXTo=' | base64 -d > app/src/main/res/raw/bs_shot.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/bs_sunk.ogg
+          echo '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' | base64 -d > app/src/main/res/raw/bs_win.ogg
+          if [ -f uno_sounds/buttons.mp3 ]; then cp uno_sounds/buttons.mp3 app/src/main/res/raw/buttons.mp3; fi
+
+      - name: Build
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gryntsiv_Games
+          path: app/build/outputs/apk/debug/app-debug.apk
