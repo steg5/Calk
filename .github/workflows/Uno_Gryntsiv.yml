@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.unogryntsiv"
                   minSdk 23
                   targetSdk 26
-                  versionCode 17
-                  versionName "17.0"
+                  versionCode 18
+                  versionName "18.0"
               }
               signingConfigs {
                   debug {
@@ -5037,13 +5037,13 @@ jobs:
                       int last = g.hand.size() - 1;
                       if (aCnt > 0.01f) {
                           float yy = hTop - (myTurn && g.legal.get(last) && hint ? hRaise : 0);
-                          badge(c, hStart + last * hStep + hCw - u * 0.04f, yy + u * 0.04f, String.valueOf(g.hand.size()), aCnt);
+                          badge(c, hStart + last * hStep + hCw + u * 0.2f, yy - u * 0.2f, String.valueOf(g.hand.size()), aCnt);
                       }
                       if (aPts > 0.01f) {
                           int sum = 0;
                           for (Card hk : g.hand) sum += hk.points();
                           float yy = hTop - (myTurn && g.legal.get(0) && hint ? hRaise : 0);
-                          badge(c, hStart + u * 0.04f, yy + u * 0.04f, String.valueOf(sum), aPts);
+                          badge(c, hStart - u * 0.2f, yy - u * 0.2f, String.valueOf(sum), aPts);
                       }
                   } else {
                       badgeT = 0;
@@ -5248,7 +5248,11 @@ jobs:
                       p.setColor(on ? 0xFFD50000 : 0xCC37474F);
                       c.drawCircle(dx0, dy0, u * 0.34f, p);
                       p.setColor(0xFFFFFFFF);
-                      c.drawRoundRect(rectF(dx0 - u * 0.17f, dy0 - u * 0.04f, dx0 + u * 0.17f, dy0 + u * 0.04f), u * 0.04f, u * 0.04f, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(u * 0.05f);
+                      c.drawCircle(dx0, dy0, u * 0.19f, p);
+                      c.drawLine(dx0 - u * 0.135f, dy0 - u * 0.135f, dx0 + u * 0.135f, dy0 + u * 0.135f, p);
+                      p.setStyle(Paint.Style.FILL);
                   }
                   if (idx < listening.length && listening[idx]) {
                       float mx = cx - avR * 0.9f, my = cy + avR * 0.8f;
@@ -5492,7 +5496,9 @@ jobs:
                   "😍", "🤣", "😱", "🥳",
                   "😴", "🙏", "🔥", "👎",
                   "🤯", "😈", "🍿", "💔",
-                  "🤝", "🎉", "🙄", "🤫"
+                  "🤝", "🎉", "🙄", "🤫",
+                  "🦄", "👻", "🚀", "💩",
+                  "🤡", "🥶", "🫡", "💪"
               };
               protected static final int WHITE = 0xFFFFFFFF;
 
@@ -7842,7 +7848,7 @@ jobs:
                   box.setOrientation(LinearLayout.VERTICAL);
                   box.addView(tv(target < 0 ? "Емоція для всіх" : "Емоція для: " + pname(target), 0.34f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
                   final Dialog[] dd = new Dialog[1];
-                  for (int r = 0; r < 3; r++) {
+                  for (int r = 0; r < 4; r++) {
                       LinearLayout row = new LinearLayout(this);
                       row.setOrientation(LinearLayout.HORIZONTAL);
                       for (int c = 0; c < 8; c++) {
