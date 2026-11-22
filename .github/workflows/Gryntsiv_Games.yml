@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.gryntsivgames"
                   minSdk 23
                   targetSdk 26
-                  versionCode 3
-                  versionName "0.3"
+                  versionCode 4
+                  versionName "0.4"
               }
               signingConfigs {
                   debug {
@@ -118,6 +118,785 @@ jobs:
                   </activity>
               </application>
           </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Scheme.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          // Кольорові теми гри
+          public class Scheme {
+              public final String name;
+              public final int bg, btn, water, grid;
+
+              private Scheme(String name, int bg, int btn, int water, int grid) {
+                  this.name = name;
+                  this.bg = bg;
+                  this.btn = btn;
+                  this.water = water;
+                  this.grid = grid;
+              }
+
+              public static final Scheme[] ALL = {
+                  new Scheme("Океан", 0xFF0D2847, 0xFF1565C0, 0xFF1565C0, 0x66BBDEFB),
+                  new Scheme("Ніч", 0xFF12121C, 0xFF37474F, 0xFF263859, 0x668FA6D8),
+                  new Scheme("Захід", 0xFF3B1D3A, 0xFFAD4A2C, 0xFF8E3B5A, 0x66FFCC80),
+                  new Scheme("Сукно", 0xFF1B5E3A, 0xFF0F3D26, 0xFF2E7D4F, 0x66C8E6C9),
+                  new Scheme("Лаванда", 0xFF2A2250, 0xFF5E35B1, 0xFF4527A0, 0x66D1C4E9),
+                  new Scheme("Золото", 0xFF3E3320, 0xFF8D6E1F, 0xFF6D5A2B, 0x66FFE082)
+              };
+              public static Scheme cur = ALL[0];
+
+              public static void set(int i) {
+                  cur = ALL[Math.max(0, Math.min(ALL.length - 1, i))];
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Avatars.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.Rect;
+          import android.graphics.RectF;
+          import android.util.Base64;
+          import android.view.View;
+
+          import java.util.HashMap;
+
+          public class Avatars {
+              public static final String[] EMO = {
+                  "🐱", "🐶", "🦊", "🐼", "🐸", "🦁",
+                  "🐵", "🐯", "🐰", "🐻", "🐧", "🦄"
+              };
+              private static final int[] BG = {
+                  0xFFFFB74D, 0xFF90CAF9, 0xFFFFCC80, 0xFFB0BEC5, 0xFFA5D6A7, 0xFFFFE082,
+                  0xFFBCAAA4, 0xFFFFAB91, 0xFFF8BBD0, 0xFFD7CCC8, 0xFF81D4FA, 0xFFCE93D8
+              };
+              private static final HashMap<String, Bitmap> CACHE = new HashMap<String, Bitmap>();
+              private static final Paint P = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private static final Path CLIP = new Path();
+              private static final Rect SRC = new Rect();
+              private static final RectF DST = new RectF();
+
+              public static Bitmap photo(String b64) {
+                  if (b64 == null || b64.length() < 8 || b64.equals("-")) return null;
+                  Bitmap b = CACHE.get(b64);
+                  if (b == null) {
+                      try {
+                          byte[] d = Base64.decode(b64, Base64.NO_WRAP);
+                          b = BitmapFactory.decodeByteArray(d, 0, d.length);
+                      } catch (Exception e) {
+                          b = null;
+                      }
+                      if (b != null) CACHE.put(b64, b);
+                  }
+                  return b;
+              }
+
+              public static final String[] CAT_NAMES = {"Тварини", "Люди", "Супергерої", "Лиходії", "Мультяшні"};
+              public static final int[] CAT_START = {0, 12, 19, 25, 31, 37};
+              public static final int TOTAL = 37;
+
+              private static final float[] ESIZE = {1.9f, 1.95f, 1.9f, 1.65f, 1.65f, 1.9f, 2.15f, 1.9f, 1.9f, 1.65f, 2.25f, 1.9f};
+              private static final float[] EDY = {0f, -0.04f, 0f, 0f, -0.1f, 0f, -0.2f, 0f, -0.3f, 0f, -0.2f, 0f};
+
+              private static void content(Canvas c, float cx, float cy, float r, int a, boolean over) {
+                  noBg = over;
+                  P.setTextAlign(Paint.Align.CENTER);
+                  if (a < EMO.length) {
+                      P.setStyle(Paint.Style.FILL);
+                      P.setTextSize(r * ESIZE[a]);
+                      cy += EDY[a] * r;
+                      P.setColor(0xFF000000);
+                      Paint.FontMetrics fm = P.getFontMetrics();
+                      c.drawText(EMO[a], cx, cy - (fm.ascent + fm.descent) / 2f, P);
+                  } else {
+                      gc = c;
+                      gx = cx;
+                      gy = cy + 0.06f * r;
+                      gr = r * 1.2f;
+                      character(a);
+                  }
+              }
+
+              public static void draw(Canvas c, float cx, float cy, float r, int avatar, Bitmap photo) {
+                  c.save();
+                  CLIP.reset();
+                  CLIP.addCircle(cx, cy, r, Path.Direction.CW);
+                  c.clipPath(CLIP);
+                  int a = avatar;
+                  if (a < 0 || a >= TOTAL) a = 0;
+                  if (photo != null) {
+                      SRC.set(0, 0, photo.getWidth(), photo.getHeight());
+                      DST.set(cx - r, cy - r, cx + r, cy + r);
+                      c.drawBitmap(photo, SRC, DST, P);
+                  } else {
+                      P.setStyle(Paint.Style.FILL);
+                      P.setColor(a < EMO.length ? BG[a] : 0xFF455A64);
+                      c.drawCircle(cx, cy, r, P);
+                      content(c, cx, cy, r, a, false);
+                  }
+                  c.restore();
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(Math.max(2f, r * 0.07f));
+                  P.setColor(0xCCFFFFFF);
+                  c.drawCircle(cx, cy, r, P);
+                  P.setStyle(Paint.Style.FILL);
+                  if (photo == null) {
+                      // голова поверх круга: верхня частина малюється без обрізання колом
+                      c.save();
+                      c.clipRect(cx - r * 3f, cy - r * 3f, cx + r * 3f, cy + r * (a < EMO.length ? 0.7f : 0.55f));
+                      content(c, cx, cy, r, a, true);
+                      c.restore();
+                      noBg = false;
+                  }
+              }
+
+              // ---------- малювання персонажів (координати в частках радіуса) ----------
+              private static Canvas gc;
+              private static float gx, gy, gr;
+              private static final Path PATH = new Path();
+              private static final RectF RF = new RectF();
+              private static final int INK = 0xFF263238, WHITE = 0xFFFFFFFF;
+
+              private static float X(float a) {
+                  return gx + a * gr;
+              }
+
+              private static float Y(float a) {
+                  return gy + a * gr;
+              }
+
+              private static boolean noBg;
+
+              private static void cir(float x, float y, float rad, int col) {
+                  if (noBg && x == 0 && y == 0 && rad >= 1.0f) return;
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  gc.drawCircle(X(x), Y(y), rad * gr, P);
+              }
+
+              private static void ring(float x, float y, float rad, float w, int col) {
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(w * gr);
+                  P.setColor(col);
+                  gc.drawCircle(X(x), Y(y), rad * gr, P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              private static void ovl(float x, float y, float rx, float ry, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  RF.set(X(x - rx), Y(y - ry), X(x + rx), Y(y + ry));
+                  gc.drawOval(RF, P);
+              }
+
+              private static void rct(float l, float t, float r, float b, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  gc.drawRect(X(l), Y(t), X(r), Y(b), P);
+              }
+
+              private static void rrc(float l, float t, float r, float b, float rad, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  RF.set(X(l), Y(t), X(r), Y(b));
+                  gc.drawRoundRect(RF, rad * gr, rad * gr, P);
+              }
+
+              private static void tri(float x1, float y1, float x2, float y2, float x3, float y3, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  PATH.reset();
+                  PATH.moveTo(X(x1), Y(y1));
+                  PATH.lineTo(X(x2), Y(y2));
+                  PATH.lineTo(X(x3), Y(y3));
+                  PATH.close();
+                  gc.drawPath(PATH, P);
+              }
+
+              private static void arcF(float x, float y, float rx, float ry, float st, float sw, int col) {
+                  P.setStyle(Paint.Style.FILL);
+                  P.setColor(col);
+                  RF.set(X(x - rx), Y(y - ry), X(x + rx), Y(y + ry));
+                  gc.drawArc(RF, st, sw, true, P);
+              }
+
+              private static void arcS(float x, float y, float rx, float ry, float st, float sw, float w, int col) {
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(w * gr);
+                  P.setColor(col);
+                  RF.set(X(x - rx), Y(y - ry), X(x + rx), Y(y + ry));
+                  gc.drawArc(RF, st, sw, false, P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              private static void lin(float x1, float y1, float x2, float y2, float w, int col) {
+                  P.setStyle(Paint.Style.STROKE);
+                  P.setStrokeWidth(w * gr);
+                  P.setColor(col);
+                  gc.drawLine(X(x1), Y(y1), X(x2), Y(y2), P);
+                  P.setStyle(Paint.Style.FILL);
+              }
+
+              private static void eyes(float y, float dx, float rad) {
+                  cir(-dx, y, rad, INK);
+                  cir(dx, y, rad, INK);
+                  cir(-dx + rad * 0.3f, y - rad * 0.3f, rad * 0.32f, WHITE);
+                  cir(dx + rad * 0.3f, y - rad * 0.3f, rad * 0.32f, WHITE);
+              }
+
+              private static void smile(float y, float w) {
+                  arcS(0, y, w, w * 0.8f, 25, 130, 0.055f, INK);
+              }
+
+              private static void cheeks(float y, float dx) {
+                  cir(-dx, y, 0.09f, 0x66FF5252);
+                  cir(dx, y, 0.09f, 0x66FF5252);
+              }
+
+              private static void body(int col) {
+                  ovl(0, 1.12f, 0.88f, 0.56f, col);
+              }
+
+              private static void head(int skin) {
+                  cir(-0.5f, 0.05f, 0.09f, skin);
+                  cir(0.5f, 0.05f, 0.09f, skin);
+                  rct(-0.14f, 0.4f, 0.14f, 0.75f, skin);
+                  ovl(0, 0.02f, 0.5f, 0.58f, skin);
+              }
+
+              private static void character(int id) {
+                  int S1 = 0xFFFFCCA0, S2 = 0xFFFFD6B8, S3 = 0xFFF1C27D, S4 = 0xFFF0C8A0;
+                  switch (id) {
+                      case 12: // Тато
+                          cir(0, 0, 1.1f, 0xFF90CAF9);
+                          body(0xFF1976D2);
+                          head(S1);
+                          arcF(0, -0.1f, 0.54f, 0.56f, 180, 180, 0xFF4E342E);
+                          arcF(0, 0.1f, 0.5f, 0.5f, 10, 160, 0x30000000);
+                          eyes(-0.03f, 0.2f, 0.07f);
+                          rrc(-0.24f, 0.14f, 0.24f, 0.23f, 0.05f, 0xFF4E342E);
+                          arcS(0, 0.27f, 0.15f, 0.1f, 20, 140, 0.045f, INK);
+                          break;
+                      case 13: // Мама
+                          cir(0, 0, 1.1f, 0xFFF8BBD0);
+                          ovl(0, 0.25f, 0.7f, 0.88f, 0xFF6D4C41);
+                          body(0xFFE91E63);
+                          head(S2);
+                          arcF(0, -0.08f, 0.54f, 0.52f, 180, 180, 0xFF6D4C41);
+                          ovl(-0.28f, -0.2f, 0.3f, 0.18f, 0xFF6D4C41);
+                          eyes(0.0f, 0.2f, 0.07f);
+                          lin(-0.3f, -0.08f, -0.24f, -0.04f, 0.03f, INK);
+                          lin(0.3f, -0.08f, 0.24f, -0.04f, 0.03f, INK);
+                          arcS(0, 0.22f, 0.15f, 0.1f, 20, 140, 0.06f, 0xFFD32F2F);
+                          cheeks(0.14f, 0.3f);
+                          break;
+                      case 14: // Син
+                          cir(0, 0, 1.1f, 0xFFA5D6A7);
+                          body(0xFFFFC107);
+                          head(S3);
+                          arcF(0, -0.1f, 0.52f, 0.5f, 180, 180, 0xFF3E2723);
+                          for (int i = 0; i < 4; i++) {
+                              float x = -0.36f + i * 0.24f;
+                              tri(x - 0.14f, -0.36f, x, -0.82f, x + 0.14f, -0.36f, 0xFF3E2723);
+                          }
+                          eyes(0.0f, 0.2f, 0.08f);
+                          cir(-0.14f, 0.12f, 0.025f, 0xFFB5651D);
+                          cir(0.0f, 0.14f, 0.025f, 0xFFB5651D);
+                          cir(0.14f, 0.12f, 0.025f, 0xFFB5651D);
+                          arcF(0, 0.2f, 0.2f, 0.16f, 0, 180, 0xFFB71C1C);
+                          arcF(0, 0.2f, 0.2f, 0.06f, 0, 180, WHITE);
+                          break;
+                      case 15: // Донька
+                          cir(0, 0, 1.1f, 0xFFD1C4E9);
+                          cir(-0.62f, 0.12f, 0.22f, 0xFFFF8F00);
+                          cir(0.62f, 0.12f, 0.22f, 0xFFFF8F00);
+                          body(0xFFEC407A);
+                          head(S2);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFFFF8F00);
+                          tri(-0.5f, -0.28f, -0.72f, -0.42f, -0.72f, -0.14f, 0xFFE91E63);
+                          tri(-0.5f, -0.28f, -0.28f, -0.42f, -0.28f, -0.14f, 0xFFE91E63);
+                          tri(0.5f, -0.28f, 0.72f, -0.42f, 0.72f, -0.14f, 0xFFE91E63);
+                          tri(0.5f, -0.28f, 0.28f, -0.42f, 0.28f, -0.14f, 0xFFE91E63);
+                          eyes(0.02f, 0.2f, 0.08f);
+                          smile(0.2f, 0.17f);
+                          cheeks(0.16f, 0.3f);
+                          break;
+                      case 16: // Дід
+                          cir(0, 0, 1.1f, 0xFFCFD8DC);
+                          body(0xFF795548);
+                          head(S4);
+                          ovl(-0.5f, 0.0f, 0.12f, 0.22f, 0xFFF5F5F5);
+                          ovl(0.5f, 0.0f, 0.12f, 0.22f, 0xFFF5F5F5);
+                          lin(-0.32f, -0.15f, -0.1f, -0.18f, 0.05f, 0xFFF5F5F5);
+                          lin(0.32f, -0.15f, 0.1f, -0.18f, 0.05f, 0xFFF5F5F5);
+                          eyes(-0.02f, 0.2f, 0.05f);
+                          ring(-0.2f, -0.02f, 0.14f, 0.03f, 0xFF455A64);
+                          ring(0.2f, -0.02f, 0.14f, 0.03f, 0xFF455A64);
+                          lin(-0.06f, -0.02f, 0.06f, -0.02f, 0.03f, 0xFF455A64);
+                          cir(0, 0.1f, 0.07f, 0xFFE8A98A);
+                          ovl(-0.13f, 0.22f, 0.17f, 0.08f, 0xFFF5F5F5);
+                          ovl(0.13f, 0.22f, 0.17f, 0.08f, 0xFFF5F5F5);
+                          break;
+                      case 17: // Баба
+                          cir(0, 0, 1.1f, 0xFFFFCCBC);
+                          cir(0, -0.72f, 0.24f, 0xFFBDBDBD);
+                          body(0xFF8E24AA);
+                          head(S4);
+                          arcF(0, -0.08f, 0.54f, 0.54f, 180, 180, 0xFFBDBDBD);
+                          eyes(0.0f, 0.2f, 0.05f);
+                          ring(-0.2f, 0.0f, 0.14f, 0.03f, 0xFFAD1457);
+                          ring(0.2f, 0.0f, 0.14f, 0.03f, 0xFFAD1457);
+                          lin(-0.06f, 0.0f, 0.06f, 0.0f, 0.03f, 0xFFAD1457);
+                          cheeks(0.16f, 0.32f);
+                          smile(0.2f, 0.17f);
+                          break;
+                      case 18: { // Малюк
+                          cir(0, 0, 1.1f, 0xFFFFF59D);
+                          body(0xFF81D4FA);
+                          ovl(0, 1.05f, 0.3f, 0.25f, WHITE);
+                          float og = gr, oy = gy;
+                          gr = og * 0.8f;
+                          gy = oy - 0.04f * og;
+                          rct(-0.14f, 0.4f, 0.14f, 0.85f, S2);
+                          cir(-0.62f, 0.12f, 0.1f, S2);
+                          cir(0.62f, 0.12f, 0.1f, S2);
+                          ovl(0, 0.1f, 0.62f, 0.68f, S2);
+                          arcS(0, -0.62f, 0.14f, 0.2f, 180, 200, 0.07f, 0xFF6D4C41);
+                          eyes(0.06f, 0.22f, 0.11f);
+                          cheeks(0.3f, 0.36f);
+                          ovl(0, 0.4f, 0.08f, 0.06f, 0xFFD84315);
+                          gr = og;
+                          gy = oy;
+                          break;
+                      }
+                      case 19: // Герой у плащі
+                          cir(0, 0, 1.1f, 0xFF1565C0);
+                          tri(-1.0f, 1.0f, -0.1f, -0.1f, 1.0f, 1.0f, 0xFFC62828);
+                          body(0xFF283593);
+                          cir(0, 0.95f, 0.2f, 0xFFFFD600);
+                          head(S1);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFF212121);
+                          rrc(-0.5f, -0.14f, 0.5f, 0.1f, 0.08f, 0xFF1A237E);
+                          ovl(-0.2f, -0.02f, 0.11f, 0.07f, WHITE);
+                          ovl(0.2f, -0.02f, 0.11f, 0.07f, WHITE);
+                          smile(0.22f, 0.2f);
+                          break;
+                      case 20: // Герой у шоломі
+                          cir(0, 0, 1.1f, 0xFFB2EBF2);
+                          body(0xFF00838F);
+                          rct(-0.14f, 0.4f, 0.14f, 0.75f, 0xFF006064);
+                          ovl(0, 0.0f, 0.56f, 0.64f, 0xFF00ACC1);
+                          tri(0, -0.78f, 0.1f, -0.4f, -0.1f, -0.4f, 0xFF00838F);
+                          rrc(-0.44f, -0.16f, 0.44f, 0.1f, 0.07f, 0xFFFFEB3B);
+                          lin(-0.3f, -0.08f, -0.1f, -0.1f, 0.04f, WHITE);
+                          arcF(0, 0.2f, 0.42f, 0.36f, 0, 180, 0xFF0097A7);
+                          break;
+                      case 21: // Героїня
+                          cir(0, 0, 1.1f, 0xFFFFE0B2);
+                          tri(-1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0xFFAD1457);
+                          body(0xFFEC407A);
+                          head(S2);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFF6A1B9A);
+                          ovl(-0.3f, -0.22f, 0.3f, 0.16f, 0xFF6A1B9A);
+                          rrc(-0.5f, -0.1f, 0.5f, 0.1f, 0.08f, 0xFFAD1457);
+                          ovl(-0.2f, 0.0f, 0.1f, 0.06f, WHITE);
+                          ovl(0.2f, 0.0f, 0.1f, 0.06f, WHITE);
+                          arcS(0, 0.22f, 0.15f, 0.1f, 20, 140, 0.06f, 0xFFD32F2F);
+                          break;
+                      case 22: // Герой з блискавкою
+                          cir(0, 0, 1.1f, 0xFFFFF59D);
+                          body(0xFFFF6F00);
+                          PATH.reset();
+                          PATH.moveTo(X(0.08f), Y(0.78f));
+                          PATH.lineTo(X(-0.14f), Y(1.02f));
+                          PATH.lineTo(X(0.0f), Y(1.02f));
+                          PATH.lineTo(X(-0.1f), Y(1.3f));
+                          PATH.lineTo(X(0.16f), Y(0.98f));
+                          PATH.lineTo(X(0.02f), Y(0.98f));
+                          PATH.close();
+                          P.setStyle(Paint.Style.FILL);
+                          P.setColor(0xFFFFEB3B);
+                          gc.drawPath(PATH, P);
+                          head(S3);
+                          ovl(0, -0.08f, 0.56f, 0.5f, 0xFFE65100);
+                          ovl(0, 0.12f, 0.46f, 0.4f, S3);
+                          rrc(-0.46f, -0.14f, 0.46f, 0.08f, 0.08f, 0xFFE65100);
+                          ovl(-0.2f, -0.03f, 0.11f, 0.06f, WHITE);
+                          ovl(0.2f, -0.03f, 0.11f, 0.06f, WHITE);
+                          tri(0.55f, -0.5f, 0.85f, -0.65f, 0.7f, -0.35f, 0xFFFFEB3B);
+                          smile(0.24f, 0.18f);
+                          break;
+                      case 23: // Герой у капюшоні
+                          cir(0, 0, 1.1f, 0xFFC8E6C9);
+                          body(0xFF1B5E3A);
+                          ovl(0, 0.0f, 0.64f, 0.72f, 0xFF2E7D32);
+                          ovl(0, 0.1f, 0.42f, 0.5f, S4);
+                          rrc(-0.4f, -0.06f, 0.4f, 0.08f, 0.04f, 0xFF1B5E3A);
+                          ovl(-0.17f, 0.01f, 0.09f, 0.05f, WHITE);
+                          ovl(0.17f, 0.01f, 0.09f, 0.05f, WHITE);
+                          smile(0.3f, 0.15f);
+                          tri(0.0f, -0.82f, 0.25f, -0.55f, -0.25f, -0.55f, 0xFF2E7D32);
+                          break;
+                      case 24: // Герой в окулярах і шарфі
+                          cir(0, 0, 1.1f, 0xFFBBDEFB);
+                          body(0xFF5D4037);
+                          head(S1);
+                          rct(-0.5f, 0.55f, 0.5f, 0.75f, 0xFFC62828);
+                          tri(0.3f, 0.7f, 0.6f, 0.7f, 0.5f, 1.1f, 0xFFC62828);
+                          ovl(0, -0.12f, 0.58f, 0.46f, 0xFF6D4C41);
+                          rct(-0.58f, -0.16f, 0.58f, -0.06f, 0xFF3E2723);
+                          ring(-0.22f, -0.02f, 0.16f, 0.07f, 0xFF3E2723);
+                          ring(0.22f, -0.02f, 0.16f, 0.07f, 0xFF3E2723);
+                          cir(-0.22f, -0.02f, 0.13f, 0xAA4FC3F7);
+                          cir(0.22f, -0.02f, 0.13f, 0xAA4FC3F7);
+                          smile(0.26f, 0.18f);
+                          break;
+                      case 25: // Чарівник
+                          cir(0, 0, 1.1f, 0xFF311B92);
+                          body(0xFF4527A0);
+                          ovl(0, 0.5f, 0.5f, 0.6f, 0xFFEEEEEE);
+                          ovl(0, -0.02f, 0.44f, 0.46f, S4);
+                          ovl(0, -0.3f, 0.78f, 0.14f, 0xFF4527A0);
+                          tri(-0.55f, -0.3f, 0.0f, -1.3f, 0.55f, -0.3f, 0xFF5E35B1);
+                          cir(0.1f, -0.7f, 0.07f, 0xFFFFEB3B);
+                          cir(-0.15f, -0.5f, 0.05f, 0xFFFFEB3B);
+                          lin(-0.3f, -0.12f, -0.08f, -0.06f, 0.05f, 0xFFEEEEEE);
+                          lin(0.3f, -0.12f, 0.08f, -0.06f, 0.05f, 0xFFEEEEEE);
+                          eyes(0.0f, 0.19f, 0.05f);
+                          cir(0, 0.14f, 0.09f, 0xFFE8A98A);
+                          ovl(0, 0.3f, 0.2f, 0.07f, 0xFFEEEEEE);
+                          break;
+                      case 26: // Пірат
+                          cir(0, 0, 1.1f, 0xFF37474F);
+                          body(0xFFB71C1C);
+                          head(S3);
+                          arcF(0, 0.14f, 0.5f, 0.52f, 0, 180, 0xFF212121);
+                          ovl(0, 0.32f, 0.2f, 0.08f, S3);
+                          ovl(0, -0.22f, 0.78f, 0.17f, 0xFF212121);
+                          arcF(0, -0.2f, 0.5f, 0.55f, 180, 180, 0xFF212121);
+                          cir(0, -0.42f, 0.09f, WHITE);
+                          rct(-0.06f, -0.36f, 0.06f, -0.3f, WHITE);
+                          lin(-0.5f, -0.1f, 0.4f, -0.05f, 0.03f, 0xFF000000);
+                          ovl(-0.2f, 0.02f, 0.12f, 0.1f, 0xFF000000);
+                          cir(0.2f, 0.0f, 0.06f, INK);
+                          smile(0.3f, 0.15f);
+                          cir(0.07f, 0.32f, 0.03f, 0xFFFFD600);
+                          break;
+                      case 27: // Вампір
+                          cir(0, 0, 1.1f, 0xFF4A1942);
+                          tri(-1.0f, 1.0f, -0.55f, 0.1f, -0.15f, 1.0f, 0xFFB71C1C);
+                          tri(1.0f, 1.0f, 0.55f, 0.1f, 0.15f, 1.0f, 0xFFB71C1C);
+                          body(0xFF212121);
+                          head(0xFFE8E0F0);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFF111111);
+                          tri(-0.2f, -0.3f, 0.0f, -0.05f, 0.2f, -0.3f, 0xFFE8E0F0);
+                          eyes(0.04f, 0.2f, 0.07f);
+                          cir(-0.2f, 0.04f, 0.045f, 0xFFD50000);
+                          cir(0.2f, 0.04f, 0.045f, 0xFFD50000);
+                          lin(-0.3f, -0.06f, -0.1f, -0.02f, 0.04f, INK);
+                          lin(0.3f, -0.06f, 0.1f, -0.02f, 0.04f, INK);
+                          arcS(0, 0.26f, 0.15f, 0.08f, 20, 140, 0.04f, 0xFF8E0000);
+                          tri(-0.1f, 0.3f, -0.04f, 0.3f, -0.07f, 0.42f, WHITE);
+                          tri(0.1f, 0.3f, 0.04f, 0.3f, 0.07f, 0.42f, WHITE);
+                          break;
+                      case 28: // Привид
+                          cir(0, 0, 1.1f, 0xFF4A148C);
+                          ovl(0, -0.1f, 0.62f, 0.7f, WHITE);
+                          rct(-0.62f, -0.1f, 0.62f, 0.85f, WHITE);
+                          cir(-0.41f, 0.85f, 0.21f, WHITE);
+                          cir(0.0f, 0.9f, 0.21f, WHITE);
+                          cir(0.41f, 0.85f, 0.21f, WHITE);
+                          ovl(-0.22f, -0.12f, 0.1f, 0.16f, INK);
+                          ovl(0.22f, -0.12f, 0.1f, 0.16f, INK);
+                          ovl(0, 0.28f, 0.12f, 0.17f, INK);
+                          cheeks(0.12f, 0.38f);
+                          break;
+                      case 29: // Клоун
+                          cir(0, 0, 1.1f, 0xFFFFCDD2);
+                          cir(-0.55f, -0.05f, 0.3f, 0xFFFF6F00);
+                          cir(0.55f, -0.05f, 0.3f, 0xFFFF6F00);
+                          cir(0, -0.62f, 0.26f, 0xFFFF6F00);
+                          body(0xFF7B1FA2);
+                          cir(-0.4f, 1.0f, 0.08f, 0xFFFFEB3B);
+                          cir(0.4f, 1.0f, 0.08f, 0xFFFFEB3B);
+                          ovl(0, 0.02f, 0.5f, 0.56f, 0xFFFAFAFA);
+                          eyes(-0.06f, 0.2f, 0.06f);
+                          tri(-0.2f, -0.28f, -0.12f, -0.18f, -0.28f, -0.18f, 0xFF1E88E5);
+                          tri(0.2f, -0.28f, 0.12f, -0.18f, 0.28f, -0.18f, 0xFF1E88E5);
+                          cir(0, 0.1f, 0.14f, 0xFFD50000);
+                          arcS(0, 0.2f, 0.3f, 0.22f, 15, 150, 0.09f, 0xFFD50000);
+                          break;
+                      case 30: // Робот-диктатор
+                          cir(0, 0, 1.1f, 0xFF212121);
+                          body(0xFF455A64);
+                          cir(-0.4f, 1.0f, 0.06f, 0xFFD50000);
+                          cir(0.4f, 1.0f, 0.06f, 0xFFD50000);
+                          rct(-0.1f, 0.5f, 0.1f, 0.75f, 0xFF37474F);
+                          rrc(-0.55f, -0.5f, 0.55f, 0.55f, 0.12f, 0xFF607D8B);
+                          lin(0, -0.5f, 0, -0.85f, 0.04f, 0xFF90A4AE);
+                          cir(0, -0.88f, 0.08f, 0xFFD50000);
+                          rrc(-0.45f, -0.22f, 0.45f, 0.06f, 0.05f, 0xFF000000);
+                          cir(-0.2f, -0.08f, 0.07f, 0xFFFF1744);
+                          cir(0.2f, -0.08f, 0.07f, 0xFFFF1744);
+                          lin(-0.45f, -0.3f, -0.1f, -0.22f, 0.05f, 0xFF263238);
+                          lin(0.45f, -0.3f, 0.1f, -0.22f, 0.05f, 0xFF263238);
+                          for (int i = 0; i < 5; i++) lin(-0.25f + i * 0.125f, 0.22f, -0.25f + i * 0.125f, 0.42f, 0.035f, 0xFF263238);
+                          break;
+                      case 31: // Дружній робот
+                          cir(0, 0, 1.1f, 0xFFB3E5FC);
+                          body(0xFF78909C);
+                          rct(-0.62f, -0.1f, -0.5f, 0.2f, 0xFF90A4AE);
+                          rct(0.5f, -0.1f, 0.62f, 0.2f, 0xFF90A4AE);
+                          lin(0, -0.45f, 0, -0.8f, 0.04f, 0xFF607D8B);
+                          cir(0, -0.85f, 0.09f, 0xFFFFEB3B);
+                          rrc(-0.52f, -0.45f, 0.52f, 0.55f, 0.1f, 0xFFB0BEC5);
+                          cir(-0.22f, -0.05f, 0.17f, WHITE);
+                          cir(0.22f, -0.05f, 0.17f, WHITE);
+                          cir(-0.22f, -0.05f, 0.09f, 0xFF1E88E5);
+                          cir(0.22f, -0.05f, 0.09f, 0xFF1E88E5);
+                          rrc(-0.25f, 0.25f, 0.25f, 0.4f, 0.04f, 0xFF455A64);
+                          lin(-0.12f, 0.25f, -0.12f, 0.4f, 0.025f, 0xFFB0BEC5);
+                          lin(0.0f, 0.25f, 0.0f, 0.4f, 0.025f, 0xFFB0BEC5);
+                          lin(0.12f, 0.25f, 0.12f, 0.4f, 0.025f, 0xFFB0BEC5);
+                          break;
+                      case 32: // Інопланетянин
+                          cir(0, 0, 1.1f, 0xFF1A237E);
+                          if (!noBg) {
+                              cir(-0.7f, -0.7f, 0.04f, WHITE);
+                              cir(0.75f, -0.4f, 0.03f, WHITE);
+                          }
+                          body(0xFF9E9E9E);
+                          lin(-0.25f, -0.55f, -0.45f, -0.9f, 0.04f, 0xFF7CB342);
+                          lin(0.25f, -0.55f, 0.45f, -0.9f, 0.04f, 0xFF7CB342);
+                          cir(-0.47f, -0.92f, 0.07f, 0xFFFFEB3B);
+                          cir(0.47f, -0.92f, 0.07f, 0xFFFFEB3B);
+                          rct(-0.12f, 0.5f, 0.12f, 0.8f, 0xFF8BC34A);
+                          ovl(0, 0.0f, 0.55f, 0.7f, 0xFF8BC34A);
+                          ovl(-0.22f, -0.02f, 0.14f, 0.23f, 0xFF000000);
+                          ovl(0.22f, -0.02f, 0.14f, 0.23f, 0xFF000000);
+                          cir(-0.18f, -0.1f, 0.04f, WHITE);
+                          cir(0.26f, -0.1f, 0.04f, WHITE);
+                          smile(0.38f, 0.1f);
+                          break;
+                      case 33: // Єдиноріг
+                          cir(0, 0, 1.1f, 0xFFF8BBD0);
+                          cir(-0.55f, -0.1f, 0.32f, 0xFFF06292);
+                          cir(0.55f, -0.1f, 0.32f, 0xFFBA68C8);
+                          cir(-0.5f, 0.35f, 0.25f, 0xFFBA68C8);
+                          cir(0.5f, 0.35f, 0.25f, 0xFFF06292);
+                          tri(-0.42f, -0.35f, -0.28f, -0.8f, -0.12f, -0.4f, WHITE);
+                          tri(0.42f, -0.35f, 0.28f, -0.8f, 0.12f, -0.4f, WHITE);
+                          ovl(0, 0.12f, 0.45f, 0.62f, WHITE);
+                          tri(-0.1f, -0.42f, 0.1f, -0.42f, 0.0f, -1.15f, 0xFFFFC107);
+                          lin(-0.07f, -0.62f, 0.07f, -0.6f, 0.03f, 0xFFFF8F00);
+                          lin(-0.05f, -0.82f, 0.05f, -0.8f, 0.03f, 0xFFFF8F00);
+                          ovl(0, 0.5f, 0.32f, 0.26f, 0xFFFFE4EC);
+                          cir(-0.1f, 0.52f, 0.03f, 0xFFAD1457);
+                          cir(0.1f, 0.52f, 0.03f, 0xFFAD1457);
+                          cir(-0.2f, 0.02f, 0.09f, INK);
+                          cir(0.2f, 0.02f, 0.09f, INK);
+                          cir(-0.17f, -0.01f, 0.03f, WHITE);
+                          cir(0.23f, -0.01f, 0.03f, WHITE);
+                          cheeks(0.25f, 0.32f);
+                          break;
+                      case 34: // Дракончик
+                          cir(0, 0, 1.1f, 0xFFFFE0B2);
+                          tri(-0.35f, -0.4f, -0.5f, -0.9f, -0.15f, -0.5f, 0xFFFFA726);
+                          tri(0.35f, -0.4f, 0.5f, -0.9f, 0.15f, -0.5f, 0xFFFFA726);
+                          tri(-0.62f, 0.0f, -0.95f, -0.2f, -0.6f, 0.3f, 0xFF43A047);
+                          tri(0.62f, 0.0f, 0.95f, -0.2f, 0.6f, 0.3f, 0xFF43A047);
+                          for (int i = 0; i < 3; i++) tri(-0.12f + i * 0.12f, -0.5f, -0.06f + i * 0.12f, -0.72f, 0.0f + i * 0.12f, -0.5f, 0xFFFFA726);
+                          ovl(0, 0.05f, 0.56f, 0.58f, 0xFF66BB6A);
+                          ovl(0, 0.4f, 0.36f, 0.26f, 0xFF9CCC65);
+                          cir(-0.12f, 0.38f, 0.04f, 0xFF33691E);
+                          cir(0.12f, 0.38f, 0.04f, 0xFF33691E);
+                          cir(-0.22f, -0.1f, 0.14f, WHITE);
+                          cir(0.22f, -0.1f, 0.14f, WHITE);
+                          cir(-0.22f, -0.08f, 0.07f, INK);
+                          cir(0.22f, -0.08f, 0.07f, INK);
+                          smile(0.5f, 0.14f);
+                          break;
+                      case 35: // Фея
+                          cir(0, 0, 1.1f, 0xFFB39DDB);
+                          ovl(-0.78f, -0.15f, 0.3f, 0.55f, 0xAAE1F5FE);
+                          ovl(0.78f, -0.15f, 0.3f, 0.55f, 0xAAE1F5FE);
+                          body(0xFFF06292);
+                          head(S2);
+                          cir(0, -0.66f, 0.22f, 0xFFFFC107);
+                          arcF(0, -0.1f, 0.54f, 0.54f, 180, 180, 0xFFFFC107);
+                          lin(0.1f, -0.9f, 0.2f, -0.78f, 0.04f, 0xFFFFEB3B);
+                          tri(-0.12f, -0.9f, 0.12f, -0.9f, 0.0f, -1.05f, 0xFFFFEB3B);
+                          eyes(0.02f, 0.2f, 0.08f);
+                          smile(0.2f, 0.16f);
+                          cheeks(0.16f, 0.3f);
+                          if (!noBg) {
+                              cir(0.85f, 0.35f, 0.07f, 0xFFFFEB3B);
+                              cir(-0.85f, 0.5f, 0.05f, WHITE);
+                          }
+                          break;
+                      default: // 36 Монстрик
+                          cir(0, 0, 1.1f, 0xFFD1C4E9);
+                          for (int i = 0; i < 12; i++) {
+                              double ang = i * Math.PI / 6.0;
+                              cir((float) Math.cos(ang) * 0.68f, (float) Math.sin(ang) * 0.68f, 0.2f, 0xFF42A5F5);
+                          }
+                          cir(0, 0, 0.7f, 0xFF42A5F5);
+                          tri(-0.4f, -0.55f, -0.55f, -0.95f, -0.2f, -0.65f, WHITE);
+                          tri(0.4f, -0.55f, 0.55f, -0.95f, 0.2f, -0.65f, WHITE);
+                          cir(-0.24f, -0.12f, 0.2f, WHITE);
+                          cir(0.24f, -0.12f, 0.2f, WHITE);
+                          cir(-0.22f, -0.1f, 0.09f, INK);
+                          cir(0.22f, -0.1f, 0.09f, INK);
+                          ovl(0, 0.34f, 0.32f, 0.2f, 0xFF4A148C);
+                          tri(-0.22f, 0.2f, -0.1f, 0.2f, -0.16f, 0.32f, WHITE);
+                          tri(0.22f, 0.2f, 0.1f, 0.2f, 0.16f, 0.32f, WHITE);
+                          break;
+                  }
+              }
+
+              public static class AvatarView extends View {
+                  private int avatar;
+                  private String photo = "-";
+                  private boolean selected;
+
+                  public AvatarView(android.content.Context ctx) {
+                      super(ctx);
+                  }
+
+                  public void set(int avatar, String photo, boolean selected) {
+                      this.avatar = avatar;
+                      this.photo = photo;
+                      this.selected = selected;
+                      invalidate();
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      float r = Math.min(getWidth(), getHeight()) / 2f * 0.88f;
+                      float cx = getWidth() / 2f, cy = getHeight() / 2f;
+                      if (selected) {
+                          P.setStyle(Paint.Style.STROKE);
+                          P.setStrokeWidth(r * 0.14f);
+                          P.setColor(0xFFFFD54F);
+                          c.drawCircle(cx, cy, r * 1.08f, P);
+                          P.setStyle(Paint.Style.FILL);
+                      }
+                      Avatars.draw(c, cx, cy, r * 0.8f, avatar, Avatars.photo(photo));
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/IconView.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.view.View;
+
+          public class IconView extends View {
+              public static final int GEAR = 0, PAUSE = 1, PLAY = 2, SOUND = 3, MUSIC = 4;
+              private int type;
+              private boolean crossed;
+              private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private final RectF rf = new RectF();
+              private final Path path = new Path();
+
+              public IconView(Context c, int type) {
+                  super(c);
+                  this.type = type;
+              }
+
+              public void setCrossed(boolean c) {
+                  crossed = c;
+                  invalidate();
+              }
+
+              public void setType(int t) {
+                  type = t;
+                  invalidate();
+              }
+
+              @Override
+              protected void onDraw(Canvas c) {
+                  float w = getWidth(), h = getHeight();
+                  rf.set(0, 0, w, h);
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(0x88263238);
+                  c.drawRoundRect(rf, h * 0.25f, h * 0.25f, p);
+                  float cx = w / 2f, cy = h / 2f;
+                  float r = Math.min(w, h) * 0.30f;
+                  p.setColor(0xFFFFFFFF);
+                  if (type == GEAR) {
+                      for (int i = 0; i < 8; i++) {
+                          c.save();
+                          c.rotate(i * 45f, cx, cy);
+                          c.drawRect(cx - r * 0.2f, cy - r * 1.15f, cx + r * 0.2f, cy - r * 0.6f, p);
+                          c.restore();
+                      }
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(r * 0.42f);
+                      c.drawCircle(cx, cy, r * 0.78f, p);
+                      p.setStyle(Paint.Style.FILL);
+                  } else if (type == PAUSE) {
+                      c.drawRect(cx - r * 0.75f, cy - r, cx - r * 0.2f, cy + r, p);
+                      c.drawRect(cx + r * 0.2f, cy - r, cx + r * 0.75f, cy + r, p);
+                  } else if (type == SOUND) {
+                      c.drawRect(cx - r * 1.0f, cy - r * 0.38f, cx - r * 0.45f, cy + r * 0.38f, p);
+                      path.reset();
+                      path.moveTo(cx - r * 0.45f, cy - r * 0.38f);
+                      path.lineTo(cx + r * 0.15f, cy - r * 0.9f);
+                      path.lineTo(cx + r * 0.15f, cy + r * 0.9f);
+                      path.lineTo(cx - r * 0.45f, cy + r * 0.38f);
+                      path.close();
+                      c.drawPath(path, p);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(r * 0.2f);
+                      rf.set(cx - r * 0.45f, cy - r * 0.6f, cx + r * 0.55f, cy + r * 0.6f);
+                      c.drawArc(rf, -50, 100, false, p);
+                      rf.set(cx - r * 0.8f, cy - r * 1.0f, cx + r * 0.95f, cy + r * 1.0f);
+                      c.drawArc(rf, -50, 100, false, p);
+                      p.setStyle(Paint.Style.FILL);
+                  } else if (type == MUSIC) {
+                      c.drawCircle(cx - r * 0.4f, cy + r * 0.6f, r * 0.42f, p);
+                      c.drawRect(cx - r * 0.22f, cy - r * 0.95f, cx + r * 0.02f, cy + r * 0.6f, p);
+                      path.reset();
+                      path.moveTo(cx - r * 0.22f, cy - r * 0.95f);
+                      path.lineTo(cx + r * 0.8f, cy - r * 0.45f);
+                      path.lineTo(cx + r * 0.8f, cy - r * 0.1f);
+                      path.lineTo(cx - r * 0.22f, cy - r * 0.5f);
+                      path.close();
+                      c.drawPath(path, p);
+                  } else {
+                      path.reset();
+                      path.moveTo(cx - r * 0.6f, cy - r);
+                      path.lineTo(cx + r * 0.9f, cy);
+                      path.lineTo(cx - r * 0.6f, cy + r);
+                      path.close();
+                      c.drawPath(path, p);
+                  }
+                  if (crossed) {
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeCap(Paint.Cap.ROUND);
+                      p.setStrokeWidth(r * 0.42f);
+                      p.setColor(0xFF263238);
+                      c.drawLine(cx - r * 1.15f, cy - r * 1.15f, cx + r * 1.15f, cy + r * 1.15f, p);
+                      p.setStrokeWidth(r * 0.26f);
+                      p.setColor(0xFFFF5252);
+                      c.drawLine(cx - r * 1.15f, cy - r * 1.15f, cx + r * 1.15f, cy + r * 1.15f, p);
+                      p.setStyle(Paint.Style.FILL);
+                  }
+              }
+          }
           EOF
 
           cat > app/src/main/java/com/example/gryntsivgames/Link.java <<'EOF'
@@ -1186,7 +1965,7 @@ jobs:
               public static final int PORT = 45464;
 
               public interface Cb {
-                  void onConnected();
+                  void onConnected(String nick, int avatar);
 
                   void onLine(String line);
 
@@ -1214,12 +1993,37 @@ jobs:
               private volatile String code = "";
               private volatile boolean netBusy;
               private String wantCode = "";
+              private String myNick = "Гравець";
+              private int myAvatar;
+              private boolean locked;
 
               // гість
               private Client client;
 
               public Net(Cb cb) {
                   this.cb = cb;
+              }
+
+              public void setInfo(String nick, int avatar) {
+                  myNick = nick.replace("|", " ");
+                  myAvatar = avatar;
+              }
+
+              public String hello() {
+                  return "HELLO|" + myNick + "|" + myAvatar;
+              }
+
+              public void lock(boolean on) {
+                  locked = on;
+                  if (ann != null) ann.count = on || peer != null ? 2 : 1;
+              }
+
+              public void kick() {
+                  Link p = peer;
+                  if (p != null) {
+                      p.send("KICK");
+                      dropPeer();
+                  }
               }
 
               public boolean isWifi() {
@@ -1328,13 +2132,14 @@ jobs:
               private void fromPeer(Link l, String c, boolean relay, String line) {
                   if (closed) return;
                   if (line.startsWith("HELLO")) {
-                      if (peer == null) {
+                      if (peer == null && !locked) {
                           peer = l;
                           peerCid = c;
                           peerRelay = relay;
                           if (ann != null) ann.count = 2;
-                          l.send("WELCOME");
-                          cb.onConnected();
+                          l.send("WELCOME|" + myNick + "|" + myAvatar);
+                          String[] f = line.split("\\|", -1);
+                          cb.onConnected(f.length > 1 ? f[1] : "Гравець", f.length > 2 ? num(f[2]) : 0);
                       } else if (peer != l) {
                           l.send("FULL");
                           l.close();
@@ -1349,11 +2154,19 @@ jobs:
                   cb.onLine(line);
               }
 
+              private static int num(String s) {
+                  try {
+                      return Integer.parseInt(s.trim());
+                  } catch (Exception e) {
+                      return 0;
+                  }
+              }
+
               private void dropPeer() {
                   Link p = peer;
                   peer = null;
                   peerCid = "";
-                  if (ann != null) ann.count = 1;
+                  if (ann != null) ann.count = locked ? 2 : 1;
                   if (p != null) {
                       p.close();
                       cb.onLost();
@@ -1420,8 +2233,9 @@ jobs:
               private Client.Cb guestCb() {
                   return new Client.Cb() {
                       public void onLine(String line) {
-                          if (line.equals("WELCOME")) {
-                              cb.onConnected();
+                          if (line.startsWith("WELCOME")) {
+                              String[] f = line.split("\\|", -1);
+                              cb.onConnected(f.length > 1 ? f[1] : "Гравець", f.length > 2 ? num(f[2]) : 0);
                           } else if (line.equals("FULL")) {
                               cb.onFail("У кімнаті вже є суперник");
                           } else if (line.equals("BYE")) {
@@ -1445,13 +2259,13 @@ jobs:
               public void joinLan(String ip, int port) {
                   host = false;
                   client = new Client();
-                  client.connect(ip, port, "HELLO", guestCb());
+                  client.connect(ip, port, hello(), guestCb());
               }
 
               public void joinCode(String code, String cid) {
                   host = false;
                   client = new Client();
-                  client.connectRelay(code, cid, "HELLO", guestCb());
+                  client.connectRelay(code, cid, hello(), guestCb());
               }
 
               // ---------- спільне ----------
@@ -1501,7 +2315,7 @@ jobs:
               public static final int[] FLEET = {4, 3, 3, 2, 2, 2, 1, 1, 1, 1};
 
               public static class Ship {
-                  public int len, r, c, idx;
+                  public int len, r, c, idx, theme = -1;
                   public boolean h = true, placed;
 
                   public boolean has(int rr, int cc) {
@@ -1511,6 +2325,7 @@ jobs:
                   }
               }
 
+              public int baseTheme;
               public final Ship[] ships = new Ship[FLEET.length];
               // 0 нічого, 1 мимо, 2 влучання, 3 потоплено
               public final int[] shot = new int[N * N];
@@ -1553,7 +2368,10 @@ jobs:
               }
 
               public void clear() {
-                  for (Ship s : ships) s.placed = false;
+                  for (Ship s : ships) {
+                      s.placed = false;
+                      s.theme = -1;
+                  }
               }
 
               public boolean allPlaced() {
@@ -1627,7 +2445,7 @@ jobs:
                   String extra = "";
                   if (res == 2) {
                       Ship s = ships[shipAt(cell / N, cell % N)];
-                      extra = s.r + "," + s.c + "," + s.len + "," + (s.h ? 1 : 0);
+                      extra = s.r + "," + s.c + "," + s.len + "," + (s.h ? 1 : 0) + "," + (s.theme >= 0 ? s.theme : baseTheme);
                   }
                   return "RES|" + cell + "|" + res + "|" + extra + "|" + (allSunk() ? 1 : 0);
               }
@@ -1648,6 +2466,7 @@ jobs:
                       for (Ship s : ships) {
                           if (s.len == len && !s.placed) {
                               place(s.idx, r, c, hz);
+                              if (e.length > 4) s.theme = Integer.parseInt(e[4]);
                               markSunk(s);
                               break;
                           }
@@ -2108,10 +2927,10 @@ jobs:
               public static void board(Canvas c, Paint p, Board b, float ox, float oy, float cell, boolean showShips, int theme, int lastCell, boolean labels) {
                   int n = Board.N;
                   float sz = cell * n;
-                  rr(c, p, ox, oy, ox + sz, oy + sz, cell * 0.12f, 0xFF1565C0);
+                  rr(c, p, ox, oy, ox + sz, oy + sz, cell * 0.12f, Scheme.cur.water);
                   p.setStyle(Paint.Style.STROKE);
                   p.setStrokeWidth(Math.max(1f, cell * 0.03f));
-                  p.setColor(0x66BBDEFB);
+                  p.setColor(Scheme.cur.grid);
                   for (int i = 0; i <= n; i++) {
                       c.drawLine(ox + i * cell, oy, ox + i * cell, oy + sz, p);
                       c.drawLine(ox, oy + i * cell, ox + sz, oy + i * cell, p);
@@ -2131,7 +2950,7 @@ jobs:
                       if (!s.placed) continue;
                       boolean sunk = b.sunk(s);
                       if (!showShips && !sunk) continue;
-                      draw(c, p, theme, ox + s.c * cell, oy + s.r * cell, cell, s.len, s.h, s.idx);
+                      draw(c, p, s.theme >= 0 ? s.theme : theme, ox + s.c * cell, oy + s.r * cell, cell, s.len, s.h, s.idx);
                       if (sunk) {
                           float w = s.h ? s.len * cell : cell, h = s.h ? cell : s.len * cell;
                           rr(c, p, ox + s.c * cell + cell * 0.04f, oy + s.r * cell + cell * 0.04f, ox + s.c * cell + w - cell * 0.04f, oy + s.r * cell + h - cell * 0.04f, cell * 0.1f, 0x66B71C1C);
@@ -2241,19 +3060,33 @@ jobs:
                   void onChanged();
 
                   void onSound(int kind);
+
+                  void onTheme(int t);
+
+                  void onMix(boolean on);
+
+                  void onBack();
+
+                  void onDone();
               }
+
+              private static final int B_THEME = 0, B_MIX = 5, B_RAND = 6, B_CLEAR = 7, B_BACK = 8, B_DONE = 9;
 
               public Board board = new Board();
               public Listener listener;
               public int theme;
-              public boolean locked;
+              public boolean mix, locked;
+              public String status = "";
               private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private float ox, oy, cell, trayX, trayY, trayCell, trayW, trayH;
+              private final RectF rf = new RectF();
+              private float u, ox, oy, cell, trayX, trayY, trayCell, trayH, colW, regW;
+              private float[][] btn = new float[10][4];
               private Board.Ship pick;
               private boolean fromBoard, moved;
-              private int origR, origC;
+              private int origR, origC, downBtn = -1;
               private boolean origH;
               private float downX, downY, fx, fy, offR, offC;
+              private final java.util.Random rnd = new java.util.Random();
 
               public PlaceView(Context c) {
                   super(c);
@@ -2261,19 +3094,31 @@ jobs:
 
               private void calc() {
                   float W = getWidth(), H = getHeight();
-                  float u = Math.min(W / 16f, H / 9f);
+                  u = Math.min(W / 16f, H / 9f);
                   cell = Math.min(H * 0.8f, W * 0.5f) / 10f;
                   ox = u * 0.9f;
                   oy = (H - cell * 10) / 2f + u * 0.2f;
-                  trayX = ox + cell * 10 + u * 0.8f;
-                  trayW = W - trayX - u * 0.4f;
-                  trayCell = Math.min(cell * 0.8f, trayW / 2f / 4.3f);
-                  trayY = u * 2.0f;
-                  trayH = u * 0.8f;
+                  trayX = ox + cell * 10 + u * 0.35f;
+                  regW = Math.min(W - trayX - u * 0.3f, 7.6f * u);
+                  trayCell = Math.min(cell * 0.8f, regW / 2f / 4.3f);
+                  colW = 4.25f * trayCell;
+                  trayY = u * 2.7f;
+                  trayH = u * 0.74f;
+                  // кнопки: x, y, w, h
+                  float cw = regW / 5f;
+                  for (int i = 0; i < 5; i++) btn[B_THEME + i] = new float[]{trayX + i * cw, u * 0.95f, cw - u * 0.08f, u * 0.7f};
+                  btn[B_MIX] = new float[]{trayX, u * 1.78f, u * 3.4f, u * 0.7f};
+                  float by = H - u * 1.2f;
+                  float bw = (regW - u * 0.2f) / 2f;
+                  btn[B_BACK] = new float[]{trayX, by, bw, u * 0.9f};
+                  btn[B_DONE] = new float[]{trayX + bw + u * 0.2f, by, bw, u * 0.9f};
+                  float iy = by - u * 1.0f;
+                  btn[B_RAND] = new float[]{trayX + regW - u * 1.9f, iy, u * 0.85f, u * 0.85f};
+                  btn[B_CLEAR] = new float[]{trayX + regW - u * 0.9f, iy, u * 0.85f, u * 0.85f};
               }
 
               private float slotX(int i) {
-                  return trayX + (i % 2) * (trayW / 2f);
+                  return trayX + (i % 2) * colW;
               }
 
               private float slotY(int i) {
@@ -2289,57 +3134,146 @@ jobs:
                   return null;
               }
 
-              private int cellAt(float x, float y, boolean any) {
+              private int cellAt(float x, float y) {
                   int c = (int) Math.floor((x - ox) / cell), r = (int) Math.floor((y - oy) / cell);
                   if (c < 0 || r < 0 || c >= 10 || r >= 10) return -1;
                   return r * 10 + c;
               }
 
+              private int hitBtn(float x, float y) {
+                  for (int i = 0; i < btn.length; i++) {
+                      float[] b = btn[i];
+                      if (x >= b[0] && x <= b[0] + b[2] && y >= b[1] && y <= b[1] + b[3]) return i;
+                  }
+                  return -1;
+              }
+
+              private int shipTheme(Board.Ship s) {
+                  return s.theme >= 0 ? s.theme : theme;
+              }
+
+              private void fitText(Canvas cv, String s, float cx, float cy, float maxW, float size, int color) {
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(color);
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTextSize(size);
+                  float w = p.measureText(s);
+                  if (w > maxW) p.setTextSize(size * maxW / w);
+                  cv.drawText(s, cx, cy + p.getTextSize() * 0.35f, p);
+              }
+
+              private void button(Canvas cv, int id, String label, int color) {
+                  float[] b = btn[id];
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(color);
+                  rf.set(b[0], b[1], b[0] + b[2], b[1] + b[3]);
+                  cv.drawRoundRect(rf, u * 0.18f, u * 0.18f, p);
+                  fitText(cv, label, b[0] + b[2] / 2f, b[1] + b[3] / 2f, b[2] - u * 0.16f, u * 0.32f, 0xFFFFFFFF);
+              }
+
+              private void iconBtn(Canvas cv, int id) {
+                  float[] b = btn[id];
+                  float cx = b[0] + b[2] / 2f, cy = b[1] + b[3] / 2f, r = b[2] / 2f;
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(id == B_CLEAR ? 0xFF6D4C41 : Scheme.cur.btn);
+                  cv.drawCircle(cx, cy, r, p);
+                  p.setColor(0xFFFFFFFF);
+                  float k = r * 0.5f;
+                  if (id == B_CLEAR) {
+                      // кошик
+                      cv.drawRect(cx - k * 0.85f, cy - k * 0.55f, cx + k * 0.85f, cy - k * 0.4f, p);
+                      cv.drawRect(cx - k * 0.3f, cy - k * 0.8f, cx + k * 0.3f, cy - k * 0.55f, p);
+                      rf.set(cx - k * 0.7f, cy - k * 0.3f, cx + k * 0.7f, cy + k * 0.9f);
+                      cv.drawRoundRect(rf, k * 0.12f, k * 0.12f, p);
+                      p.setColor(0xFF6D4C41);
+                      cv.drawRect(cx - k * 0.32f, cy - k * 0.05f, cx - k * 0.2f, cy + k * 0.7f, p);
+                      cv.drawRect(cx + k * 0.2f, cy - k * 0.05f, cx + k * 0.32f, cy + k * 0.7f, p);
+                  } else {
+                      // стрілки в різні сторони
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setStrokeWidth(k * 0.28f);
+                      cv.drawLine(cx - k, cy + k * 0.55f, cx + k * 0.6f, cy - k * 0.55f, p);
+                      cv.drawLine(cx - k, cy - k * 0.55f, cx + k * 0.6f, cy + k * 0.55f, p);
+                      p.setStyle(Paint.Style.FILL);
+                      tri(cv, cx + k * 1.05f, cy - k * 0.6f, k * 0.5f, -1);
+                      tri(cv, cx + k * 1.05f, cy + k * 0.6f, k * 0.5f, 1);
+                  }
+              }
+
+              private void tri(Canvas cv, float x, float y, float s, int dir) {
+                  android.graphics.Path q = new android.graphics.Path();
+                  q.moveTo(x, y);
+                  q.lineTo(x - s * 1.1f, y - s * 0.85f);
+                  q.lineTo(x - s * 1.1f, y + s * 0.85f);
+                  q.close();
+                  cv.drawPath(q, p);
+              }
+
               @Override
               protected void onDraw(Canvas cv) {
                   calc();
-                  float W = getWidth(), H = getHeight();
-                  float u = Math.min(W / 16f, H / 9f);
-                  cv.drawColor(0xFF0D2847);
+                  cv.drawColor(Scheme.cur.bg);
                   Painter.board(cv, p, board, ox, oy, cell, true, theme, -1, true);
                   p.setStyle(Paint.Style.FILL);
                   p.setColor(0xFFFFFFFF);
                   p.setTextAlign(Paint.Align.LEFT);
                   p.setTextSize(u * 0.5f);
                   cv.drawText("Розстав кораблі", trayX, u * 0.75f, p);
+                  for (int i = 0; i < Painter.THEMES.length; i++) button(cv, B_THEME + i, Painter.THEMES[i], i == theme ? 0xFF2E7D32 : 0xFF455A64);
+                  button(cv, B_MIX, "Поєднувати", mix ? 0xFF2E7D32 : 0xFF455A64);
                   for (Board.Ship s : board.ships) {
                       if (s.placed || s == pick) continue;
                       Painter.draw(cv, p, theme, slotX(s.idx), slotY(s.idx), trayCell, s.len, true, s.idx);
                   }
+                  iconBtn(cv, B_RAND);
+                  iconBtn(cv, B_CLEAR);
+                  button(cv, B_BACK, "Назад", 0xFF455A64);
+                  boolean ok = board.allPlaced() && !locked;
+                  button(cv, B_DONE, "Готово", ok ? 0xFF2E7D32 : 0x882E7D32);
+                  if (status.length() > 0) {
+                      p.setStyle(Paint.Style.FILL);
+                      p.setColor(0xFFFFD54F);
+                      p.setTextAlign(Paint.Align.LEFT);
+                      p.setTextSize(u * 0.3f);
+                      cv.drawText(status, trayX, btn[B_RAND][1] + u * 0.55f, p);
+                  }
                   if (pick != null) {
                       if (fx >= ox - cell && fx <= ox + cell * 11 && fy >= oy - cell && fy <= oy + cell * 11) {
                           int cc = (int) Math.floor((fx - ox) / cell) - (int) offC, rr = (int) Math.floor((fy - oy) / cell) - (int) offR;
-                          boolean ok = board.canPlace(rr, cc, pick.len, pick.h, pick.idx);
+                          boolean okp = board.canPlace(rr, cc, pick.len, pick.h, pick.idx);
                           float w = pick.h ? pick.len * cell : cell, h = pick.h ? cell : pick.len * cell;
                           p.setStyle(Paint.Style.FILL);
-                          p.setColor(ok ? 0x5500E676 : 0x55FF1744);
-                          RectF r = new RectF(ox + cc * cell, oy + rr * cell, ox + cc * cell + w, oy + rr * cell + h);
-                          cv.drawRoundRect(r, cell * 0.1f, cell * 0.1f, p);
-                          Painter.draw(cv, p, theme, ox + cc * cell, oy + rr * cell, cell, pick.len, pick.h, pick.idx);
+                          p.setColor(okp ? 0x5500E676 : 0x55FF1744);
+                          rf.set(ox + cc * cell, oy + rr * cell, ox + cc * cell + w, oy + rr * cell + h);
+                          cv.drawRoundRect(rf, cell * 0.1f, cell * 0.1f, p);
+                          Painter.draw(cv, p, shipTheme(pick), ox + cc * cell, oy + rr * cell, cell, pick.len, pick.h, pick.idx);
                       } else {
-                          Painter.draw(cv, p, theme, fx - offC * cell - cell / 2, fy - offR * cell - cell / 2, cell, pick.len, pick.h, pick.idx);
+                          Painter.draw(cv, p, shipTheme(pick), fx - offC * cell - cell / 2, fy - offR * cell - cell / 2, cell, pick.len, pick.h, pick.idx);
                       }
                   }
               }
 
+              private void commit(Board.Ship s, int r, int c, boolean h, boolean fresh) {
+                  board.place(s.idx, r, c, h);
+                  if (fresh) s.theme = mix ? theme : -1;
+                  if (listener != null) listener.onSound(Snd.PLACE);
+              }
+
               @Override
               public boolean onTouchEvent(MotionEvent e) {
-                  if (locked) return true;
                   calc();
                   float x = e.getX(), y = e.getY();
                   int a = e.getAction();
                   if (a == MotionEvent.ACTION_DOWN) {
+                      downBtn = hitBtn(x, y);
+                      if (downBtn >= 0) return true;
+                      if (locked) return true;
                       moved = false;
                       downX = x;
                       downY = y;
                       fx = x;
                       fy = y;
-                      int ci = cellAt(x, y, false);
+                      int ci = cellAt(x, y);
                       if (ci >= 0) {
                           int id = board.shipAt(ci / 10, ci % 10);
                           if (id >= 0) {
@@ -2366,6 +3300,11 @@ jobs:
                       }
                       return true;
                   }
+                  if (downBtn >= 0) {
+                      if (a == MotionEvent.ACTION_UP && hitBtn(x, y) == downBtn) press(downBtn);
+                      if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) downBtn = -1;
+                      return true;
+                  }
                   if (pick == null) return true;
                   if (a == MotionEvent.ACTION_MOVE) {
                       fx = x;
@@ -2381,22 +3320,19 @@ jobs:
                       if (a == MotionEvent.ACTION_UP) {
                           if (fromBoard && !moved) {
                               boolean nh = !origH;
-                              int nr = origR, nc = origC;
-                              if (board.canPlace(nr, nc, s.len, nh, s.idx)) {
-                                  board.place(s.idx, nr, nc, nh);
+                              if (board.canPlace(origR, origC, s.len, nh, s.idx)) {
+                                  commit(s, origR, origC, nh, false);
                                   done = true;
-                                  if (listener != null) listener.onSound(Snd.PLACE);
                               }
                           } else if (fromBoard && x > ox + cell * 10 + cell * 0.5f) {
                               done = true;
                           } else {
-                              int ci = cellAt(x, y, true);
+                              int ci = cellAt(x, y);
                               if (ci >= 0) {
                                   int cc = ci % 10 - (int) offC, rr = ci / 10 - (int) offR;
                                   if (board.canPlace(rr, cc, s.len, s.h, s.idx)) {
-                                      board.place(s.idx, rr, cc, s.h);
+                                      commit(s, rr, cc, s.h, !fromBoard);
                                       done = true;
-                                      if (listener != null) listener.onSound(Snd.PLACE);
                                   }
                               }
                           }
@@ -2408,9 +3344,36 @@ jobs:
                   return true;
               }
 
+              private void press(int id) {
+                  if (listener == null) return;
+                  listener.onSound(Snd.BTN);
+                  if (id < 5) {
+                      theme = id;
+                      listener.onTheme(id);
+                  } else if (id == B_MIX) {
+                      mix = !mix;
+                      for (Board.Ship s : board.ships) s.theme = mix && s.placed ? theme : -1;
+                      listener.onMix(mix);
+                  } else if (id == B_RAND) {
+                      randomize();
+                  } else if (id == B_CLEAR) {
+                      clearAll();
+                  } else if (id == B_BACK) {
+                      listener.onBack();
+                  } else if (id == B_DONE) {
+                      if (board.allPlaced() && !locked) listener.onDone();
+                  }
+                  invalidate();
+              }
+
               public void randomize() {
                   if (locked) return;
-                  board.randomize(new java.util.Random());
+                  board.randomize(rnd);
+                  if (mix) {
+                      for (Board.Ship s : board.ships) s.theme = rnd.nextInt(Painter.THEMES.length);
+                  } else {
+                      for (Board.Ship s : board.ships) s.theme = -1;
+                  }
                   invalidate();
                   if (listener != null) listener.onChanged();
               }
@@ -2430,15 +3393,21 @@ jobs:
           import android.content.Context;
           import android.graphics.Canvas;
           import android.graphics.Paint;
+          import android.graphics.RectF;
           import android.view.MotionEvent;
           import android.view.View;
 
           public class BattleView extends View {
               public interface Listener {
                   void onShoot(int cell);
+
+                  void onEmoji();
+
+                  void onPause();
+
+                  void onExit();
               }
 
-              // розкладка екрана бою (спільна для вигляду й кнопок)
               public static class Lay {
                   public float u, ec, mx, ex, y0, midX, midW;
               }
@@ -2447,26 +3416,27 @@ jobs:
                   Lay l = new Lay();
                   l.u = Math.min(W / 16f, H / 9f);
                   float u = l.u;
-                  l.midW = 2.9f * u;
-                  l.ec = Math.min(H * 0.74f / 10f, (W - 0.9f * u - l.midW) / 20f);
-                  l.mx = 0.45f * u;
-                  l.ex = W - 0.45f * u - 10 * l.ec;
-                  l.y0 = (H - 10 * l.ec) / 2f + 0.4f * u;
+                  l.midW = 3.0f * u;
+                  l.ec = Math.min(H * 0.74f / 10f, (W - 0.6f * u - l.midW) / 20f);
+                  float total = 20 * l.ec + l.midW;
+                  l.mx = (W - total) / 2f;
                   l.midX = l.mx + 10 * l.ec;
-                  l.midW = l.ex - l.midX;
+                  l.ex = l.midX + l.midW;
+                  l.y0 = (H - 10 * l.ec) / 2f + 0.4f * u;
                   return l;
               }
 
               public Board mine, enemy;
               public Listener listener;
               public int theme;
-              public String msg = "";
+              public String msg = "", myName = "", enemyName = "";
               public boolean myTurn, reveal;
+              public int pausedBy; // 0 ні, 1 я, 2 суперник
               public int lastMine = -1, lastEnemy = -1;
               private String emoMine = "", emoEnemy = "";
               private long emoMineUntil, emoEnemyUntil;
               private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private Lay lay;
+              private final RectF rf = new RectF();
 
               public BattleView(Context c) {
                   super(c);
@@ -2484,12 +3454,32 @@ jobs:
                   invalidate();
               }
 
+              private float[] icon(Lay l, int i) {
+                  float cx = l.midX + l.midW / 2f + (i - 1) * 0.98f * l.u;
+                  return new float[]{cx, l.y0 + 4.5f * l.u, 0.44f * l.u};
+              }
+
+              private void circleBtn(Canvas cv, float[] c, int color) {
+                  p.setStyle(Paint.Style.FILL);
+                  p.setColor(color);
+                  cv.drawCircle(c[0], c[1], c[2], p);
+              }
+
+              private void nameLabel(Canvas cv, String s, float x, float y, float maxW, float u) {
+                  p.setStyle(Paint.Style.FILL);
+                  p.setTextAlign(Paint.Align.LEFT);
+                  p.setColor(0xFFE0E6EA);
+                  p.setTextSize(u * 0.4f);
+                  float w = p.measureText(s);
+                  if (w > maxW) p.setTextSize(u * 0.4f * maxW / w);
+                  cv.drawText(s, x, y, p);
+              }
+
               @Override
               protected void onDraw(Canvas cv) {
                   Lay l = layout(getWidth(), getHeight());
-                  lay = l;
                   float u = l.u;
-                  cv.drawColor(0xFF0D2847);
+                  cv.drawColor(Scheme.cur.bg);
                   if (mine == null || enemy == null) return;
                   Painter.board(cv, p, enemy, l.ex, l.y0, l.ec, reveal, theme, lastEnemy, true);
                   Painter.board(cv, p, mine, l.mx, l.y0, l.ec, true, theme, lastMine, true);
@@ -2498,28 +3488,74 @@ jobs:
                   p.setTextSize(u * 0.45f);
                   p.setColor(myTurn ? 0xFF69F0AE : 0xFFFFD54F);
                   cv.drawText(msg, getWidth() / 2f, u * 0.75f, p);
-                  p.setTextAlign(Paint.Align.LEFT);
-                  p.setTextSize(u * 0.36f);
-                  p.setColor(0xFFB0BEC5);
-                  cv.drawText("Ваше поле", l.mx, l.y0 - l.ec * 0.75f, p);
-                  cv.drawText("Поле ворога", l.ex, l.y0 - l.ec * 0.75f, p);
+                  nameLabel(cv, myName, l.mx, l.y0 - l.ec * 0.75f, l.ec * 10, u);
+                  nameLabel(cv, enemyName, l.ex, l.y0 - l.ec * 0.75f, l.ec * 10, u);
                   // флот ворога посередині
                   p.setTextAlign(Paint.Align.CENTER);
                   p.setTextSize(u * 0.3f);
                   p.setColor(0xFFB0BEC5);
                   float cx = l.midX + l.midW / 2f;
                   cv.drawText("Флот ворога", cx, l.y0 + u * 0.3f, p);
-                  float sq = u * 0.2f, gap = u * 0.03f, rowH = u * 0.27f;
-                  float y = l.y0 + u * 0.55f;
-                  for (Board.Ship s : enemy.ships) {
-                      float wRow = s.len * (sq + gap) - gap;
-                      float x = cx - wRow / 2f;
-                      p.setColor(enemy.sunk(s) ? 0xFFD32F2F : 0xFF90A4AE);
-                      for (int k = 0; k < s.len; k++) {
-                          cv.drawRect(x + k * (sq + gap), y, x + k * (sq + gap) + sq, y + sq, p);
+                  float fc = u * 0.42f, gap = u * 0.15f, avail = l.midW - u * 0.2f, rowH = fc * 1.3f;
+                  int n = enemy.ships.length;
+                  int[] row = new int[n];
+                  float[] rowW = new float[12];
+                  int r = 0;
+                  float cur = 0;
+                  for (int i = 0; i < n; i++) {
+                      float w = enemy.ships[i].len * fc;
+                      if (cur > 0 && cur + gap + w > avail) {
+                          r++;
+                          cur = 0;
                       }
-                      y += rowH;
+                      if (cur > 0) cur += gap;
+                      row[i] = r;
+                      cur += w;
+                      rowW[r] = cur;
                   }
+                  float[] pos = new float[12];
+                  for (int i = 0; i < n; i++) {
+                      Board.Ship s = enemy.ships[i];
+                      float x = cx - rowW[row[i]] / 2f + pos[row[i]];
+                      float y = l.y0 + u * 0.55f + row[i] * rowH;
+                      int th = s.theme >= 0 ? s.theme : theme;
+                      Painter.draw(cv, p, th, x, y, fc, s.len, true, s.idx);
+                      if (enemy.sunk(s)) {
+                          p.setStyle(Paint.Style.FILL);
+                          p.setColor(0x88B71C1C);
+                          rf.set(x, y + fc * 0.05f, x + s.len * fc, y + fc * 0.95f);
+                          cv.drawRoundRect(rf, fc * 0.15f, fc * 0.15f, p);
+                      }
+                      pos[row[i]] += s.len * fc + gap;
+                  }
+                  // кнопки-значки
+                  float[] c0 = icon(l, 0), c1 = icon(l, 1), c2 = icon(l, 2);
+                  circleBtn(cv, c0, 0xFF6A1B9A);
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTextSize(u * 0.6f);
+                  p.setColor(0xFFFFFFFF);
+                  cv.drawText("😀", c0[0], c0[1] + u * 0.21f, p);
+                  circleBtn(cv, c1, pausedBy == 2 ? 0x88455A64 : 0xFF455A64);
+                  p.setColor(0xFFFFFFFF);
+                  float k = c1[2] * 0.5f;
+                  if (pausedBy == 1) {
+                      android.graphics.Path q = new android.graphics.Path();
+                      q.moveTo(c1[0] - k * 0.7f, c1[1] - k);
+                      q.lineTo(c1[0] + k * 1.0f, c1[1]);
+                      q.lineTo(c1[0] - k * 0.7f, c1[1] + k);
+                      q.close();
+                      cv.drawPath(q, p);
+                  } else {
+                      cv.drawRect(c1[0] - k * 0.8f, c1[1] - k, c1[0] - k * 0.2f, c1[1] + k, p);
+                      cv.drawRect(c1[0] + k * 0.2f, c1[1] - k, c1[0] + k * 0.8f, c1[1] + k, p);
+                  }
+                  circleBtn(cv, c2, 0xFF8E2424);
+                  p.setColor(0xFFFFFFFF);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(k * 0.4f);
+                  cv.drawLine(c2[0] - k * 0.8f, c2[1] - k * 0.8f, c2[0] + k * 0.8f, c2[1] + k * 0.8f, p);
+                  cv.drawLine(c2[0] - k * 0.8f, c2[1] + k * 0.8f, c2[0] + k * 0.8f, c2[1] - k * 0.8f, p);
+                  p.setStyle(Paint.Style.FILL);
                   long now = System.currentTimeMillis();
                   boolean anim = false;
                   if (emoMineUntil > now) {
@@ -2543,11 +3579,31 @@ jobs:
                   p.setAlpha(255);
               }
 
+              private boolean hit(float[] c, float x, float y) {
+                  float dx = x - c[0], dy = y - c[1];
+                  return dx * dx + dy * dy <= c[2] * c[2] * 1.5f;
+              }
+
               @Override
               public boolean onTouchEvent(MotionEvent e) {
                   if (e.getAction() != MotionEvent.ACTION_UP) return true;
                   Lay l = layout(getWidth(), getHeight());
-                  int c = (int) Math.floor((e.getX() - l.ex) / l.ec), r = (int) Math.floor((e.getY() - l.y0) / l.ec);
+                  float x = e.getX(), y = e.getY();
+                  if (listener != null) {
+                      if (hit(icon(l, 0), x, y)) {
+                          listener.onEmoji();
+                          return true;
+                      }
+                      if (hit(icon(l, 1), x, y)) {
+                          listener.onPause();
+                          return true;
+                      }
+                      if (hit(icon(l, 2), x, y)) {
+                          listener.onExit();
+                          return true;
+                      }
+                  }
+                  int c = (int) Math.floor((x - l.ex) / l.ec), r = (int) Math.floor((y - l.y0) / l.ec);
                   if (c < 0 || r < 0 || c >= 10 || r >= 10) return true;
                   if (listener != null) listener.onShoot(r * 10 + c);
                   return true;
@@ -2585,12 +3641,14 @@ jobs:
           import android.widget.ScrollView;
           import android.widget.TextView;
           import android.widget.Toast;
+          import android.text.Editable;
+          import android.text.TextWatcher;
 
           import java.util.ArrayList;
           import java.util.Random;
 
           public class MainActivity extends Activity {
-              private static final int S_MENU = 0, S_SEA = 1, S_PLACE = 2, S_BATTLE = 3, S_SET = 4, S_LOBBY = 5, S_JOIN = 6;
+              private static final int S_MENU = 0, S_SEA = 1, S_PLACE = 2, S_BATTLE = 3, S_SET = 4, S_LOBBY = 5, S_JOIN = 6, S_HIST = 7;
               private static final int WHITE = 0xFFFFFFFF;
               private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
               private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
@@ -2601,6 +3659,8 @@ jobs:
                   "🦄", "👻", "🚀", "💩", "🤡", "🥶", "🫡", "💪"
               };
               private static final int[] GOOD_EMO = {0, 1, 2, 5, 6, 8, 9, 11, 14, 21, 25, 31};
+              private static final String[] BOT_NAMES = {"Нептун", "Корсар", "Адмірал", "Боцман", "Штурман", "Капітан", "Тритон", "Дельфін"};
+              private static final String[] LV_SHORT = {"Аматор", "Студент", "Геній", "Легенда"};
 
               private final Handler ui = new Handler(Looper.getMainLooper());
               private final Random rnd = new Random();
@@ -2612,11 +3672,19 @@ jobs:
               private Board mine, enemy, myBoard;
               private Bot bot;
               private BattleView bv;
-              private PlaceView pview;
               private boolean over;
-              private Dialog endDlg, emoDlg;
+              private Dialog endDlg, emoDlg, avDlg;
               private Toast toast;
-              private String cid = "";
+              private String cid = "", nick = "Гравець";
+              private int avatar;
+
+              // кімната / суперник
+              private boolean hasBot;
+              private String botName = "";
+              private int botAvatar, botLevel = 1;
+              private String peerNick;
+              private int peerAvatar;
+              private LinearLayout lobbyBody;
 
               // мережа
               private Net net;
@@ -2625,17 +3693,20 @@ jobs:
               private int pausedBy; // 0 ні, 1 я, 2 суперник
               private String netCode = "";
               private LinearLayout netBox, joinList;
-              private TextView lobbyInfo;
               private Discovery.Listener disc;
               private String joinSig = "";
-              private Button pauseBtn;
               private String lastMsg = "";
+              private PlaceView pview;
 
               @Override
               protected void onCreate(Bundle b) {
                   super.onCreate(b);
                   sp = getSharedPreferences("gg", MODE_PRIVATE);
                   theme = sp.getInt("theme", 0);
+                  Scheme.set(sp.getInt("scheme", 0));
+                  nick = sp.getString("nick", "Гравець");
+                  avatar = sp.getInt("avatar", 0);
+                  botLevel = sp.getInt("lvl", 1);
                   cid = sp.getString("cid", "");
                   if (cid.length() == 0) {
                       cid = Long.toHexString(new Random().nextLong()) + Long.toHexString(System.currentTimeMillis());
@@ -2702,14 +3773,19 @@ jobs:
                   }
               }
 
+              private int mapColor(int c) {
+                  return (c == 0xFF1565C0 || c == 0xFF1E88E5) ? Scheme.cur.btn : c;
+              }
+
               private Button btn(String s, int color, final View.OnClickListener l) {
                   Button b = new Button(this);
                   b.setText(s);
                   b.setAllCaps(false);
+                  b.setSingleLine(true);
                   b.setTextColor(WHITE);
                   b.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.4f * u);
                   b.setTypeface(Typeface.DEFAULT_BOLD);
-                  b.setBackground(bg(color, 0.2f));
+                  b.setBackground(bg(mapColor(color), 0.2f));
                   b.setStateListAnimator(null);
                   b.setMinHeight(0);
                   b.setMinimumHeight(0);
@@ -2719,7 +3795,7 @@ jobs:
                   b.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
                           snd.play(Snd.BTN);
-                          l.onClick(v);
+                          if (l != null) l.onClick(v);
                       }
                   });
                   return b;
@@ -2748,7 +3824,7 @@ jobs:
                   prevScreen = screen;
                   screen = s;
                   stopDisc();
-                  for (Dialog d : new Dialog[]{endDlg, emoDlg}) {
+                  for (Dialog d : new Dialog[]{endDlg, emoDlg, avDlg}) {
                       if (d != null) {
                           try {
                               d.dismiss();
@@ -2759,8 +3835,9 @@ jobs:
                   }
                   endDlg = null;
                   emoDlg = null;
+                  avDlg = null;
                   root.removeAllViews();
-                  root.setBackgroundColor(0xFF0D2847);
+                  root.setBackgroundColor(Scheme.cur.bg);
               }
 
               private void stopDisc() {
@@ -2775,7 +3852,38 @@ jobs:
                   if (n != null) n.close();
               }
 
-              // ---------- меню ----------
+              private Avatars.AvatarView avView(int id) {
+                  Avatars.AvatarView av = new Avatars.AvatarView(this);
+                  av.set(id, "-", false);
+                  return av;
+              }
+
+              private LinearLayout audioBar() {
+                  LinearLayout bar = new LinearLayout(this);
+                  final IconView music = new IconView(this, IconView.MUSIC);
+                  music.setCrossed(!sp.getBoolean("music", true));
+                  music.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          boolean on = !sp.getBoolean("music", true);
+                          sp.edit().putBoolean("music", on).commit();
+                          music.setCrossed(!on);
+                      }
+                  });
+                  final IconView sound = new IconView(this, IconView.SOUND);
+                  sound.setCrossed(!snd.sound);
+                  sound.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          snd.setSound(!snd.sound);
+                          sound.setCrossed(!snd.sound);
+                          snd.play(Snd.BTN);
+                      }
+                  });
+                  bar.addView(music, lp(1.0f, 1.0f, 0.05f));
+                  bar.addView(sound, lp(1.0f, 1.0f, 0.05f));
+                  return bar;
+              }
+
+              // ---------- вибір гри ----------
               private void showMenu() {
                   stopNet();
                   begin(S_MENU);
@@ -2786,75 +3894,266 @@ jobs:
                       public void onClick(View v) {
                           showSea();
                       }
-                  }), lp(7.5f, 1.1f, 0.12f));
+                  }), lp(7.5f, 1.15f, 0.12f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  FrameLayout.LayoutParams br = new FrameLayout.LayoutParams(px(3.0f), px(1.0f), Gravity.BOTTOM | Gravity.RIGHT);
+                  br.setMargins(0, 0, px(0.3f), px(0.3f));
+                  root.addView(btn("Вихід", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          finish();
+                      }
+                  }), br);
+                  FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM | Gravity.LEFT);
+                  bl.setMargins(px(0.3f), 0, 0, px(0.3f));
+                  root.addView(audioBar(), bl);
+              }
+
+              // ---------- головне меню гри ----------
+              private void showSea() {
+                  stopNet();
+                  hasBot = false;
+                  peerNick = null;
+                  begin(S_SEA);
+                  LinearLayout col = column();
+                  col.addView(tv("Морський бій", 1.0f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
+                  LinearLayout prof = new LinearLayout(this);
+                  prof.setGravity(Gravity.CENTER_VERTICAL);
+                  prof.addView(avView(avatar), lp(1.2f, 1.2f, 0.05f));
+                  prof.addView(tv(nick, 0.45f, WHITE, true), lp(WRAP, WRAP, 0.1f));
+                  col.addView(prof, lp(WRAP, WRAP, 0.05f));
+                  col.addView(btn("Створити кімнату", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          createRoom();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
+                  col.addView(btn("Приєднатися", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showJoin();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
+                  col.addView(btn("Історія ігор", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showHistory();
+                      }
+                  }), lp(6.5f, 1.15f, 0.12f));
                   col.addView(btn("Налаштування", 0xFF1565C0, new View.OnClickListener() {
                       public void onClick(View v) {
                           showSettings();
                       }
-                  }), lp(7.5f, 1.1f, 0.12f));
-                  col.addView(btn("Вихід", 0xFF1565C0, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          finish();
-                      }
-                  }), lp(7.5f, 1.1f, 0.12f));
+                  }), lp(6.5f, 1.15f, 0.12f));
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
-              }
-
-              private void showSea() {
-                  stopNet();
-                  begin(S_SEA);
-                  LinearLayout col = column();
-                  col.addView(tv("Морський бій", 0.8f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
-                  col.addView(tv("Проти бота — оберіть рівень:", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.1f));
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  for (int k = 0; k < Bot.LEVELS.length; k++) {
-                      final int lk = k;
-                      row.addView(btn(Bot.LEVELS[k], 0xFF2E7D32, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              mp = false;
-                              showPlace(lk);
-                          }
-                      }), lp(3.2f, 1.0f, 0.1f));
-                  }
-                  col.addView(row);
-                  col.addView(tv("Гра з людиною:", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.1f));
-                  LinearLayout row1 = new LinearLayout(this);
-                  row1.setOrientation(LinearLayout.HORIZONTAL);
-                  row1.addView(btn("Створити кімнату", 0xFF1E88E5, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          createRoom();
-                      }
-                  }), lp(6.4f, 1.0f, 0.1f));
-                  row1.addView(btn("Приєднатися", 0xFF1E88E5, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          showJoin();
-                      }
-                  }), lp(6.4f, 1.0f, 0.1f));
-                  col.addView(row1);
-                  LinearLayout row2 = new LinearLayout(this);
-                  row2.setOrientation(LinearLayout.HORIZONTAL);
-                  row2.addView(btn("Налаштування", 0xFF455A64, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          showSettings();
-                      }
-                  }), lp(6.4f, 1.0f, 0.1f));
-                  row2.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                  FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM | Gravity.LEFT);
+                  bl.setMargins(px(0.3f), 0, 0, px(0.3f));
+                  root.addView(audioBar(), bl);
+                  LinearLayout br = new LinearLayout(this);
+                  br.addView(btn("Назад", 0xFF1565C0, new View.OnClickListener() {
                       public void onClick(View v) {
                           showMenu();
                       }
-                  }), lp(6.4f, 1.0f, 0.1f));
-                  col.addView(row2);
+                  }), lp(2.8f, 1.0f, 0.05f));
+                  br.addView(btn("Вихід", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          finish();
+                      }
+                  }), lp(2.8f, 1.0f, 0.05f));
+                  FrameLayout.LayoutParams brp = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM | Gravity.RIGHT);
+                  brp.setMargins(0, 0, px(0.3f), px(0.3f));
+                  root.addView(br, brp);
+              }
+
+              // ---------- історія ----------
+              private void addHist(String opp, boolean win) {
+                  String old = sp.getString("hist", "");
+                  String line = System.currentTimeMillis() + "|" + opp.replace("|", " ").replace("\n", " ") + "|" + (win ? 1 : 0);
+                  String[] ls = old.length() == 0 ? new String[0] : old.split("\n");
+                  StringBuilder sb = new StringBuilder(line);
+                  for (int i = 0; i < ls.length && i < 99; i++) sb.append('\n').append(ls[i]);
+                  sp.edit().putString("hist", sb.toString()).commit();
+              }
+
+              private void showHistory() {
+                  begin(S_HIST);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
+                  col.addView(tv("Історія ігор", 0.5f, WHITE, true));
+                  ScrollView sv = new ScrollView(this);
+                  LinearLayout list = new LinearLayout(this);
+                  list.setOrientation(LinearLayout.VERTICAL);
+                  String h = sp.getString("hist", "");
+                  if (h.length() == 0) {
+                      list.addView(tv("Ігор ще не було", 0.38f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
+                  } else {
+                      java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("dd.MM HH:mm");
+                      for (String ln : h.split("\n")) {
+                          String[] f = ln.split("\\|", -1);
+                          if (f.length < 3) continue;
+                          boolean win = f[2].equals("1");
+                          String when = "";
+                          try {
+                              when = df.format(new java.util.Date(Long.parseLong(f[0])));
+                          } catch (Exception e) {
+                              // ignore
+                          }
+                          LinearLayout row = new LinearLayout(this);
+                          row.setGravity(Gravity.CENTER_VERTICAL);
+                          row.addView(tv(when, 0.34f, 0xFFB0BEC5, false), lp(2.4f, WRAP, 0.05f));
+                          row.addView(tv("з " + f[1], 0.38f, WHITE, false), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                          row.addView(tv(win ? "Перемога" : "Поразка", 0.38f, win ? 0xFF69F0AE : 0xFFFF8A80, true), lp(WRAP, WRAP, 0.05f));
+                          list.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                      }
+                  }
+                  sv.addView(list);
+                  col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), lp(3f, 0.95f, 0.1f));
+                  bar.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+                  if (h.length() > 0) {
+                      bar.addView(btn("Стерти всю історію", 0xFFB71C1C, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              new AlertDialog.Builder(MainActivity.this).setTitle("Стерти всю історію?")
+                                  .setPositiveButton("Так", new DialogInterface.OnClickListener() {
+                                      public void onClick(DialogInterface d, int w) {
+                                          sp.edit().putString("hist", "").commit();
+                                          showHistory();
+                                      }
+                                  }).setNegativeButton("Ні", null).show();
+                          }
+                      }), lp(5.2f, 0.95f, 0.1f));
+                  }
+                  col.addView(bar, new LinearLayout.LayoutParams(MATCH, WRAP));
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
               }
 
-              // ---------- мережа: кімната ----------
+              // ---------- налаштування ----------
+              private void showSettings() {
+                  final int back = screen == S_SEA ? S_SEA : S_MENU;
+                  begin(S_SET);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
+                  col.setFocusableInTouchMode(true);
+                  col.addView(tv("Налаштування", 0.6f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.05f));
+                  LinearLayout body = new LinearLayout(this);
+                  body.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout left = new LinearLayout(this);
+                  left.setOrientation(LinearLayout.VERTICAL);
+                  left.addView(tv("Нік", 0.38f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                  final EditText et = new EditText(this);
+                  et.setSingleLine(true);
+                  et.setText(nick);
+                  et.setTextColor(WHITE);
+                  et.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.45f * u);
+                  et.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(14)});
+                  et.addTextChangedListener(new TextWatcher() {
+                      public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+                      }
+
+                      public void onTextChanged(CharSequence s, int a, int b, int c) {
+                      }
+
+                      public void afterTextChanged(Editable s) {
+                          String n = s.toString().trim();
+                          if (n.length() > 0) {
+                              nick = n;
+                              sp.edit().putString("nick", n).commit();
+                          }
+                      }
+                  });
+                  left.addView(et, lp(5.5f, WRAP, 0.05f));
+                  left.addView(tv("Аватар", 0.38f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                  final Avatars.AvatarView av = avView(avatar);
+                  av.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          snd.play(Snd.BTN);
+                          pickAvatar(av);
+                      }
+                  });
+                  left.addView(av, lp(2.4f, 2.4f, 0.05f));
+                  body.addView(left, new LinearLayout.LayoutParams(px(6.4f), WRAP));
+                  LinearLayout right = new LinearLayout(this);
+                  right.setOrientation(LinearLayout.VERTICAL);
+                  right.addView(tv("Тема", 0.38f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                  for (int r = 0; r < 2; r++) {
+                      LinearLayout row = new LinearLayout(this);
+                      for (int c = 0; c < 3; c++) {
+                          final int k = r * 3 + c;
+                          Scheme sc = Scheme.ALL[k];
+                          TextView tile = tv(sc.name, 0.34f, WHITE, true);
+                          tile.setGravity(Gravity.CENTER);
+                          GradientDrawable gd = bg(sc.bg, 0.2f);
+                          gd.setStroke(px(k == sp.getInt("scheme", 0) ? 0.12f : 0.05f), k == sp.getInt("scheme", 0) ? 0xFFFFD54F : sc.btn);
+                          tile.setBackground(gd);
+                          tile.setOnClickListener(new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  snd.play(Snd.BTN);
+                                  sp.edit().putInt("scheme", k).commit();
+                                  Scheme.set(k);
+                                  showSettings();
+                              }
+                          });
+                          row.addView(tile, lp(2.6f, 1.5f, 0.07f));
+                      }
+                      right.addView(row);
+                  }
+                  body.addView(right, new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  col.addView(body, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  col.addView(btn("Готово", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (back == S_SEA) showSea();
+                          else showMenu();
+                      }
+                  }), lp(4f, 1.0f, 0.05f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  col.requestFocus();
+              }
+
+              private void pickAvatar(final Avatars.AvatarView target) {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  for (int r = 0; r * 8 < Avatars.TOTAL; r++) {
+                      LinearLayout row = new LinearLayout(this);
+                      for (int c = 0; c < 8; c++) {
+                          final int id = r * 8 + c;
+                          if (id >= Avatars.TOTAL) break;
+                          Avatars.AvatarView a = avView(id);
+                          a.set(id, "-", id == avatar);
+                          a.setOnClickListener(new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  avatar = id;
+                                  sp.edit().putInt("avatar", id).commit();
+                                  target.set(id, "-", false);
+                                  if (avDlg != null) avDlg.dismiss();
+                              }
+                          });
+                          row.addView(a, new LinearLayout.LayoutParams(px(1.3f), px(1.3f)));
+                      }
+                      box.addView(row);
+                  }
+                  ScrollView sv = new ScrollView(this);
+                  sv.addView(box);
+                  Dialog d = dialog(sv, true);
+                  avDlg = d;
+                  d.show();
+                  if (d.getWindow() != null) d.getWindow().setLayout(px(11.5f), px(7.5f));
+              }
+
+              // ---------- мережа ----------
               private Net.Cb netCb(final Net[] ref) {
                   return new Net.Cb() {
-                      public void onConnected() {
+                      public void onConnected(String n, int a) {
                           if (net != ref[0]) return;
-                          resetMatchFlags();
-                          showPlace(-1);
+                          peerNick = n;
+                          peerAvatar = a;
+                          if (net.host) {
+                              if (screen == S_LOBBY) fillLobby();
+                          } else {
+                              showLobbyGuest();
+                          }
                       }
 
                       public void onLine(String line) {
@@ -2864,7 +4163,18 @@ jobs:
 
                       public void onLost() {
                           if (net != ref[0]) return;
-                          opponentLeft();
+                          if (screen == S_LOBBY) {
+                              if (net.host) {
+                                  peerNick = null;
+                                  fillLobby();
+                                  say("Суперник вийшов");
+                              } else {
+                                  say("Господар закрив кімнату");
+                                  showSea();
+                              }
+                          } else {
+                              opponentLeft();
+                          }
                       }
 
                       public void onFail(String msg) {
@@ -2899,10 +4209,13 @@ jobs:
               private void createRoom() {
                   stopNet();
                   mp = true;
+                  hasBot = false;
+                  peerNick = null;
                   netCode = "";
                   final Net[] ref = new Net[1];
                   net = new Net(netCb(ref));
                   ref[0] = net;
+                  net.setInfo(nick, avatar);
                   net.startHost(cid, sp.getString("roomCode", ""));
                   showLobby();
               }
@@ -2914,24 +4227,134 @@ jobs:
                   col.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
                   LinearLayout trow = new LinearLayout(this);
                   trow.setGravity(Gravity.CENTER_VERTICAL);
-                  trow.addView(tv("Ваша кімната", 0.6f, 0xFFFFD54F, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  trow.addView(tv("Кімната", 0.6f, 0xFFFFD54F, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
                   netBox = new LinearLayout(this);
                   netBox.setOrientation(LinearLayout.VERTICAL);
                   netBox.setGravity(Gravity.RIGHT);
                   trow.addView(netBox, new LinearLayout.LayoutParams(WRAP, WRAP));
                   col.addView(trow, new LinearLayout.LayoutParams(MATCH, WRAP));
-                  lobbyInfo = tv("Чекаємо суперника…", 0.45f, WHITE, false);
-                  col.addView(lobbyInfo, lp(WRAP, WRAP, 0.3f));
-                  col.addView(tv("Суперник може приєднатися по Wi-Fi (кнопка «Приєднатися») або за кодом з інтернету.", 0.34f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
-                  View filler = new View(this);
-                  col.addView(filler, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  lobbyBody = new LinearLayout(this);
+                  lobbyBody.setOrientation(LinearLayout.VERTICAL);
+                  col.addView(lobbyBody, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  fillNetBar();
+                  fillLobby();
+              }
+
+              private LinearLayout playerRow(int av, String name) {
+                  LinearLayout row = new LinearLayout(this);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.addView(avView(av), lp(1.1f, 1.1f, 0.05f));
+                  row.addView(tv(name, 0.4f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  return row;
+              }
+
+              private void fillLobby() {
+                  if (lobbyBody == null || screen != S_LOBBY) return;
+                  lobbyBody.removeAllViews();
+                  lobbyBody.addView(playerRow(avatar, nick + " - господар"), new LinearLayout.LayoutParams(MATCH, WRAP));
+                  if (hasBot) {
+                      LinearLayout row = playerRow(botAvatar, "Бот " + botName);
+                      for (int k = 0; k < LV_SHORT.length; k++) {
+                          final int lk = k;
+                          Button lb = btn(LV_SHORT[k], botLevel == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  botLevel = lk;
+                                  sp.edit().putInt("lvl", lk).commit();
+                                  fillLobby();
+                              }
+                          });
+                          small(lb, 0.28f);
+                          row.addView(lb, lp(1.9f, 0.8f, 0.02f));
+                      }
+                      Button rm = btn("Прибрати", 0xFFC62828, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              hasBot = false;
+                              if (net != null) net.lock(false);
+                              fillLobby();
+                          }
+                      });
+                      small(rm, 0.28f);
+                      row.addView(rm, lp(2.2f, 0.8f, 0.04f));
+                      lobbyBody.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  } else if (peerNick != null) {
+                      LinearLayout row = playerRow(peerAvatar, peerNick + " - гість");
+                      Button rm = btn("Прибрати", 0xFFC62828, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (net != null) net.kick();
+                              peerNick = null;
+                              fillLobby();
+                          }
+                      });
+                      small(rm, 0.3f);
+                      row.addView(rm, lp(2.4f, 0.8f, 0.04f));
+                      lobbyBody.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  } else {
+                      lobbyBody.addView(tv("Очікуємо суперника… Він може приєднатися по Wi-Fi або за кодом з інтернету.", 0.36f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.2f));
+                  }
+                  lobbyBody.addView(new View(this), new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  final boolean hasOpp = hasBot || peerNick != null;
+                  if (!hasOpp) {
+                      row.addView(btn("Додати бота", 0xFF1565C0, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              hasBot = true;
+                              botName = BOT_NAMES[rnd.nextInt(BOT_NAMES.length)];
+                              do {
+                                  botAvatar = rnd.nextInt(Avatars.TOTAL);
+                              } while (botAvatar == avatar);
+                              botLevel = sp.getInt("lvl", 1);
+                              if (net != null) net.lock(true);
+                              fillLobby();
+                          }
+                      }), lp(3.6f, 1.0f, 0.08f));
+                  }
+                  Button start = btn("Старт", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          startFromLobby();
+                      }
+                  });
+                  start.setAlpha(hasOpp ? 1f : 0.4f);
+                  row.addView(start, lp(3.6f, 1.0f, 0.08f));
+                  row.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), lp(3f, 1.0f, 0.08f));
+                  lobbyBody.addView(row, new LinearLayout.LayoutParams(WRAP, WRAP));
+              }
+
+              private void startFromLobby() {
+                  if (hasBot) {
+                      int lv = botLevel;
+                      stopNet();
+                      level = lv;
+                      showPlace(lv);
+                  } else if (peerNick != null && net != null) {
+                      net.send("GO");
+                      showPlace(-1);
+                  } else {
+                      say("Спершу додайте бота або дочекайтеся суперника");
+                  }
+              }
+
+              private void showLobbyGuest() {
+                  begin(S_LOBBY);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
+                  col.addView(tv("Кімната", 0.6f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.05f));
+                  col.addView(playerRow(peerAvatar, peerNick + " - господар"), new LinearLayout.LayoutParams(MATCH, WRAP));
+                  col.addView(playerRow(avatar, nick + " - гість"), new LinearLayout.LayoutParams(MATCH, WRAP));
+                  col.addView(tv("Очікуємо, поки господар почне гру…", 0.36f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.2f));
+                  col.addView(new View(this), new LinearLayout.LayoutParams(MATCH, 0, 1f));
                   col.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
                       public void onClick(View v) {
                           showSea();
                       }
-                  }), lp(3f, 1.0f, 0.1f));
+                  }), lp(3f, 1.0f, 0.08f));
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
-                  fillNetBar();
               }
 
               private void fillNetBar() {
@@ -2977,7 +4400,7 @@ jobs:
                   }
               }
 
-              // ---------- мережа: приєднання ----------
+              // ---------- приєднання ----------
               private void showJoin() {
                   stopNet();
                   begin(S_JOIN);
@@ -2985,6 +4408,7 @@ jobs:
                   LinearLayout col = new LinearLayout(this);
                   col.setOrientation(LinearLayout.VERTICAL);
                   col.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
+                  col.setFocusableInTouchMode(true);
                   col.addView(tv("Кімнати у вашій Wi-Fi мережі", 0.5f, WHITE, true));
                   LinearLayout crow = new LinearLayout(this);
                   crow.setGravity(Gravity.CENTER_VERTICAL);
@@ -3018,6 +4442,7 @@ jobs:
                       }
                   }), lp(3f, 0.95f, 0.1f));
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  col.requestFocus();
                   disc = new Discovery.Listener(this);
                   disc.start();
                   final int g = gen;
@@ -3056,7 +4481,7 @@ jobs:
                   }
               }
 
-              private void joinLan(String ip, int port) {
+              private Net newGuestNet() {
                   Net old = net;
                   net = null;
                   if (old != null) old.close();
@@ -3064,34 +4489,31 @@ jobs:
                   final Net[] ref = new Net[1];
                   net = new Net(netCb(ref));
                   ref[0] = net;
+                  net.setInfo(nick, avatar);
                   say("Підключення…");
-                  net.joinLan(ip, port);
+                  return net;
+              }
+
+              private void joinLan(String ip, int port) {
+                  newGuestNet().joinLan(ip, port);
               }
 
               private void joinCode(String code) {
-                  Net old = net;
-                  net = null;
-                  if (old != null) old.close();
-                  mp = true;
-                  final Net[] ref = new Net[1];
-                  net = new Net(netCb(ref));
-                  ref[0] = net;
-                  say("Підключення…");
-                  net.joinCode(code, cid);
+                  newGuestNet().joinCode(code, cid);
               }
 
               private void opponentLeft() {
                   if (screen == S_BATTLE && !over) {
-                      bv.msg = "Суперник вийшов";
                       over = true;
                       bv.myTurn = false;
+                      setMsg("Суперник вийшов");
                       snd.play(Snd.WIN);
+                      addHist(peerNick == null ? "гравцем" : peerNick, true);
                       showEnd(true, "Суперник вийшов із гри", false);
-                  } else if (screen == S_PLACE || screen == S_LOBBY) {
+                  } else if (screen == S_PLACE) {
                       say("Суперник вийшов");
                       showSea();
                   } else if (screen == S_BATTLE && endDlg != null) {
-                      // рахунок уже відомий, лише забороняємо реванш
                       peerRematch = false;
                       say("Суперник вийшов");
                   }
@@ -3105,10 +4527,30 @@ jobs:
                   final PlaceView pv = new PlaceView(this);
                   pview = pv;
                   pv.theme = theme;
+                  pv.mix = sp.getBoolean("mix", false);
                   root.addView(pv, new FrameLayout.LayoutParams(MATCH, MATCH));
-                  final TextView status = tv("Тягніть кораблі на поле, дотик — повернути", 0.26f, 0xFFB0BEC5, false);
-                  final Button done = btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
-                      public void onClick(View v) {
+                  pv.listener = new PlaceView.Listener() {
+                      public void onChanged() {
+                      }
+
+                      public void onSound(int kind) {
+                          snd.play(kind);
+                      }
+
+                      public void onTheme(int t) {
+                          theme = t;
+                          sp.edit().putInt("theme", t).commit();
+                      }
+
+                      public void onMix(boolean on) {
+                          sp.edit().putBoolean("mix", on).commit();
+                      }
+
+                      public void onBack() {
+                          showSea();
+                      }
+
+                      public void onDone() {
                           if (!pv.board.allPlaced() || myReady) return;
                           if (!mp) {
                               startBattle(pv.board);
@@ -3117,76 +4559,11 @@ jobs:
                           myReady = true;
                           pv.locked = true;
                           myBoard = pv.board;
-                          status.setText("Чекаємо суперника…");
-                          status.setTextColor(0xFFFFD54F);
+                          pv.status = "Чекаємо суперника…";
                           net.send("READY");
                           checkStart();
                       }
-                  });
-                  pv.listener = new PlaceView.Listener() {
-                      public void onChanged() {
-                          done.setAlpha(pv.board.allPlaced() ? 1f : 0.4f);
-                      }
-
-                      public void onSound(int kind) {
-                          snd.play(kind);
-                      }
                   };
-                  done.setAlpha(0.4f);
-                  // вибір теми фігур
-                  final Button[] tb = new Button[Painter.THEMES.length];
-                  LinearLayout trow = new LinearLayout(this);
-                  for (int k = 0; k < tb.length; k++) {
-                      final int tk = k;
-                      tb[k] = btn(Painter.THEMES[k], k == theme ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              theme = tk;
-                              sp.edit().putInt("theme", theme).commit();
-                              pv.theme = theme;
-                              for (int j = 0; j < tb.length; j++) tb[j].setBackground(bg(j == theme ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
-                              pv.invalidate();
-                          }
-                      });
-                      small(tb[k], 0.27f);
-                      trow.addView(tb[k], new LinearLayout.LayoutParams(0, px(0.8f), 1f));
-                      ((LinearLayout.LayoutParams) tb[k].getLayoutParams()).setMargins(px(0.04f), 0, px(0.04f), 0);
-                  }
-                  FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(px(6.5f), WRAP);
-                  tp.gravity = Gravity.TOP | Gravity.RIGHT;
-                  tp.setMargins(0, px(0.95f), px(0.4f), 0);
-                  root.addView(trow, tp);
-                  LinearLayout panel = new LinearLayout(this);
-                  panel.setOrientation(LinearLayout.VERTICAL);
-                  LinearLayout r1 = new LinearLayout(this);
-                  r1.addView(btn("Випадково", 0xFF1565C0, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          pv.randomize();
-                      }
-                  }), new LinearLayout.LayoutParams(0, px(0.9f), 1f));
-                  r1.addView(btn("Очистити", 0xFF6D4C41, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          pv.clearAll();
-                      }
-                  }), new LinearLayout.LayoutParams(0, px(0.9f), 1f));
-                  LinearLayout r2 = new LinearLayout(this);
-                  r2.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          showSea();
-                      }
-                  }), new LinearLayout.LayoutParams(0, px(0.9f), 1f));
-                  r2.addView(done, new LinearLayout.LayoutParams(0, px(0.9f), 1f));
-                  for (int i = 0; i < 2; i++) {
-                      LinearLayout r = i == 0 ? r1 : r2;
-                      for (int k = 0; k < r.getChildCount(); k++) {
-                          ((LinearLayout.LayoutParams) r.getChildAt(k).getLayoutParams()).setMargins(px(0.06f), px(0.04f), px(0.06f), px(0.04f));
-                      }
-                      panel.addView(r, new LinearLayout.LayoutParams(MATCH, WRAP));
-                  }
-                  panel.addView(status, lp(WRAP, WRAP, 0.04f));
-                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(px(6.5f), WRAP);
-                  fp.gravity = Gravity.BOTTOM | Gravity.RIGHT;
-                  fp.setMargins(0, 0, px(0.4f), px(0.3f));
-                  root.addView(panel, fp);
               }
 
               private void checkStart() {
@@ -3209,64 +4586,50 @@ jobs:
                   bv.theme = theme;
                   bv.mine = mine;
                   bv.enemy = enemy;
+                  bv.myName = nick;
+                  bv.enemyName = mp ? (peerNick == null ? "Суперник" : peerNick) : "Бот " + botName;
                   bv.listener = new BattleView.Listener() {
                       public void onShoot(int cell) {
                           myShot(cell);
                       }
-                  };
-                  root.addView(bv, new FrameLayout.LayoutParams(MATCH, MATCH));
-                  DisplayMetrics dm = getResources().getDisplayMetrics();
-                  float W = Math.max(dm.widthPixels, dm.heightPixels), H = Math.min(dm.widthPixels, dm.heightPixels);
-                  BattleView.Lay l = BattleView.layout(W, H);
-                  LinearLayout col = new LinearLayout(this);
-                  col.setOrientation(LinearLayout.VERTICAL);
-                  col.setGravity(Gravity.CENTER_HORIZONTAL);
-                  Button emo = btn("😀 Смайли", 0xFF6A1B9A, new View.OnClickListener() {
-                      public void onClick(View v) {
+
+                      public void onEmoji() {
                           showEmoji();
                       }
-                  });
-                  small(emo, 0.3f);
-                  col.addView(emo, new LinearLayout.LayoutParams(MATCH, px(0.85f)));
-                  pauseBtn = btn("Пауза", 0xFF455A64, new View.OnClickListener() {
-                      public void onClick(View v) {
+
+                      public void onPause() {
                           togglePause();
                       }
-                  });
-                  small(pauseBtn, 0.3f);
-                  LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(MATCH, px(0.85f));
-                  pl.setMargins(0, px(0.15f), 0, 0);
-                  col.addView(pauseBtn, pl);
-                  Button exit = btn("Вихід", 0xFF8E2424, new View.OnClickListener() {
-                      public void onClick(View v) {
+
+                      public void onExit() {
                           askExit();
                       }
-                  });
-                  small(exit, 0.3f);
-                  LinearLayout.LayoutParams el = new LinearLayout.LayoutParams(MATCH, px(0.85f));
-                  el.setMargins(0, px(0.15f), 0, 0);
-                  col.addView(exit, el);
-                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams((int) (l.midW - 0.3f * l.u), WRAP);
-                  fp.leftMargin = (int) (l.midX + 0.15f * l.u);
-                  fp.topMargin = (int) (l.y0 + 3.5f * l.u);
-                  root.addView(col, fp);
+                  };
+                  root.addView(bv, new FrameLayout.LayoutParams(MATCH, MATCH));
               }
 
               private void setMsg(String s) {
                   lastMsg = s;
                   if (bv == null) return;
-                  if (pausedBy == 1) bv.msg = "Пауза — натисніть «Продовжити»";
+                  if (pausedBy == 1) bv.msg = "Пауза — натисніть ▶, щоб продовжити";
                   else if (pausedBy == 2) bv.msg = "Суперник поставив паузу";
                   else bv.msg = s;
+                  bv.pausedBy = pausedBy;
                   bv.invalidate();
               }
 
               private void startBattle(Board my) {
                   mine = my;
+                  mine.baseTheme = theme;
                   for (int i = 0; i < mine.shot.length; i++) mine.shot[i] = 0;
                   enemy = new Board();
+                  enemy.baseTheme = theme;
                   enemy.randomize(rnd);
+                  if (sp.getBoolean("mix", false)) {
+                      for (Board.Ship s : enemy.ships) s.theme = rnd.nextInt(Painter.THEMES.length);
+                  }
                   bot = new Bot(level);
+                  if (botName.length() == 0) botName = BOT_NAMES[rnd.nextInt(BOT_NAMES.length)];
                   buildBattle();
                   myTurn = rnd.nextBoolean();
                   bv.myTurn = myTurn;
@@ -3276,8 +4639,10 @@ jobs:
 
               private void beginBattleMp(boolean iFirst) {
                   mine = myBoard;
+                  mine.baseTheme = theme;
                   for (int i = 0; i < mine.shot.length; i++) mine.shot[i] = 0;
                   enemy = new Board();
+                  enemy.baseTheme = theme;
                   buildBattle();
                   myTurn = iFirst;
                   bv.myTurn = myTurn;
@@ -3352,12 +4717,16 @@ jobs:
                   }, 260);
               }
 
-              // повідомлення від суперника
               private void handleNet(String line) {
                   String[] f = line.split("\\|", -1);
                   String c = f[0];
                   try {
-                      if (c.equals("READY")) {
+                      if (c.equals("GO")) {
+                          if (screen == S_LOBBY && net != null && !net.host) showPlace(-1);
+                      } else if (c.equals("KICK")) {
+                          say("Господар вилучив вас з кімнати");
+                          showSea();
+                      } else if (c.equals("READY")) {
                           peerReady = true;
                           checkStart();
                       } else if (c.equals("START")) {
@@ -3412,7 +4781,7 @@ jobs:
                           } else if (pausedBy == 2) {
                               pausedBy = 0;
                           }
-                          refreshPause();
+                          setMsg(lastMsg);
                       } else if (c.equals("REMATCH")) {
                           peerRematch = true;
                           if (myRematch) rematch();
@@ -3420,14 +4789,6 @@ jobs:
                   } catch (Exception e) {
                       // некоректне повідомлення ігноруємо
                   }
-              }
-
-              private void refreshPause() {
-                  if (pauseBtn != null) {
-                      pauseBtn.setText(pausedBy == 1 ? "Продовжити" : "Пауза");
-                      pauseBtn.setAlpha(pausedBy == 2 ? 0.4f : 1f);
-                  }
-                  setMsg(lastMsg);
               }
 
               private void togglePause() {
@@ -3438,7 +4799,7 @@ jobs:
                   }
                   pausedBy = pausedBy == 1 ? 0 : 1;
                   if (mp && net != null) net.send("PAUSE|" + pausedBy);
-                  refreshPause();
+                  setMsg(lastMsg);
               }
 
               private void askExit() {
@@ -3515,6 +4876,7 @@ jobs:
                   myTurn = false;
                   bv.myTurn = false;
                   bv.reveal = true;
+                  addHist(mp ? (peerNick == null ? "гравцем" : peerNick) : "ботом (" + Bot.LEVELS[level] + ")", win);
                   final int g = gen;
                   ui.postDelayed(new Runnable() {
                       public void run() {
@@ -3569,40 +4931,13 @@ jobs:
                   showPlace(-1);
               }
 
-              // ---------- налаштування ----------
-              private void showSettings() {
-                  final int back = screen == S_SEA ? S_SEA : S_MENU;
-                  begin(S_SET);
-                  LinearLayout col = column();
-                  col.addView(tv("Налаштування", 0.7f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.2f));
-                  final Button sb = btn(snd.sound ? "Звук: увімкнено" : "Звук: вимкнено", snd.sound ? 0xFF2E7D32 : 0xFF455A64, null);
-                  sb.setOnClickListener(new View.OnClickListener() {
-                      public void onClick(View v) {
-                          snd.setSound(!snd.sound);
-                          snd.play(Snd.BTN);
-                          sb.setText(snd.sound ? "Звук: увімкнено" : "Звук: вимкнено");
-                          sb.setBackground(bg(snd.sound ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
-                      }
-                  });
-                  col.addView(sb, lp(7.5f, 1.0f, 0.1f));
-                  col.addView(tv("Тему фігур (кораблі, машини, поїзди, жуки, лего) обирають під час розстановки.", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.15f));
-                  col.addView(btn("Готово", 0xFF1565C0, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          if (back == S_SEA) showSea();
-                          else showMenu();
-                      }
-                  }), lp(7.5f, 1.0f, 0.1f));
-                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
-              }
-
               @Override
               public void onBackPressed() {
                   if (screen == S_MENU) {
                       finish();
-                  } else if (screen == S_SEA || screen == S_LOBBY || screen == S_JOIN) {
-                      if (screen == S_SEA) showMenu();
-                      else showSea();
-                  } else if (screen == S_PLACE) {
+                  } else if (screen == S_SEA) {
+                      showMenu();
+                  } else if (screen == S_LOBBY || screen == S_JOIN || screen == S_HIST || screen == S_PLACE) {
                       showSea();
                   } else if (screen == S_BATTLE) {
                       askExit();
