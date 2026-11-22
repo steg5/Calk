@@ -66,8 +66,8 @@ jobs:
                   applicationId "com.example.gryntsivgames"
                   minSdk 23
                   targetSdk 26
-                  versionCode 2
-                  versionName "0.2"
+                  versionCode 3
+                  versionName "0.3"
               }
               signingConfigs {
                   debug {
@@ -97,6 +97,7 @@ jobs:
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
               <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+              <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
               <application
                   android:label="Gryntsiv Games"
                   android:icon="@drawable/ic_launcher"
@@ -117,6 +118,1376 @@ jobs:
                   </activity>
               </application>
           </manifest>
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Link.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import java.io.BufferedReader;
+          import java.io.BufferedWriter;
+          import java.io.IOException;
+          import java.io.InputStreamReader;
+          import java.io.OutputStreamWriter;
+          import java.net.Socket;
+          import java.util.concurrent.LinkedBlockingQueue;
+
+          public abstract class Link {
+              public abstract void send(String line);
+
+              public void close() {
+              }
+
+              public interface LineSink {
+                  void onLine(String line);
+
+                  void onClosed();
+              }
+
+              private static final String END = "\u0000END";
+
+              public static class SocketLink extends Link {
+                  private final Socket s;
+                  private final LinkedBlockingQueue<String> q = new LinkedBlockingQueue<String>();
+                  private volatile boolean closed;
+
+                  public SocketLink(Socket sock) {
+                      this.s = sock;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  BufferedWriter w = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(), "UTF-8"));
+                                  while (true) {
+                                      String m = q.take();
+                                      if (END.equals(m)) break;
+                                      w.write(m);
+                                      w.write("\n");
+                                      w.flush();
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                              try {
+                                  s.close();
+                              } catch (IOException e) {
+                                  // ignore
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void send(String line) {
+                      if (!closed) q.offer(line);
+                  }
+
+                  public void close() {
+                      if (closed) return;
+                      closed = true;
+                      q.offer(END);
+                  }
+
+                  public void readLoop(final LineSink sink) {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+                                  String line;
+                                  while ((line = r.readLine()) != null) {
+                                      sink.onLine(line);
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                              sink.onClosed();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Client.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import java.net.InetSocketAddress;
+          import java.net.Socket;
+
+          public class Client {
+              public interface Cb {
+                  void onLine(String line);
+
+                  void onClosed();
+
+                  void onFail();
+              }
+
+              private final Handler h = new Handler(Looper.getMainLooper());
+              private volatile Link.SocketLink link;
+              private volatile boolean closed;
+              private Relay.ClientSide rel;
+              public volatile String failMsg = "";
+
+              public void connectRelay(String code, String cid, String hello, final Cb cb) {
+                  rel = new Relay.ClientSide(code, cid, hello, new Cb() {
+                      public void onLine(final String line) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (!closed) cb.onLine(line);
+                              }
+                          });
+                      }
+
+                      public void onClosed() {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (!closed) cb.onClosed();
+                              }
+                          });
+                      }
+
+                      public void onFail() {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (!closed) {
+                                      failMsg = rel == null ? "" : rel.failMsg;
+                                      cb.onFail();
+                                  }
+                              }
+                          });
+                      }
+                  });
+                  rel.start();
+              }
+
+              public void connect(final String ip, final int port, final String hello, final Cb cb) {
+                  Thread t = new Thread(new Runnable() {
+                      public void run() {
+                          try {
+                              Socket s = new Socket();
+                              s.connect(new InetSocketAddress(ip, port), 4000);
+                              s.setTcpNoDelay(true);
+                              Link.SocketLink l = new Link.SocketLink(s);
+                              link = l;
+                              l.send(hello);
+                              l.readLoop(new Link.LineSink() {
+                                  public void onLine(final String line) {
+                                      h.post(new Runnable() {
+                                          public void run() {
+                                              if (!closed) cb.onLine(line);
+                                          }
+                                      });
+                                  }
+
+                                  public void onClosed() {
+                                      h.post(new Runnable() {
+                                          public void run() {
+                                              if (!closed) cb.onClosed();
+                                          }
+                                      });
+                                  }
+                              });
+                          } catch (Exception e) {
+                              h.post(new Runnable() {
+                                  public void run() {
+                                      if (!closed) cb.onFail();
+                                  }
+                              });
+                          }
+                      }
+                  });
+                  t.setDaemon(true);
+                  t.start();
+              }
+
+              public void send(String line) {
+                  if (rel != null) {
+                      rel.send(line);
+                      return;
+                  }
+                  Link l = link;
+                  if (l != null) l.send(line);
+              }
+
+              public void close() {
+                  closed = true;
+                  if (rel != null) {
+                      rel.leave();
+                      return;
+                  }
+                  Link l = link;
+                  if (l != null) {
+                      l.send("BYE");
+                      l.close();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Relay.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import java.io.BufferedReader;
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.ArrayList;
+          import java.util.LinkedHashSet;
+          import java.util.Map;
+          import java.util.Random;
+          import java.util.TreeMap;
+          import java.util.concurrent.LinkedBlockingQueue;
+          import java.util.concurrent.TimeUnit;
+
+          // Гра через інтернет: кімната живе у Firebase Realtime Database (REST + SSE, без SDK).
+          // rooms/КОД/meta, rooms/КОД/up/CID/КЛЮЧ (клієнт -> господар), rooms/КОД/down/CID/КЛЮЧ (господар -> клієнт)
+          public class Relay {
+              public static String BASE = "https://uno-gryntsiv-default-rtdb.europe-west1.firebasedatabase.app";
+              public static final String ALPHA = "0123456789";
+              public static final String NOCON = "Не вдалося зв'язатися з Firebase. Перевірте інтернет";
+              private static final String END = "\u0000END";
+              private static long seq;
+
+              public static String newCode() {
+                  Random r = new Random();
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < 5; i++) sb.append(ALPHA.charAt(r.nextInt(ALPHA.length())));
+                  return sb.toString();
+              }
+
+              public static String cleanCode(String s) {
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < s.length(); i++) {
+                      char c = Character.toUpperCase(s.charAt(i));
+                      if (ALPHA.indexOf(c) >= 0) sb.append(c);
+                  }
+                  return sb.toString();
+              }
+
+              private static synchronized String newKey() {
+                  seq++;
+                  String a = String.valueOf(System.currentTimeMillis());
+                  String b = String.valueOf(seq % 1000000);
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = a.length(); i < 13; i++) sb.append('0');
+                  sb.append(a);
+                  for (int i = b.length(); i < 6; i++) sb.append('0');
+                  sb.append(b);
+                  return sb.toString();
+              }
+
+              // ---------- JSON ----------
+              public static String quote(String s) {
+                  StringBuilder sb = new StringBuilder("\"");
+                  for (int i = 0; i < s.length(); i++) {
+                      char c = s.charAt(i);
+                      if (c == '"') sb.append("\\\"");
+                      else if (c == '\\') sb.append("\\\\");
+                      else if (c == '\n') sb.append("\\n");
+                      else if (c == '\r') sb.append("\\r");
+                      else if (c == '\t') sb.append("\\t");
+                      else if (c < 0x20) sb.append(' ');
+                      else sb.append(c);
+                  }
+                  return sb.append('"').toString();
+              }
+
+              private static class Parser {
+                  final String s;
+                  int i;
+
+                  Parser(String s) {
+                      this.s = s;
+                  }
+
+                  void ws() {
+                      while (i < s.length() && s.charAt(i) <= ' ') i++;
+                  }
+
+                  Object value() {
+                      ws();
+                      if (i >= s.length()) return null;
+                      char c = s.charAt(i);
+                      if (c == '{') {
+                          i++;
+                          TreeMap<String, Object> m = new TreeMap<String, Object>();
+                          ws();
+                          if (i < s.length() && s.charAt(i) == '}') {
+                              i++;
+                              return m;
+                          }
+                          while (i < s.length()) {
+                              ws();
+                              String k = str();
+                              ws();
+                              if (i < s.length() && s.charAt(i) == ':') i++;
+                              Object v = value();
+                              m.put(k, v);
+                              ws();
+                              if (i < s.length() && s.charAt(i) == ',') {
+                                  i++;
+                                  continue;
+                              }
+                              if (i < s.length() && s.charAt(i) == '}') i++;
+                              break;
+                          }
+                          return m;
+                      }
+                      if (c == '"') return str();
+                      if (c == '[') {
+                          int depth = 0;
+                          while (i < s.length()) {
+                              char d = s.charAt(i++);
+                              if (d == '[') depth++;
+                              else if (d == ']' && --depth == 0) break;
+                          }
+                          return null;
+                      }
+                      int st = i;
+                      while (i < s.length() && ",}] \n\r\t".indexOf(s.charAt(i)) < 0) i++;
+                      String t = s.substring(st, i);
+                      if (t.equals("null")) return null;
+                      return t;
+                  }
+
+                  String str() {
+                      if (i >= s.length() || s.charAt(i) != '"') return "";
+                      i++;
+                      StringBuilder sb = new StringBuilder();
+                      while (i < s.length()) {
+                          char c = s.charAt(i++);
+                          if (c == '"') break;
+                          if (c == '\\' && i < s.length()) {
+                              char d = s.charAt(i++);
+                              if (d == 'n') sb.append('\n');
+                              else if (d == 'r') sb.append('\r');
+                              else if (d == 't') sb.append('\t');
+                              else if (d == 'b') sb.append('\b');
+                              else if (d == 'f') sb.append('\f');
+                              else if (d == 'u' && i + 4 <= s.length()) {
+                                  try {
+                                      sb.append((char) Integer.parseInt(s.substring(i, i + 4), 16));
+                                  } catch (Exception e) {
+                                      // ignore
+                                  }
+                                  i += 4;
+                              } else sb.append(d);
+                          } else {
+                              sb.append(c);
+                          }
+                      }
+                      return sb.toString();
+                  }
+              }
+
+              public static Object parse(String s) {
+                  if (s == null) return null;
+                  try {
+                      return new Parser(s).value();
+                  } catch (Exception e) {
+                      return null;
+                  }
+              }
+
+              // ---------- HTTP ----------
+              // Повертає тіло відповіді або null, якщо запит не вдався
+              public static String http(String method, String path, String body) {
+                  try {
+                      URL u = new URL(BASE + "/" + path + ".json");
+                      HttpURLConnection c = (HttpURLConnection) u.openConnection();
+                      c.setConnectTimeout(8000);
+                      c.setReadTimeout(15000);
+                      c.setRequestMethod(method);
+                      if (body != null) {
+                          byte[] b = body.getBytes("UTF-8");
+                          c.setDoOutput(true);
+                          c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                          c.setFixedLengthStreamingMode(b.length);
+                          OutputStream o = c.getOutputStream();
+                          o.write(b);
+                          o.close();
+                      }
+                      int code = c.getResponseCode();
+                      if (code >= 300) {
+                          try {
+                              c.getErrorStream().close();
+                          } catch (Exception e) {
+                              // ignore
+                          }
+                          return null;
+                      }
+                      InputStream in = c.getInputStream();
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[4096];
+                      int n;
+                      while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                      in.close();
+                      return bo.toString("UTF-8");
+                  } catch (Exception e) {
+                      return null;
+                  }
+              }
+
+              public interface Items {
+                  void onItem(String[] segs, String line);
+              }
+
+              // ---------- читання потоку подій ----------
+              public static class Stream {
+                  private final String path;
+                  private final Items cb;
+                  private volatile boolean stopped;
+                  private volatile HttpURLConnection conn;
+                  private final LinkedHashSet<String> seen = new LinkedHashSet<String>();
+                  private final LinkedBlockingQueue<String> dels = new LinkedBlockingQueue<String>();
+
+                  public Stream(String path, Items cb) {
+                      this.path = path;
+                      this.cb = cb;
+                  }
+
+                  public void start() {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              loop();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                      Thread d = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  while (!stopped) {
+                                      String p = dels.poll(1, TimeUnit.SECONDS);
+                                      if (p != null) http("DELETE", p, null);
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                          }
+                      });
+                      d.setDaemon(true);
+                      d.start();
+                  }
+
+                  public void stop() {
+                      stopped = true;
+                      final HttpURLConnection c = conn;
+                      if (c == null) return;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  c.disconnect();
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  private void loop() {
+                      while (!stopped) {
+                          try {
+                              URL u = new URL(BASE + "/" + path + ".json");
+                              HttpURLConnection c = (HttpURLConnection) u.openConnection();
+                              conn = c;
+                              c.setConnectTimeout(8000);
+                              c.setReadTimeout(70000);
+                              c.setRequestProperty("Accept", "text/event-stream");
+                              if (c.getResponseCode() == 200) {
+                                  BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+                                  String ev = "";
+                                  String line;
+                                  while (!stopped && (line = r.readLine()) != null) {
+                                      if (line.startsWith("event:")) {
+                                          ev = line.substring(6).trim();
+                                      } else if (line.startsWith("data:")) {
+                                          event(ev, line.substring(5).trim());
+                                      }
+                                  }
+                              }
+                          } catch (Exception e) {
+                              // повторимо
+                          }
+                          if (stopped) break;
+                          try {
+                              Thread.sleep(1500);
+                          } catch (InterruptedException e) {
+                              break;
+                          }
+                      }
+                  }
+
+                  private void event(String ev, String data) {
+                      if (!ev.equals("put") && !ev.equals("patch")) return;
+                      Object o = parse(data);
+                      if (!(o instanceof Map)) return;
+                      Map<?, ?> m = (Map<?, ?>) o;
+                      Object pa = m.get("path");
+                      Object val = m.get("data");
+                      String p = pa == null ? "/" : pa.toString();
+                      if (ev.equals("put")) {
+                          walk(split(p), val);
+                      } else if (val instanceof Map) {
+                          for (Map.Entry<?, ?> e : ((Map<?, ?>) val).entrySet()) {
+                              ArrayList<String> segs = split(p);
+                              for (String s : e.getKey().toString().split("/")) {
+                                  if (s.length() > 0) segs.add(s);
+                              }
+                              walk(segs, e.getValue());
+                          }
+                      }
+                  }
+
+                  private ArrayList<String> split(String p) {
+                      ArrayList<String> r = new ArrayList<String>();
+                      for (String s : p.split("/")) {
+                          if (s.length() > 0) r.add(s);
+                      }
+                      return r;
+                  }
+
+                  private void walk(ArrayList<String> segs, Object val) {
+                      if (val == null) return;
+                      if (val instanceof Map) {
+                          for (Map.Entry<?, ?> e : ((Map<?, ?>) val).entrySet()) {
+                              ArrayList<String> n = new ArrayList<String>(segs);
+                              n.add(e.getKey().toString());
+                              walk(n, e.getValue());
+                          }
+                          return;
+                      }
+                      StringBuilder key = new StringBuilder();
+                      for (String s : segs) key.append('/').append(s);
+                      String k = key.toString();
+                      if (!seen.add(k)) return;
+                      while (seen.size() > 3000) {
+                          seen.remove(seen.iterator().next());
+                      }
+                      String[] sa = segs.toArray(new String[0]);
+                      for (String l : val.toString().split("\n")) {
+                          if (l.length() > 0) {
+                              try {
+                                  cb.onItem(sa, l);
+                              } catch (Exception e) {
+                                  // ignore
+                              }
+                          }
+                      }
+                      dels.offer(path + k);
+                  }
+              }
+
+              // ---------- запис повідомлень ----------
+              public static class Writer {
+                  private final String path;
+                  private final boolean ping;
+                  private final boolean clear;
+                  private final LinkedBlockingQueue<String> q = new LinkedBlockingQueue<String>();
+                  private volatile boolean closed;
+
+                  public Writer(String path, boolean ping, boolean clear) {
+                      this.path = path;
+                      this.ping = ping;
+                      this.clear = clear;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              loop();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void send(String line) {
+                      if (!closed) q.offer(line);
+                  }
+
+                  public void close() {
+                      if (closed) return;
+                      closed = true;
+                      q.offer(END);
+                  }
+
+                  private void loop() {
+                      if (clear) http("DELETE", path, null);
+                      try {
+                          while (true) {
+                              String first = q.poll(8, TimeUnit.SECONDS);
+                              if (first == null) {
+                                  if (!ping) continue;
+                                  first = "PING";
+                              }
+                              if (END.equals(first)) break;
+                              StringBuilder sb = new StringBuilder(first);
+                              boolean end = false;
+                              int cnt = 1;
+                              while (cnt < 40 && sb.length() < 400000) {
+                                  String x = q.poll();
+                                  if (x == null) break;
+                                  if (END.equals(x)) {
+                                      end = true;
+                                      break;
+                                  }
+                                  sb.append('\n').append(x);
+                                  cnt++;
+                              }
+                              String body = quote(sb.toString());
+                              String key = newKey();
+                              for (int a = 0; a < 3; a++) {
+                                  if (http("PUT", path + "/" + key, body) != null) break;
+                                  Thread.sleep(700);
+                              }
+                              if (end) break;
+                          }
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                  }
+              }
+
+              // ---------- посилання господаря на клієнта ----------
+              public static class RelayLink extends Link {
+                  public final String cid;
+                  private final Writer w;
+
+                  RelayLink(String code, String cid) {
+                      this.cid = cid;
+                      w = new Writer("rooms/" + code + "/down/" + cid, true, true);
+                  }
+
+                  public void send(String line) {
+                      w.send(line);
+                  }
+
+                  public void close() {
+                      w.close();
+                  }
+              }
+
+              // ---------- сторона господаря ----------
+              public static class HostSide {
+                  public interface Cb {
+                      void onLine(String cid, String line);
+
+                      void onReady(String code);
+
+                      void onError(String msg);
+                  }
+
+                  private final String cid, want;
+                  private final Cb cb;
+                  private volatile String code = "";
+                  private Stream up;
+                  private volatile boolean stopped;
+                  private final java.util.HashMap<String, Long> rx = new java.util.HashMap<String, Long>();
+
+                  public HostSide(String cid, String wantCode, Cb cb) {
+                      this.cid = cid;
+                      this.want = wantCode == null ? "" : wantCode;
+                      this.cb = cb;
+                  }
+
+                  public String code() {
+                      return code;
+                  }
+
+                  public void start() {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              open();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  private void open() {
+                      ArrayList<String> cand = new ArrayList<String>();
+                      if (want.length() == 5 && cleanCode(want).equals(want)) cand.add(want);
+                      for (int i = 0; i < 6; i++) cand.add(newCode());
+                      String pick = null;
+                      for (String c : cand) {
+                          String meta = http("GET", "rooms/" + c + "/meta", null);
+                          if (meta == null) {
+                              cb.onError(NOCON);
+                              return;
+                          }
+                          boolean free = meta.trim().equals("null");
+                          if (!free) {
+                              Object o = parse(meta);
+                              if (o instanceof Map && cid.equals(((Map<?, ?>) o).get("h"))) free = true;
+                          }
+                          if (free) {
+                              pick = c;
+                              break;
+                          }
+                      }
+                      if (pick == null || stopped) {
+                          cb.onError("Не вдалося створити кімнату");
+                          return;
+                      }
+                      http("DELETE", "rooms/" + pick, null);
+                      if (http("PUT", "rooms/" + pick + "/meta", "{\"h\":" + quote(cid) + ",\"g\":\"sb\"}") == null) {
+                          cb.onError(NOCON);
+                          return;
+                      }
+                      code = pick;
+                      up = new Stream("rooms/" + pick + "/up", new Items() {
+                          public void onItem(String[] segs, String line) {
+                              if (segs.length != 2) return;
+                              synchronized (rx) {
+                                  rx.put(segs[0], System.currentTimeMillis());
+                              }
+                              if (line.equals("PING")) return;
+                              cb.onLine(segs[0], line);
+                          }
+                      });
+                      up.start();
+                      cb.onReady(pick);
+                  }
+
+                  public long lastRx(String c) {
+                      synchronized (rx) {
+                          Long v = rx.get(c);
+                          return v == null ? 0 : v;
+                      }
+                  }
+
+                  public void touch(String c) {
+                      synchronized (rx) {
+                          rx.put(c, System.currentTimeMillis());
+                      }
+                  }
+
+                  public RelayLink newLink(String c) {
+                      touch(c);
+                      return new RelayLink(code, c);
+                  }
+
+                  public void stop() {
+                      stopped = true;
+                      if (up != null) up.stop();
+                      final String c = code;
+                      if (c.length() > 0) {
+                          Thread t = new Thread(new Runnable() {
+                              public void run() {
+                                  http("DELETE", "rooms/" + c, null);
+                              }
+                          });
+                          t.setDaemon(true);
+                          t.start();
+                      }
+                  }
+              }
+
+              // ---------- сторона гостя ----------
+              public static class ClientSide {
+                  private final String code, cid, hello;
+                  private final Client.Cb cb;
+                  private volatile boolean stopped;
+                  private Stream down;
+                  private Writer w;
+                  public volatile String failMsg = "";
+
+                  public ClientSide(String code, String cid, String hello, Client.Cb cb) {
+                      this.code = code;
+                      this.cid = cid;
+                      this.hello = hello;
+                      this.cb = cb;
+                  }
+
+                  public void start() {
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              run0();
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  private void fail(String m) {
+                      failMsg = m;
+                      stop();
+                      cb.onFail();
+                  }
+
+                  private void run0() {
+                      String meta = http("GET", "rooms/" + code + "/meta", null);
+                      if (meta == null) {
+                          fail(NOCON);
+                          return;
+                      }
+                      if (meta.trim().equals("null") || !meta.contains("\"g\":\"sb\"")) {
+                          fail("Кімнату з таким кодом не знайдено");
+                          return;
+                      }
+                      http("DELETE", "rooms/" + code + "/up/" + cid, null);
+                      http("DELETE", "rooms/" + code + "/down/" + cid, null);
+                      if (stopped) return;
+                      final long[] last = {0};
+                      down = new Stream("rooms/" + code + "/down/" + cid, new Items() {
+                          public void onItem(String[] segs, String line) {
+                              last[0] = System.currentTimeMillis();
+                              if (line.equals("PING")) return;
+                              cb.onLine(line);
+                          }
+                      });
+                      down.start();
+                      w = new Writer("rooms/" + code + "/up/" + cid, true, false);
+                      w.send(hello);
+                      long t0 = System.currentTimeMillis();
+                      while (!stopped) {
+                          try {
+                              Thread.sleep(500);
+                          } catch (InterruptedException e) {
+                              return;
+                          }
+                          long now = System.currentTimeMillis();
+                          if (last[0] == 0) {
+                              if (now - t0 > 12000) {
+                                  fail("Господар не відповідає");
+                                  return;
+                              }
+                          } else if (now - last[0] > 30000) {
+                              stop();
+                              cb.onClosed();
+                              return;
+                          }
+                      }
+                  }
+
+                  public void send(String line) {
+                      Writer x = w;
+                      if (x != null) x.send(line);
+                  }
+
+                  public void stop() {
+                      stopped = true;
+                      Writer x = w;
+                      if (x != null) x.close();
+                      if (down != null) down.stop();
+                  }
+
+                  public void leave() {
+                      Writer x = w;
+                      if (x != null) x.send("BYE");
+                      stop();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Discovery.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.content.Context;
+          import android.net.wifi.WifiManager;
+
+          import java.net.DatagramPacket;
+          import java.net.DatagramSocket;
+          import java.net.InetAddress;
+          import java.net.InetSocketAddress;
+          import java.net.InterfaceAddress;
+          import java.net.NetworkInterface;
+          import java.util.ArrayList;
+          import java.util.Enumeration;
+          import java.util.concurrent.ConcurrentHashMap;
+
+          public class Discovery {
+              public static final int PORT = 45465;
+
+              public static class Room {
+                  public String name, ip;
+                  public int port, count, rejoin;
+                  public boolean inGame;
+                  public long seen;
+              }
+
+              // Хост розсилає оголошення кімнати
+              public static class Announcer {
+                  private volatile boolean run;
+                  private final String name;
+                  private final int tcpPort;
+                  public volatile int count = 1;
+                  public volatile boolean inGame;
+                  public volatile int rejoin;
+
+                  public Announcer(String name, int tcpPort) {
+                      this.name = name.replace("|", " ");
+                      this.tcpPort = tcpPort;
+                  }
+
+                  public void start() {
+                      run = true;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              DatagramSocket ds = null;
+                              try {
+                                  ds = new DatagramSocket();
+                                  ds.setBroadcast(true);
+                                  while (run) {
+                                      String msg = "SBT1|" + name + "|" + tcpPort + "|" + count + "|" + (inGame ? 1 : 0) + "|" + rejoin;
+                                      byte[] b = msg.getBytes("UTF-8");
+                                      ArrayList<InetAddress> targets = broadcastAddresses();
+                                      for (InetAddress a : targets) {
+                                          try {
+                                              ds.send(new DatagramPacket(b, b.length, a, PORT));
+                                          } catch (Exception e) {
+                                              // ignore
+                                          }
+                                      }
+                                      Thread.sleep(1500);
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              } finally {
+                                  if (ds != null) ds.close();
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void stop() {
+                      run = false;
+                  }
+              }
+
+              static ArrayList<InetAddress> broadcastAddresses() {
+                  ArrayList<InetAddress> list = new ArrayList<InetAddress>();
+                  try {
+                      Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
+                      while (en != null && en.hasMoreElements()) {
+                          NetworkInterface ni = en.nextElement();
+                          if (!ni.isUp() || ni.isLoopback()) continue;
+                          for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                              InetAddress b = ia.getBroadcast();
+                              if (b != null && !list.contains(b)) list.add(b);
+                          }
+                      }
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  try {
+                      InetAddress all = InetAddress.getByName("255.255.255.255");
+                      if (!list.contains(all)) list.add(all);
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  return list;
+              }
+
+              // Гравець слухає оголошення кімнат
+              public static class Listener {
+                  public final ConcurrentHashMap<String, Room> rooms = new ConcurrentHashMap<String, Room>();
+                  private volatile boolean run;
+                  private DatagramSocket ds;
+                  private WifiManager.MulticastLock lock;
+                  private final Context ctx;
+
+                  public Listener(Context ctx) {
+                      this.ctx = ctx.getApplicationContext();
+                  }
+
+                  public void start() {
+                      try {
+                          WifiManager wm = (WifiManager) ctx.getSystemService(Context.WIFI_SERVICE);
+                          if (wm != null) {
+                              lock = wm.createMulticastLock("gryntsivgames");
+                              lock.setReferenceCounted(false);
+                              lock.acquire();
+                          }
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      run = true;
+                      Thread t = new Thread(new Runnable() {
+                          public void run() {
+                              try {
+                                  ds = new DatagramSocket(null);
+                                  ds.setReuseAddress(true);
+                                  ds.bind(new InetSocketAddress(PORT));
+                                  ds.setBroadcast(true);
+                                  ds.setSoTimeout(1000);
+                                  byte[] buf = new byte[512];
+                                  while (run) {
+                                      try {
+                                          DatagramPacket p = new DatagramPacket(buf, buf.length);
+                                          ds.receive(p);
+                                          String s = new String(p.getData(), 0, p.getLength(), "UTF-8");
+                                          String[] f = s.split("\\|", -1);
+                                          if (f.length < 6 || !f[0].equals("SBT1")) continue;
+                                          Room r = new Room();
+                                          r.name = f[1];
+                                          r.ip = p.getAddress().getHostAddress();
+                                          r.port = Integer.parseInt(f[2]);
+                                          r.count = Integer.parseInt(f[3]);
+                                          r.inGame = f[4].equals("1");
+                                          r.rejoin = Integer.parseInt(f[5].trim());
+                                          r.seen = System.currentTimeMillis();
+                                          rooms.put(r.ip + ":" + r.port, r);
+                                      } catch (java.net.SocketTimeoutException e) {
+                                          // чекаємо далі
+                                      }
+                                  }
+                              } catch (Exception e) {
+                                  // ignore
+                              } finally {
+                                  if (ds != null) ds.close();
+                              }
+                          }
+                      });
+                      t.setDaemon(true);
+                      t.start();
+                  }
+
+                  public void stop() {
+                      run = false;
+                      try {
+                          if (ds != null) ds.close();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      try {
+                          if (lock != null && lock.isHeld()) lock.release();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/gryntsivgames/Net.java <<'EOF'
+          package com.example.gryntsivgames;
+
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import java.net.InetSocketAddress;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+
+          // Зв'язок двох гравців: господар (кімната) і гість. Wi-Fi та інтернет можуть працювати одночасно.
+          public class Net {
+              public static final int PORT = 45464;
+
+              public interface Cb {
+                  void onConnected();
+
+                  void onLine(String line);
+
+                  void onLost();
+
+                  void onFail(String msg);
+
+                  void onRoom(String code);
+              }
+
+              private final Handler h = new Handler(Looper.getMainLooper());
+              private final Cb cb;
+              private volatile boolean closed;
+              public boolean host;
+
+              // господар
+              private String cid = "";
+              private ServerSocket server;
+              private Discovery.Announcer ann;
+              private Relay.HostSide rel;
+              private Link peer;
+              private String peerCid = "";
+              private boolean peerRelay;
+              private boolean wifiOn, netOn;
+              private volatile String code = "";
+              private volatile boolean netBusy;
+              private String wantCode = "";
+
+              // гість
+              private Client client;
+
+              public Net(Cb cb) {
+                  this.cb = cb;
+              }
+
+              public boolean isWifi() {
+                  return wifiOn;
+              }
+
+              public boolean isInternet() {
+                  return netOn;
+              }
+
+              public boolean isBusy() {
+                  return netBusy;
+              }
+
+              public String code() {
+                  return code;
+              }
+
+              // ---------- господар ----------
+              public void startHost(String cid, String wantCode) {
+                  host = true;
+                  this.cid = cid;
+                  this.wantCode = wantCode == null ? "" : wantCode;
+                  setWifi(true);
+                  tick();
+              }
+
+              private void tick() {
+                  h.postDelayed(new Runnable() {
+                      public void run() {
+                          if (closed || !host) return;
+                          if (peer != null && peerRelay && rel != null && System.currentTimeMillis() - rel.lastRx(peerCid) > 30000) {
+                              dropPeer();
+                          }
+                          tick();
+                      }
+                  }, 5000);
+              }
+
+              public void setWifi(boolean on) {
+                  if (!host || closed) return;
+                  if (on == wifiOn) return;
+                  if (on) {
+                      try {
+                          final ServerSocket ss = new ServerSocket();
+                          ss.setReuseAddress(true);
+                          ss.bind(new InetSocketAddress(PORT));
+                          server = ss;
+                          Thread t = new Thread(new Runnable() {
+                              public void run() {
+                                  while (!closed && !ss.isClosed()) {
+                                      try {
+                                          Socket s = ss.accept();
+                                          s.setTcpNoDelay(true);
+                                          accepted(s);
+                                      } catch (Exception e) {
+                                          if (ss.isClosed()) return;
+                                      }
+                                  }
+                              }
+                          });
+                          t.setDaemon(true);
+                          t.start();
+                          ann = new Discovery.Announcer("Морський бій", PORT);
+                          ann.count = peer == null ? 1 : 2;
+                          ann.start();
+                          wifiOn = true;
+                      } catch (Exception e) {
+                          cb.onFail("Не вдалося відкрити Wi-Fi кімнату");
+                      }
+                  } else {
+                      wifiOn = false;
+                      try {
+                          if (server != null) server.close();
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                      server = null;
+                      if (ann != null) ann.stop();
+                      ann = null;
+                      if (peer != null && !peerRelay) dropPeer();
+                  }
+              }
+
+              private void accepted(Socket s) {
+                  final Link.SocketLink l = new Link.SocketLink(s);
+                  l.readLoop(new Link.LineSink() {
+                      public void onLine(final String line) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  fromPeer(l, "", false, line);
+                              }
+                          });
+                      }
+
+                      public void onClosed() {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (peer == l) dropPeer();
+                              }
+                          });
+                      }
+                  });
+              }
+
+              private void fromPeer(Link l, String c, boolean relay, String line) {
+                  if (closed) return;
+                  if (line.startsWith("HELLO")) {
+                      if (peer == null) {
+                          peer = l;
+                          peerCid = c;
+                          peerRelay = relay;
+                          if (ann != null) ann.count = 2;
+                          l.send("WELCOME");
+                          cb.onConnected();
+                      } else if (peer != l) {
+                          l.send("FULL");
+                          l.close();
+                      }
+                      return;
+                  }
+                  if (peer != l) return;
+                  if (line.equals("BYE")) {
+                      dropPeer();
+                      return;
+                  }
+                  cb.onLine(line);
+              }
+
+              private void dropPeer() {
+                  Link p = peer;
+                  peer = null;
+                  peerCid = "";
+                  if (ann != null) ann.count = 1;
+                  if (p != null) {
+                      p.close();
+                      cb.onLost();
+                  }
+              }
+
+              public void setInternet(boolean on) {
+                  if (!host || closed) return;
+                  if (!on) {
+                      netOn = false;
+                      code = "";
+                      if (rel != null) rel.stop();
+                      rel = null;
+                      if (peer != null && peerRelay) dropPeer();
+                      cb.onRoom("");
+                      return;
+                  }
+                  if (netOn || netBusy) return;
+                  netBusy = true;
+                  final Relay.HostSide hs = new Relay.HostSide(cid, wantCode, new Relay.HostSide.Cb() {
+                      public void onLine(final String c, final String line) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  if (rel == null) return;
+                                  Link l;
+                                  if (peer != null && peerRelay && c.equals(peerCid)) {
+                                      l = peer;
+                                  } else {
+                                      l = rel.newLink(c);
+                                  }
+                                  fromPeer(l, c, true, line);
+                              }
+                          });
+                      }
+
+                      public void onReady(final String cd) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  netBusy = false;
+                                  if (closed || rel == null) return;
+                                  code = cd;
+                                  netOn = true;
+                                  cb.onRoom(cd);
+                              }
+                          });
+                      }
+
+                      public void onError(final String msg) {
+                          h.post(new Runnable() {
+                              public void run() {
+                                  netBusy = false;
+                                  rel = null;
+                                  cb.onFail(msg);
+                                  cb.onRoom("");
+                              }
+                          });
+                      }
+                  });
+                  rel = hs;
+                  hs.start();
+              }
+
+              // ---------- гість ----------
+              private Client.Cb guestCb() {
+                  return new Client.Cb() {
+                      public void onLine(String line) {
+                          if (line.equals("WELCOME")) {
+                              cb.onConnected();
+                          } else if (line.equals("FULL")) {
+                              cb.onFail("У кімнаті вже є суперник");
+                          } else if (line.equals("BYE")) {
+                              cb.onLost();
+                          } else {
+                              cb.onLine(line);
+                          }
+                      }
+
+                      public void onClosed() {
+                          cb.onLost();
+                      }
+
+                      public void onFail() {
+                          String m = client == null ? "" : client.failMsg;
+                          cb.onFail(m.length() > 0 ? m : "Не вдалося підключитися");
+                      }
+                  };
+              }
+
+              public void joinLan(String ip, int port) {
+                  host = false;
+                  client = new Client();
+                  client.connect(ip, port, "HELLO", guestCb());
+              }
+
+              public void joinCode(String code, String cid) {
+                  host = false;
+                  client = new Client();
+                  client.connectRelay(code, cid, "HELLO", guestCb());
+              }
+
+              // ---------- спільне ----------
+              public void send(String line) {
+                  if (host) {
+                      Link p = peer;
+                      if (p != null) p.send(line);
+                  } else if (client != null) {
+                      client.send(line);
+                  }
+              }
+
+              public boolean connected() {
+                  return host ? peer != null : client != null;
+              }
+
+              public void close() {
+                  if (closed) return;
+                  if (host) {
+                      Link p = peer;
+                      if (p != null) p.send("BYE");
+                  }
+                  closed = true;
+                  try {
+                      if (server != null) server.close();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+                  if (ann != null) ann.stop();
+                  if (rel != null) rel.stop();
+                  Link p = peer;
+                  peer = null;
+                  if (p != null) p.close();
+                  if (client != null) client.close();
+              }
+          }
           EOF
 
           cat > app/src/main/java/com/example/gryntsivgames/Board.java <<'EOF'
@@ -211,6 +1582,7 @@ jobs:
               }
 
               public boolean sunk(Ship s) {
+                  if (!s.placed) return false;
                   for (int k = 0; k < s.len; k++) {
                       int r = s.h ? s.r : s.r + k;
                       int c = s.h ? s.c + k : s.c;
@@ -230,6 +1602,11 @@ jobs:
                   shot[cell] = 2;
                   Ship s = ships[id];
                   if (!sunk(s)) return 1;
+                  markSunk(s);
+                  return 2;
+              }
+
+              private void markSunk(Ship s) {
                   for (int k = 0; k < s.len; k++) {
                       int rr = s.h ? s.r : s.r + k;
                       int cc = s.h ? s.c + k : s.c;
@@ -241,7 +1618,41 @@ jobs:
                           if (shot[rr * N + cc] == 0) shot[rr * N + cc] = 1;
                       }
                   }
-                  return 2;
+              }
+
+              // відповідь на постріл суперника: RES|клітинка|результат|r,c,довжина,h|кінець
+              public String answer(int cell) {
+                  if (cell < 0 || cell >= N * N) return "RES|" + cell + "|0||0";
+                  int res = shot[cell] != 0 ? (shot[cell] == 1 ? 0 : 1) : shoot(cell);
+                  String extra = "";
+                  if (res == 2) {
+                      Ship s = ships[shipAt(cell / N, cell % N)];
+                      extra = s.r + "," + s.c + "," + s.len + "," + (s.h ? 1 : 0);
+                  }
+                  return "RES|" + cell + "|" + res + "|" + extra + "|" + (allSunk() ? 1 : 0);
+              }
+
+              // застосувати відповідь суперника до поля-огляду
+              public void applyRes(String[] f) {
+                  int cell = Integer.parseInt(f[1]);
+                  int res = Integer.parseInt(f[2]);
+                  if (res == 0) {
+                      shot[cell] = 1;
+                      return;
+                  }
+                  shot[cell] = 2;
+                  if (res == 2 && f[3].length() > 0) {
+                      String[] e = f[3].split(",");
+                      int r = Integer.parseInt(e[0]), c = Integer.parseInt(e[1]), len = Integer.parseInt(e[2]);
+                      boolean hz = e[3].equals("1");
+                      for (Ship s : ships) {
+                          if (s.len == len && !s.placed) {
+                              place(s.idx, r, c, hz);
+                              markSunk(s);
+                              break;
+                          }
+                      }
+                  }
               }
 
               public boolean allSunk() {
@@ -835,6 +2246,7 @@ jobs:
               public Board board = new Board();
               public Listener listener;
               public int theme;
+              public boolean locked;
               private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
               private float ox, oy, cell, trayX, trayY, trayCell, trayW, trayH;
               private Board.Ship pick;
@@ -856,8 +2268,8 @@ jobs:
                   trayX = ox + cell * 10 + u * 0.8f;
                   trayW = W - trayX - u * 0.4f;
                   trayCell = Math.min(cell * 0.8f, trayW / 2f / 4.3f);
-                  trayY = u * 1.1f;
-                  trayH = u * 0.95f;
+                  trayY = u * 2.0f;
+                  trayH = u * 0.8f;
               }
 
               private float slotX(int i) {
@@ -917,6 +2329,7 @@ jobs:
 
               @Override
               public boolean onTouchEvent(MotionEvent e) {
+                  if (locked) return true;
                   calc();
                   float x = e.getX(), y = e.getY();
                   int a = e.getAction();
@@ -996,12 +2409,14 @@ jobs:
               }
 
               public void randomize() {
+                  if (locked) return;
                   board.randomize(new java.util.Random());
                   invalidate();
                   if (listener != null) listener.onChanged();
               }
 
               public void clearAll() {
+                  if (locked) return;
                   board.clear();
                   invalidate();
                   if (listener != null) listener.onChanged();
@@ -1023,73 +2438,116 @@ jobs:
                   void onShoot(int cell);
               }
 
+              // розкладка екрана бою (спільна для вигляду й кнопок)
+              public static class Lay {
+                  public float u, ec, mx, ex, y0, midX, midW;
+              }
+
+              public static Lay layout(float W, float H) {
+                  Lay l = new Lay();
+                  l.u = Math.min(W / 16f, H / 9f);
+                  float u = l.u;
+                  l.midW = 2.9f * u;
+                  l.ec = Math.min(H * 0.74f / 10f, (W - 0.9f * u - l.midW) / 20f);
+                  l.mx = 0.45f * u;
+                  l.ex = W - 0.45f * u - 10 * l.ec;
+                  l.y0 = (H - 10 * l.ec) / 2f + 0.4f * u;
+                  l.midX = l.mx + 10 * l.ec;
+                  l.midW = l.ex - l.midX;
+                  return l;
+              }
+
               public Board mine, enemy;
               public Listener listener;
               public int theme;
               public String msg = "";
               public boolean myTurn, reveal;
               public int lastMine = -1, lastEnemy = -1;
+              private String emoMine = "", emoEnemy = "";
+              private long emoMineUntil, emoEnemyUntil;
               private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private float ex, ey, ec, mx, my, mc;
+              private Lay lay;
 
               public BattleView(Context c) {
                   super(c);
               }
 
-              private void calc() {
-                  float W = getWidth(), H = getHeight();
-                  float u = Math.min(W / 16f, H / 9f);
-                  ec = Math.min(H * 0.74f / 10f, W * 0.043f);
-                  ex = W - u * 0.7f - ec * 10;
-                  ey = H - u * 0.45f - ec * 10;
-                  mc = ec * 0.92f;
-                  mx = u * 0.8f;
-                  my = ey;
+              public void showEmoji(boolean forMe, String e) {
+                  long until = System.currentTimeMillis() + 2600;
+                  if (forMe) {
+                      emoMine = e;
+                      emoMineUntil = until;
+                  } else {
+                      emoEnemy = e;
+                      emoEnemyUntil = until;
+                  }
+                  invalidate();
               }
 
               @Override
               protected void onDraw(Canvas cv) {
-                  calc();
-                  float W = getWidth(), H = getHeight();
-                  float u = Math.min(W / 16f, H / 9f);
+                  Lay l = layout(getWidth(), getHeight());
+                  lay = l;
+                  float u = l.u;
                   cv.drawColor(0xFF0D2847);
                   if (mine == null || enemy == null) return;
-                  Painter.board(cv, p, enemy, ex, ey, ec, reveal, theme, lastEnemy, true);
-                  Painter.board(cv, p, mine, mx, my, mc, true, theme, lastMine, false);
+                  Painter.board(cv, p, enemy, l.ex, l.y0, l.ec, reveal, theme, lastEnemy, true);
+                  Painter.board(cv, p, mine, l.mx, l.y0, l.ec, true, theme, lastMine, true);
                   p.setStyle(Paint.Style.FILL);
                   p.setTextAlign(Paint.Align.CENTER);
                   p.setTextSize(u * 0.45f);
                   p.setColor(myTurn ? 0xFF69F0AE : 0xFFFFD54F);
-                  cv.drawText(msg, W / 2f, u * 0.7f, p);
+                  cv.drawText(msg, getWidth() / 2f, u * 0.75f, p);
                   p.setTextAlign(Paint.Align.LEFT);
                   p.setTextSize(u * 0.36f);
                   p.setColor(0xFFB0BEC5);
-                  cv.drawText("Ваше поле", mx, my - u * 0.15f, p);
-                  cv.drawText("Поле ворога", ex, ey - ec * 0.7f, p);
-                  // залишок флоту ворога
-                  float sy = my + mc * 10 + u * 0.1f;
-                  p.setTextSize(u * 0.28f);
-                  cv.drawText("Флот ворога:", mx, sy + u * 0.25f, p);
-                  float x0 = mx, y0 = sy + u * 0.4f, sq = u * 0.18f;
+                  cv.drawText("Ваше поле", l.mx, l.y0 - l.ec * 0.75f, p);
+                  cv.drawText("Поле ворога", l.ex, l.y0 - l.ec * 0.75f, p);
+                  // флот ворога посередині
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTextSize(u * 0.3f);
+                  p.setColor(0xFFB0BEC5);
+                  float cx = l.midX + l.midW / 2f;
+                  cv.drawText("Флот ворога", cx, l.y0 + u * 0.3f, p);
+                  float sq = u * 0.2f, gap = u * 0.03f, rowH = u * 0.27f;
+                  float y = l.y0 + u * 0.55f;
                   for (Board.Ship s : enemy.ships) {
-                      boolean dead = enemy.sunk(s);
-                      p.setColor(dead ? 0xFFD32F2F : 0xFF90A4AE);
+                      float wRow = s.len * (sq + gap) - gap;
+                      float x = cx - wRow / 2f;
+                      p.setColor(enemy.sunk(s) ? 0xFFD32F2F : 0xFF90A4AE);
                       for (int k = 0; k < s.len; k++) {
-                          cv.drawRect(x0 + k * (sq + 2), y0, x0 + k * (sq + 2) + sq, y0 + sq, p);
+                          cv.drawRect(x + k * (sq + gap), y, x + k * (sq + gap) + sq, y + sq, p);
                       }
-                      x0 += s.len * (sq + 2) + sq * 0.8f;
-                      if (x0 > mx + mc * 10 - sq * 3) {
-                          x0 = mx;
-                          y0 += sq + 4;
-                      }
+                      y += rowH;
                   }
+                  long now = System.currentTimeMillis();
+                  boolean anim = false;
+                  if (emoMineUntil > now) {
+                      emo(cv, emoMine, l.mx + 5 * l.ec, l.y0 + 5 * l.ec, emoMineUntil - now, u);
+                      anim = true;
+                  }
+                  if (emoEnemyUntil > now) {
+                      emo(cv, emoEnemy, l.ex + 5 * l.ec, l.y0 + 5 * l.ec, emoEnemyUntil - now, u);
+                      anim = true;
+                  }
+                  if (anim) postInvalidateDelayed(60);
+              }
+
+              private void emo(Canvas cv, String e, float x, float y, long left, float u) {
+                  float k = left > 400 ? 1f : left / 400f;
+                  p.setTextAlign(Paint.Align.CENTER);
+                  p.setTextSize(u * 2.2f * (0.6f + 0.4f * k));
+                  p.setAlpha((int) (255 * k));
+                  p.setColor(0xFFFFFFFF);
+                  cv.drawText(e, x, y + u * 0.7f, p);
+                  p.setAlpha(255);
               }
 
               @Override
               public boolean onTouchEvent(MotionEvent e) {
                   if (e.getAction() != MotionEvent.ACTION_UP) return true;
-                  calc();
-                  int c = (int) Math.floor((e.getX() - ex) / ec), r = (int) Math.floor((e.getY() - ey) / ec);
+                  Lay l = layout(getWidth(), getHeight());
+                  int c = (int) Math.floor((e.getX() - l.ex) / l.ec), r = (int) Math.floor((e.getY() - l.y0) / l.ec);
                   if (c < 0 || r < 0 || c >= 10 || r >= 10) return true;
                   if (listener != null) listener.onShoot(r * 10 + c);
                   return true;
@@ -1123,15 +2581,26 @@ jobs:
           import android.widget.Button;
           import android.widget.FrameLayout;
           import android.widget.LinearLayout;
+          import android.widget.EditText;
+          import android.widget.ScrollView;
           import android.widget.TextView;
+          import android.widget.Toast;
 
+          import java.util.ArrayList;
           import java.util.Random;
 
           public class MainActivity extends Activity {
-              private static final int S_MENU = 0, S_SEA = 1, S_PLACE = 2, S_BATTLE = 3, S_SET = 4;
+              private static final int S_MENU = 0, S_SEA = 1, S_PLACE = 2, S_BATTLE = 3, S_SET = 4, S_LOBBY = 5, S_JOIN = 6;
               private static final int WHITE = 0xFFFFFFFF;
               private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
               private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
+              private static final String[] EMOJI = {
+                  "😀", "😂", "😎", "😡", "😢", "👍", "👏", "🤔",
+                  "😍", "🤣", "😱", "🥳", "😴", "🙏", "🔥", "👎",
+                  "🤯", "😈", "🍿", "💔", "🤝", "🎉", "🙄", "🤫",
+                  "🦄", "👻", "🚀", "💩", "🤡", "🥶", "🫡", "💪"
+              };
+              private static final int[] GOOD_EMO = {0, 1, 2, 5, 6, 8, 9, 11, 14, 21, 25, 31};
 
               private final Handler ui = new Handler(Looper.getMainLooper());
               private final Random rnd = new Random();
@@ -1140,17 +2609,38 @@ jobs:
               private FrameLayout root;
               private float u;
               private int screen, prevScreen, theme, level, gen;
-              private Board mine, enemy;
+              private Board mine, enemy, myBoard;
               private Bot bot;
               private BattleView bv;
+              private PlaceView pview;
               private boolean over;
-              private Dialog endDlg;
+              private Dialog endDlg, emoDlg;
+              private Toast toast;
+              private String cid = "";
+
+              // мережа
+              private Net net;
+              private boolean mp;
+              private boolean myReady, peerReady, started, myRematch, peerRematch, myTurn, awaiting;
+              private int pausedBy; // 0 ні, 1 я, 2 суперник
+              private String netCode = "";
+              private LinearLayout netBox, joinList;
+              private TextView lobbyInfo;
+              private Discovery.Listener disc;
+              private String joinSig = "";
+              private Button pauseBtn;
+              private String lastMsg = "";
 
               @Override
               protected void onCreate(Bundle b) {
                   super.onCreate(b);
                   sp = getSharedPreferences("gg", MODE_PRIVATE);
                   theme = sp.getInt("theme", 0);
+                  cid = sp.getString("cid", "");
+                  if (cid.length() == 0) {
+                      cid = Long.toHexString(new Random().nextLong()) + Long.toHexString(System.currentTimeMillis());
+                      sp.edit().putString("cid", cid).commit();
+                  }
                   snd = new Snd(this, sp);
                   DisplayMetrics dm = getResources().getDisplayMetrics();
                   float big = Math.max(dm.widthPixels, dm.heightPixels);
@@ -1177,6 +2667,8 @@ jobs:
               protected void onDestroy() {
                   super.onDestroy();
                   gen++;
+                  stopNet();
+                  stopDisc();
                   if (snd != null) snd.release();
               }
 
@@ -1200,6 +2692,16 @@ jobs:
                   return t;
               }
 
+              private void say(String s) {
+                  try {
+                      if (toast != null) toast.cancel();
+                      toast = Toast.makeText(this, s, Toast.LENGTH_SHORT);
+                      toast.show();
+                  } catch (Exception e) {
+                      // ignore
+                  }
+              }
+
               private Button btn(String s, int color, final View.OnClickListener l) {
                   Button b = new Button(this);
                   b.setText(s);
@@ -1213,7 +2715,7 @@ jobs:
                   b.setMinimumHeight(0);
                   b.setMinWidth(0);
                   b.setMinimumWidth(0);
-                  b.setPadding(px(0.2f), px(0.1f), px(0.2f), px(0.1f));
+                  b.setPadding(px(0.1f), px(0.1f), px(0.1f), px(0.1f));
                   b.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
                           snd.play(Snd.BTN);
@@ -1221,6 +2723,10 @@ jobs:
                       }
                   });
                   return b;
+              }
+
+              private void small(Button b, float size) {
+                  b.setTextSize(TypedValue.COMPLEX_UNIT_PX, size * u);
               }
 
               private LinearLayout.LayoutParams lp(float w, float h, float m) {
@@ -1241,20 +2747,37 @@ jobs:
                   gen++;
                   prevScreen = screen;
                   screen = s;
-                  if (endDlg != null) {
-                      try {
-                          endDlg.dismiss();
-                      } catch (Exception e) {
-                          // ignore
+                  stopDisc();
+                  for (Dialog d : new Dialog[]{endDlg, emoDlg}) {
+                      if (d != null) {
+                          try {
+                              d.dismiss();
+                          } catch (Exception e) {
+                              // ignore
+                          }
                       }
-                      endDlg = null;
                   }
+                  endDlg = null;
+                  emoDlg = null;
                   root.removeAllViews();
                   root.setBackgroundColor(0xFF0D2847);
               }
 
+              private void stopDisc() {
+                  if (disc != null) disc.stop();
+                  disc = null;
+              }
+
+              private void stopNet() {
+                  Net n = net;
+                  net = null;
+                  mp = false;
+                  if (n != null) n.close();
+              }
+
               // ---------- меню ----------
               private void showMenu() {
+                  stopNet();
                   begin(S_MENU);
                   LinearLayout col = column();
                   col.addView(tv("Gryntsiv Games", 0.95f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
@@ -1278,56 +2801,326 @@ jobs:
               }
 
               private void showSea() {
+                  stopNet();
                   begin(S_SEA);
                   LinearLayout col = column();
                   col.addView(tv("Морський бій", 0.8f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
-                  col.addView(tv("Проти бота — оберіть рівень:", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.15f));
+                  col.addView(tv("Проти бота — оберіть рівень:", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.1f));
                   LinearLayout row = new LinearLayout(this);
                   row.setOrientation(LinearLayout.HORIZONTAL);
                   for (int k = 0; k < Bot.LEVELS.length; k++) {
                       final int lk = k;
                       row.addView(btn(Bot.LEVELS[k], 0xFF2E7D32, new View.OnClickListener() {
                           public void onClick(View v) {
+                              mp = false;
                               showPlace(lk);
                           }
-                      }), lp(3.2f, 1.1f, 0.1f));
+                      }), lp(3.2f, 1.0f, 0.1f));
                   }
                   col.addView(row);
-                  col.addView(btn("По Wi-Fi (незабаром)", 0xFF455A64, new View.OnClickListener() {
+                  col.addView(tv("Гра з людиною:", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.1f));
+                  LinearLayout row1 = new LinearLayout(this);
+                  row1.setOrientation(LinearLayout.HORIZONTAL);
+                  row1.addView(btn("Створити кімнату", 0xFF1E88E5, new View.OnClickListener() {
                       public void onClick(View v) {
+                          createRoom();
                       }
-                  }), lp(7.5f, 1.0f, 0.1f));
-                  col.addView(btn("Через інтернет (незабаром)", 0xFF455A64, new View.OnClickListener() {
+                  }), lp(6.4f, 1.0f, 0.1f));
+                  row1.addView(btn("Приєднатися", 0xFF1E88E5, new View.OnClickListener() {
                       public void onClick(View v) {
+                          showJoin();
                       }
-                  }), lp(7.5f, 1.0f, 0.1f));
+                  }), lp(6.4f, 1.0f, 0.1f));
+                  col.addView(row1);
                   LinearLayout row2 = new LinearLayout(this);
                   row2.setOrientation(LinearLayout.HORIZONTAL);
-                  row2.addView(btn("Налаштування", 0xFF1565C0, new View.OnClickListener() {
+                  row2.addView(btn("Налаштування", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           showSettings();
                       }
-                  }), lp(3.6f, 1.0f, 0.1f));
-                  row2.addView(btn("Назад", 0xFF1565C0, new View.OnClickListener() {
+                  }), lp(6.4f, 1.0f, 0.1f));
+                  row2.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           showMenu();
                       }
-                  }), lp(3.6f, 1.0f, 0.1f));
+                  }), lp(6.4f, 1.0f, 0.1f));
                   col.addView(row2);
                   root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
               }
 
+              // ---------- мережа: кімната ----------
+              private Net.Cb netCb(final Net[] ref) {
+                  return new Net.Cb() {
+                      public void onConnected() {
+                          if (net != ref[0]) return;
+                          resetMatchFlags();
+                          showPlace(-1);
+                      }
+
+                      public void onLine(String line) {
+                          if (net != ref[0]) return;
+                          handleNet(line);
+                      }
+
+                      public void onLost() {
+                          if (net != ref[0]) return;
+                          opponentLeft();
+                      }
+
+                      public void onFail(String msg) {
+                          if (net != ref[0]) return;
+                          say(msg);
+                          if (screen == S_JOIN) {
+                              Net n = net;
+                              net = null;
+                              if (n != null) n.close();
+                          }
+                      }
+
+                      public void onRoom(String code) {
+                          if (net != ref[0]) return;
+                          netCode = code;
+                          if (code.length() > 0) sp.edit().putString("roomCode", code).commit();
+                          if (screen == S_LOBBY) fillNetBar();
+                      }
+                  };
+              }
+
+              private void resetMatchFlags() {
+                  myReady = false;
+                  peerReady = false;
+                  started = false;
+                  myRematch = false;
+                  peerRematch = false;
+                  awaiting = false;
+                  pausedBy = 0;
+              }
+
+              private void createRoom() {
+                  stopNet();
+                  mp = true;
+                  netCode = "";
+                  final Net[] ref = new Net[1];
+                  net = new Net(netCb(ref));
+                  ref[0] = net;
+                  net.startHost(cid, sp.getString("roomCode", ""));
+                  showLobby();
+              }
+
+              private void showLobby() {
+                  begin(S_LOBBY);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
+                  LinearLayout trow = new LinearLayout(this);
+                  trow.setGravity(Gravity.CENTER_VERTICAL);
+                  trow.addView(tv("Ваша кімната", 0.6f, 0xFFFFD54F, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
+                  netBox = new LinearLayout(this);
+                  netBox.setOrientation(LinearLayout.VERTICAL);
+                  netBox.setGravity(Gravity.RIGHT);
+                  trow.addView(netBox, new LinearLayout.LayoutParams(WRAP, WRAP));
+                  col.addView(trow, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  lobbyInfo = tv("Чекаємо суперника…", 0.45f, WHITE, false);
+                  col.addView(lobbyInfo, lp(WRAP, WRAP, 0.3f));
+                  col.addView(tv("Суперник може приєднатися по Wi-Fi (кнопка «Приєднатися») або за кодом з інтернету.", 0.34f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.1f));
+                  View filler = new View(this);
+                  col.addView(filler, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  col.addView(btn("Вийти", 0xFFC62828, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), lp(3f, 1.0f, 0.1f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  fillNetBar();
+              }
+
+              private void fillNetBar() {
+                  if (netBox == null || net == null) return;
+                  netBox.removeAllViews();
+                  boolean w = net.isWifi();
+                  boolean n = net.isInternet();
+                  LinearLayout row = new LinearLayout(this);
+                  row.addView(btn("Wifi", w ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (net == null) return;
+                          net.setWifi(!net.isWifi());
+                          fillNetBar();
+                      }
+                  }), lp(2.4f, 0.85f, 0.04f));
+                  row.addView(btn("Інтернет", n ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (net == null) return;
+                          if (net.isInternet()) {
+                              net.setInternet(false);
+                              netCode = "";
+                              fillNetBar();
+                          } else if (!net.isBusy()) {
+                              say("Підключення до інтернету…");
+                              net.setInternet(true);
+                          }
+                      }
+                  }), lp(3.0f, 0.85f, 0.04f));
+                  netBox.addView(row);
+                  if (n && netCode.length() > 0) {
+                      LinearLayout cr = new LinearLayout(this);
+                      cr.setGravity(Gravity.CENTER_VERTICAL);
+                      cr.addView(tv("Код: " + netCode, 0.45f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.05f));
+                      cr.addView(btn("Поділитися", 0xFF1E88E5, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              android.content.Intent it = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                              it.setType("text/plain");
+                              it.putExtra(android.content.Intent.EXTRA_TEXT, "Грай зі мною в Морський бій! Код кімнати: " + netCode);
+                              startActivity(android.content.Intent.createChooser(it, "Поділитися кодом"));
+                          }
+                      }), lp(3.0f, 0.75f, 0.04f));
+                      netBox.addView(cr);
+                  }
+              }
+
+              // ---------- мережа: приєднання ----------
+              private void showJoin() {
+                  stopNet();
+                  begin(S_JOIN);
+                  joinSig = "";
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setPadding(px(0.6f), px(0.4f), px(0.6f), px(0.4f));
+                  col.addView(tv("Кімнати у вашій Wi-Fi мережі", 0.5f, WHITE, true));
+                  LinearLayout crow = new LinearLayout(this);
+                  crow.setGravity(Gravity.CENTER_VERTICAL);
+                  crow.addView(tv("Або код кімнати з інтернету:", 0.34f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.05f));
+                  final EditText etCode = new EditText(this);
+                  etCode.setSingleLine(true);
+                  etCode.setHint("00000");
+                  etCode.setTextColor(WHITE);
+                  etCode.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.42f * u);
+                  etCode.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(8)});
+                  crow.addView(etCode, lp(3.2f, WRAP, 0.05f));
+                  crow.addView(btn("Увійти", 0xFF2E7D32, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          String c = Relay.cleanCode(etCode.getText().toString());
+                          if (c.length() < 4) {
+                              say("Введіть код кімнати");
+                              return;
+                          }
+                          joinCode(c);
+                      }
+                  }), lp(2.6f, 0.9f, 0.05f));
+                  col.addView(crow, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  ScrollView sv = new ScrollView(this);
+                  joinList = new LinearLayout(this);
+                  joinList.setOrientation(LinearLayout.VERTICAL);
+                  sv.addView(joinList);
+                  col.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1f));
+                  col.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), lp(3f, 0.95f, 0.1f));
+                  root.addView(col, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  disc = new Discovery.Listener(this);
+                  disc.start();
+                  final int g = gen;
+                  ui.post(new Runnable() {
+                      public void run() {
+                          if (g != gen || screen != S_JOIN || disc == null) return;
+                          refreshRooms();
+                          ui.postDelayed(this, 1000);
+                      }
+                  });
+              }
+
+              private void refreshRooms() {
+                  long now = System.currentTimeMillis();
+                  final ArrayList<Discovery.Room> list = new ArrayList<Discovery.Room>();
+                  for (Discovery.Room r : disc.rooms.values()) {
+                      if (now - r.seen <= 5000) list.add(r);
+                  }
+                  StringBuilder sig = new StringBuilder();
+                  for (Discovery.Room r : list) sig.append(r.ip).append(r.port).append(r.count).append(';');
+                  if (sig.toString().equals(joinSig)) return;
+                  joinSig = sig.toString();
+                  joinList.removeAllViews();
+                  if (list.isEmpty()) {
+                      joinList.addView(tv("Кімнат не знайдено. Обидва гравці мають бути в одній Wi-Fi мережі.", 0.36f, 0xFFB0BEC5, false));
+                      return;
+                  }
+                  for (final Discovery.Room r : list) {
+                      final boolean ok = r.count < 2;
+                      String t = r.name + "   " + r.ip + (ok ? "" : "   зайнята");
+                      joinList.addView(btn(t, ok ? 0xFF1E88E5 : 0xFF607D8B, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (ok) joinLan(r.ip, r.port);
+                          }
+                      }), lp(MATCH, 1.0f, 0.08f));
+                  }
+              }
+
+              private void joinLan(String ip, int port) {
+                  Net old = net;
+                  net = null;
+                  if (old != null) old.close();
+                  mp = true;
+                  final Net[] ref = new Net[1];
+                  net = new Net(netCb(ref));
+                  ref[0] = net;
+                  say("Підключення…");
+                  net.joinLan(ip, port);
+              }
+
+              private void joinCode(String code) {
+                  Net old = net;
+                  net = null;
+                  if (old != null) old.close();
+                  mp = true;
+                  final Net[] ref = new Net[1];
+                  net = new Net(netCb(ref));
+                  ref[0] = net;
+                  say("Підключення…");
+                  net.joinCode(code, cid);
+              }
+
+              private void opponentLeft() {
+                  if (screen == S_BATTLE && !over) {
+                      bv.msg = "Суперник вийшов";
+                      over = true;
+                      bv.myTurn = false;
+                      snd.play(Snd.WIN);
+                      showEnd(true, "Суперник вийшов із гри", false);
+                  } else if (screen == S_PLACE || screen == S_LOBBY) {
+                      say("Суперник вийшов");
+                      showSea();
+                  } else if (screen == S_BATTLE && endDlg != null) {
+                      // рахунок уже відомий, лише забороняємо реванш
+                      peerRematch = false;
+                      say("Суперник вийшов");
+                  }
+              }
+
               // ---------- розстановка ----------
               private void showPlace(int lvl) {
-                  level = lvl;
+                  if (lvl >= 0) level = lvl;
+                  resetMatchFlags();
                   begin(S_PLACE);
                   final PlaceView pv = new PlaceView(this);
+                  pview = pv;
                   pv.theme = theme;
                   root.addView(pv, new FrameLayout.LayoutParams(MATCH, MATCH));
+                  final TextView status = tv("Тягніть кораблі на поле, дотик — повернути", 0.26f, 0xFFB0BEC5, false);
                   final Button done = btn("Готово", 0xFF2E7D32, new View.OnClickListener() {
                       public void onClick(View v) {
-                          if (!pv.board.allPlaced()) return;
-                          startBattle(pv.board);
+                          if (!pv.board.allPlaced() || myReady) return;
+                          if (!mp) {
+                              startBattle(pv.board);
+                              return;
+                          }
+                          myReady = true;
+                          pv.locked = true;
+                          myBoard = pv.board;
+                          status.setText("Чекаємо суперника…");
+                          status.setTextColor(0xFFFFD54F);
+                          net.send("READY");
+                          checkStart();
                       }
                   });
                   pv.listener = new PlaceView.Listener() {
@@ -1340,6 +3133,28 @@ jobs:
                       }
                   };
                   done.setAlpha(0.4f);
+                  // вибір теми фігур
+                  final Button[] tb = new Button[Painter.THEMES.length];
+                  LinearLayout trow = new LinearLayout(this);
+                  for (int k = 0; k < tb.length; k++) {
+                      final int tk = k;
+                      tb[k] = btn(Painter.THEMES[k], k == theme ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                          public void onClick(View v) {
+                              theme = tk;
+                              sp.edit().putInt("theme", theme).commit();
+                              pv.theme = theme;
+                              for (int j = 0; j < tb.length; j++) tb[j].setBackground(bg(j == theme ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
+                              pv.invalidate();
+                          }
+                      });
+                      small(tb[k], 0.27f);
+                      trow.addView(tb[k], new LinearLayout.LayoutParams(0, px(0.8f), 1f));
+                      ((LinearLayout.LayoutParams) tb[k].getLayoutParams()).setMargins(px(0.04f), 0, px(0.04f), 0);
+                  }
+                  FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(px(6.5f), WRAP);
+                  tp.gravity = Gravity.TOP | Gravity.RIGHT;
+                  tp.setMargins(0, px(0.95f), px(0.4f), 0);
+                  root.addView(trow, tp);
                   LinearLayout panel = new LinearLayout(this);
                   panel.setOrientation(LinearLayout.VERTICAL);
                   LinearLayout r1 = new LinearLayout(this);
@@ -1347,80 +3162,150 @@ jobs:
                       public void onClick(View v) {
                           pv.randomize();
                       }
-                  }), new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  }), new LinearLayout.LayoutParams(0, px(0.9f), 1f));
                   r1.addView(btn("Очистити", 0xFF6D4C41, new View.OnClickListener() {
                       public void onClick(View v) {
                           pv.clearAll();
                       }
-                  }), new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  }), new LinearLayout.LayoutParams(0, px(0.9f), 1f));
                   LinearLayout r2 = new LinearLayout(this);
                   r2.addView(btn("Назад", 0xFF455A64, new View.OnClickListener() {
                       public void onClick(View v) {
                           showSea();
                       }
-                  }), new LinearLayout.LayoutParams(0, px(0.95f), 1f));
-                  r2.addView(done, new LinearLayout.LayoutParams(0, px(0.95f), 1f));
+                  }), new LinearLayout.LayoutParams(0, px(0.9f), 1f));
+                  r2.addView(done, new LinearLayout.LayoutParams(0, px(0.9f), 1f));
                   for (int i = 0; i < 2; i++) {
                       LinearLayout r = i == 0 ? r1 : r2;
                       for (int k = 0; k < r.getChildCount(); k++) {
-                          ((LinearLayout.LayoutParams) r.getChildAt(k).getLayoutParams()).setMargins(px(0.08f), px(0.08f), px(0.08f), px(0.08f));
+                          ((LinearLayout.LayoutParams) r.getChildAt(k).getLayoutParams()).setMargins(px(0.06f), px(0.04f), px(0.06f), px(0.04f));
                       }
                       panel.addView(r, new LinearLayout.LayoutParams(MATCH, WRAP));
                   }
-                  panel.addView(tv("Перетягуйте кораблі на поле. Дотик до корабля на полі — повернути.", 0.28f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.08f));
-                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(px(6.3f), WRAP);
+                  panel.addView(status, lp(WRAP, WRAP, 0.04f));
+                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(px(6.5f), WRAP);
                   fp.gravity = Gravity.BOTTOM | Gravity.RIGHT;
-                  fp.setMargins(0, 0, px(0.4f), px(0.5f));
+                  fp.setMargins(0, 0, px(0.4f), px(0.3f));
                   root.addView(panel, fp);
               }
 
+              private void checkStart() {
+                  if (!mp || net == null || !net.host || started) return;
+                  if (myReady && peerReady) {
+                      started = true;
+                      int first = rnd.nextInt(2); // 0 — господар
+                      net.send("START|" + first);
+                      beginBattleMp(first == 0);
+                  }
+              }
+
               // ---------- бій ----------
-              private void startBattle(Board my) {
+              private void buildBattle() {
                   begin(S_BATTLE);
-                  mine = my;
-                  for (int i = 0; i < mine.shot.length; i++) mine.shot[i] = 0;
-                  enemy = new Board();
-                  enemy.randomize(rnd);
-                  bot = new Bot(level);
                   over = false;
+                  pausedBy = 0;
+                  awaiting = false;
                   bv = new BattleView(this);
                   bv.theme = theme;
                   bv.mine = mine;
                   bv.enemy = enemy;
-                  bv.myTurn = rnd.nextBoolean();
-                  bv.msg = bv.myTurn ? "Ви починаєте — стріляйте!" : "Першим стріляє бот";
                   bv.listener = new BattleView.Listener() {
                       public void onShoot(int cell) {
                           myShot(cell);
                       }
                   };
                   root.addView(bv, new FrameLayout.LayoutParams(MATCH, MATCH));
-                  Button give = btn("Здатися", 0xFF8E2424, new View.OnClickListener() {
+                  DisplayMetrics dm = getResources().getDisplayMetrics();
+                  float W = Math.max(dm.widthPixels, dm.heightPixels), H = Math.min(dm.widthPixels, dm.heightPixels);
+                  BattleView.Lay l = BattleView.layout(W, H);
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setGravity(Gravity.CENTER_HORIZONTAL);
+                  Button emo = btn("😀 Смайли", 0xFF6A1B9A, new View.OnClickListener() {
                       public void onClick(View v) {
-                          askSurrender();
+                          showEmoji();
                       }
                   });
-                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(px(2.4f), px(0.8f));
-                  fp.gravity = Gravity.TOP | Gravity.LEFT;
-                  fp.setMargins(px(0.3f), px(0.2f), 0, 0);
-                  root.addView(give, fp);
-                  if (!bv.myTurn) botLater(900);
+                  small(emo, 0.3f);
+                  col.addView(emo, new LinearLayout.LayoutParams(MATCH, px(0.85f)));
+                  pauseBtn = btn("Пауза", 0xFF455A64, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          togglePause();
+                      }
+                  });
+                  small(pauseBtn, 0.3f);
+                  LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(MATCH, px(0.85f));
+                  pl.setMargins(0, px(0.15f), 0, 0);
+                  col.addView(pauseBtn, pl);
+                  Button exit = btn("Вихід", 0xFF8E2424, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          askExit();
+                      }
+                  });
+                  small(exit, 0.3f);
+                  LinearLayout.LayoutParams el = new LinearLayout.LayoutParams(MATCH, px(0.85f));
+                  el.setMargins(0, px(0.15f), 0, 0);
+                  col.addView(exit, el);
+                  FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams((int) (l.midW - 0.3f * l.u), WRAP);
+                  fp.leftMargin = (int) (l.midX + 0.15f * l.u);
+                  fp.topMargin = (int) (l.y0 + 3.5f * l.u);
+                  root.addView(col, fp);
+              }
+
+              private void setMsg(String s) {
+                  lastMsg = s;
+                  if (bv == null) return;
+                  if (pausedBy == 1) bv.msg = "Пауза — натисніть «Продовжити»";
+                  else if (pausedBy == 2) bv.msg = "Суперник поставив паузу";
+                  else bv.msg = s;
+                  bv.invalidate();
+              }
+
+              private void startBattle(Board my) {
+                  mine = my;
+                  for (int i = 0; i < mine.shot.length; i++) mine.shot[i] = 0;
+                  enemy = new Board();
+                  enemy.randomize(rnd);
+                  bot = new Bot(level);
+                  buildBattle();
+                  myTurn = rnd.nextBoolean();
+                  bv.myTurn = myTurn;
+                  setMsg(myTurn ? "Ви починаєте — стріляйте!" : "Першим стріляє бот");
+                  if (!myTurn) botLater(900);
+              }
+
+              private void beginBattleMp(boolean iFirst) {
+                  mine = myBoard;
+                  for (int i = 0; i < mine.shot.length; i++) mine.shot[i] = 0;
+                  enemy = new Board();
+                  buildBattle();
+                  myTurn = iFirst;
+                  bv.myTurn = myTurn;
+                  setMsg(myTurn ? "Ви починаєте — стріляйте!" : "Суперник починає");
               }
 
               private void myShot(int cell) {
-                  if (over || !bv.myTurn || enemy.shot[cell] != 0) return;
-                  int res = enemy.shoot(cell);
+                  if (over || !myTurn || awaiting || pausedBy != 0 || enemy.shot[cell] != 0) return;
                   bv.lastEnemy = cell;
+                  if (mp) {
+                      awaiting = true;
+                      net.send("SHOT|" + cell);
+                      snd.play(Snd.SHOT);
+                      bv.invalidate();
+                      return;
+                  }
+                  int res = enemy.shoot(cell);
                   sounds(res);
                   if (enemy.allSunk()) {
-                      bv.msg = "Усі кораблі бота потоплено!";
+                      setMsg("Усі кораблі бота потоплено!");
                       endGame(true);
                   } else if (res == 0) {
-                      bv.msg = "Мимо. Хід бота";
+                      setMsg("Мимо. Хід бота");
+                      myTurn = false;
                       bv.myTurn = false;
                       botLater(1000);
                   } else {
-                      bv.msg = res == 2 ? "Потоплено! Стріляйте ще" : "Влучили! Стріляйте ще";
+                      setMsg(res == 2 ? "Потоплено! Стріляйте ще" : "Влучили! Стріляйте ще");
                   }
                   bv.invalidate();
               }
@@ -1435,18 +3320,23 @@ jobs:
               }
 
               private void botShot() {
+                  if (pausedBy != 0) {
+                      botLater(500);
+                      return;
+                  }
                   int cell = bot.next(mine);
                   int res = mine.shoot(cell);
                   bv.lastMine = cell;
                   sounds(res);
                   if (mine.allSunk()) {
-                      bv.msg = "Бот потопив усі ваші кораблі";
+                      setMsg("Бот потопив усі ваші кораблі");
                       endGame(false);
                   } else if (res == 0) {
-                      bv.msg = "Бот схибив. Ваш хід";
+                      setMsg("Бот схибив. Ваш хід");
+                      myTurn = true;
                       bv.myTurn = true;
                   } else {
-                      bv.msg = res == 2 ? "Бот потопив ваш корабель" : "Бот влучив";
+                      setMsg(res == 2 ? "Бот потопив ваш корабель" : "Бот влучив");
                       botLater(900);
                   }
                   bv.invalidate();
@@ -1462,54 +3352,97 @@ jobs:
                   }, 260);
               }
 
-              private void endGame(final boolean win) {
-                  over = true;
-                  bv.myTurn = false;
-                  bv.reveal = true;
-                  final int g = gen;
-                  ui.postDelayed(new Runnable() {
-                      public void run() {
-                          if (g != gen) return;
-                          snd.play(win ? Snd.WIN : Snd.LOSE);
-                          showEnd(win);
+              // повідомлення від суперника
+              private void handleNet(String line) {
+                  String[] f = line.split("\\|", -1);
+                  String c = f[0];
+                  try {
+                      if (c.equals("READY")) {
+                          peerReady = true;
+                          checkStart();
+                      } else if (c.equals("START")) {
+                          if (!mp || started) return;
+                          started = true;
+                          beginBattleMp(f[1].equals("1"));
+                      } else if (c.equals("SHOT")) {
+                          if (screen != S_BATTLE || over) return;
+                          int cell = Integer.parseInt(f[1]);
+                          String ans = mine.answer(cell);
+                          net.send(ans);
+                          String[] rf = ans.split("\\|", -1);
+                          int res = Integer.parseInt(rf[2]);
+                          boolean fin = rf[4].equals("1");
+                          bv.lastMine = cell;
+                          sounds(res);
+                          if (fin) {
+                              setMsg("Суперник потопив усі ваші кораблі");
+                              endGame(false);
+                          } else if (res == 0) {
+                              setMsg("Суперник схибив. Ваш хід");
+                              myTurn = true;
+                              bv.myTurn = true;
+                          } else {
+                              setMsg(res == 2 ? "Суперник потопив ваш корабель" : "Суперник влучив");
+                          }
+                          bv.invalidate();
+                      } else if (c.equals("RES")) {
+                          if (screen != S_BATTLE || over) return;
+                          awaiting = false;
+                          enemy.applyRes(f);
+                          int res = Integer.parseInt(f[2]);
+                          bv.lastEnemy = Integer.parseInt(f[1]);
+                          sounds(res);
+                          if (f[4].equals("1")) {
+                              setMsg("Усі кораблі суперника потоплено!");
+                              endGame(true);
+                          } else if (res == 0) {
+                              setMsg("Мимо. Хід суперника");
+                              myTurn = false;
+                              bv.myTurn = false;
+                          } else {
+                              setMsg(res == 2 ? "Потоплено! Стріляйте ще" : "Влучили! Стріляйте ще");
+                          }
+                          bv.invalidate();
+                      } else if (c.equals("EMO")) {
+                          int k = Integer.parseInt(f[1]);
+                          if (bv != null && screen == S_BATTLE && k >= 0 && k < EMOJI.length) bv.showEmoji(false, EMOJI[k]);
+                      } else if (c.equals("PAUSE")) {
+                          if (f[1].equals("1")) {
+                              pausedBy = 2;
+                          } else if (pausedBy == 2) {
+                              pausedBy = 0;
+                          }
+                          refreshPause();
+                      } else if (c.equals("REMATCH")) {
+                          peerRematch = true;
+                          if (myRematch) rematch();
                       }
-                  }, 1300);
+                  } catch (Exception e) {
+                      // некоректне повідомлення ігноруємо
+                  }
               }
 
-              private void showEnd(boolean win) {
-                  LinearLayout box = column();
-                  box.addView(tv(win ? "Перемога!" : "Поразка", 0.8f, win ? 0xFF69F0AE : 0xFFFF8A80, true), lp(WRAP, WRAP, 0.1f));
-                  box.addView(tv(win ? "Флот бота знищено" : "Ваш флот знищено", 0.38f, WHITE, false), lp(WRAP, WRAP, 0.1f));
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  row.addView(btn("Реванш", 0xFF2E7D32, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          showPlace(level);
-                      }
-                  }), new LinearLayout.LayoutParams(0, px(1.0f), 1f));
-                  row.addView(btn("В меню", 0xFF1565C0, new View.OnClickListener() {
-                      public void onClick(View v) {
-                          showSea();
-                      }
-                  }), new LinearLayout.LayoutParams(0, px(1.0f), 1f));
-                  for (int k = 0; k < 2; k++) ((LinearLayout.LayoutParams) row.getChildAt(k).getLayoutParams()).setMargins(px(0.1f), px(0.1f), px(0.1f), px(0.1f));
-                  box.addView(row, new LinearLayout.LayoutParams(px(7.2f), WRAP));
-                  LinearLayout wrap = new LinearLayout(this);
-                  wrap.setOrientation(LinearLayout.VERTICAL);
-                  wrap.setBackground(bg(0xFF263238, 0.3f));
-                  wrap.setPadding(px(0.5f), px(0.4f), px(0.5f), px(0.4f));
-                  wrap.addView(box);
-                  Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar);
-                  d.setContentView(wrap);
-                  d.setCancelable(false);
-                  if (d.getWindow() != null) d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-                  endDlg = d;
-                  d.show();
+              private void refreshPause() {
+                  if (pauseBtn != null) {
+                      pauseBtn.setText(pausedBy == 1 ? "Продовжити" : "Пауза");
+                      pauseBtn.setAlpha(pausedBy == 2 ? 0.4f : 1f);
+                  }
+                  setMsg(lastMsg);
               }
 
-              private void askSurrender() {
+              private void togglePause() {
                   if (over) return;
-                  new AlertDialog.Builder(this).setTitle("Здатися?")
+                  if (pausedBy == 2) {
+                      say("Паузу поставив суперник");
+                      return;
+                  }
+                  pausedBy = pausedBy == 1 ? 0 : 1;
+                  if (mp && net != null) net.send("PAUSE|" + pausedBy);
+                  refreshPause();
+              }
+
+              private void askExit() {
+                  new AlertDialog.Builder(this).setTitle(over ? "Вийти?" : "Вийти з гри?")
                       .setPositiveButton("Так", new DialogInterface.OnClickListener() {
                           public void onClick(DialogInterface d, int w) {
                               showSea();
@@ -1517,48 +3450,131 @@ jobs:
                       }).setNegativeButton("Ні", null).show();
               }
 
-              // ---------- налаштування ----------
-              private class Prev extends View {
-                  private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-                  Prev(MainActivity a) {
-                      super(a);
+              private void showEmoji() {
+                  if (emoDlg != null) {
+                      try {
+                          emoDlg.dismiss();
+                      } catch (Exception e) {
+                          // ignore
+                      }
                   }
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  for (int r = 0; r < 4; r++) {
+                      LinearLayout row = new LinearLayout(this);
+                      for (int c = 0; c < 8; c++) {
+                          final int k = r * 8 + c;
+                          TextView e = tv(EMOJI[k], 0.85f, WHITE, false);
+                          e.setGravity(Gravity.CENTER);
+                          e.setOnClickListener(new View.OnClickListener() {
+                              public void onClick(View v) {
+                                  if (emoDlg != null) emoDlg.dismiss();
+                                  sendEmoji(k);
+                              }
+                          });
+                          row.addView(e, new LinearLayout.LayoutParams(0, px(1.3f), 1f));
+                      }
+                      box.addView(row, new LinearLayout.LayoutParams(MATCH, WRAP));
+                  }
+                  Dialog d = dialog(box, true);
+                  emoDlg = d;
+                  d.show();
+                  if (d.getWindow() != null) d.getWindow().setLayout(px(12.5f), WRAP);
+              }
 
-                  @Override
-                  protected void onDraw(Canvas c) {
-                      float cell = u * 0.9f;
-                      Painter.draw(c, p, theme, u * 0.2f, u * 0.2f, cell, 4, true, 0);
-                      Painter.draw(c, p, theme, u * 0.2f, u * 1.3f, cell, 3, true, 1);
-                      Painter.draw(c, p, theme, u * 0.2f + cell * 4.3f, u * 0.2f, cell, 2, true, 3);
-                      Painter.draw(c, p, theme, u * 0.2f + cell * 4.3f, u * 1.3f, cell, 1, true, 2);
-                      Painter.draw(c, p, theme, u * 0.2f + cell * 6.0f, u * 1.3f, cell, 3, false, 4);
+              private void sendEmoji(int k) {
+                  if (bv == null) return;
+                  bv.showEmoji(true, EMOJI[k]);
+                  if (mp) {
+                      if (net != null) net.send("EMO|" + k);
+                  } else if (rnd.nextInt(2) == 0) {
+                      final int g = gen;
+                      ui.postDelayed(new Runnable() {
+                          public void run() {
+                              if (g == gen && bv != null) bv.showEmoji(false, EMOJI[GOOD_EMO[rnd.nextInt(GOOD_EMO.length)]]);
+                          }
+                      }, 1200 + rnd.nextInt(1000));
                   }
               }
 
+              private Dialog dialog(View content, boolean cancel) {
+                  LinearLayout wrap = new LinearLayout(this);
+                  wrap.setOrientation(LinearLayout.VERTICAL);
+                  wrap.setBackground(bg(0xFF263238, 0.3f));
+                  wrap.setPadding(px(0.5f), px(0.4f), px(0.5f), px(0.4f));
+                  wrap.addView(content);
+                  Dialog d = new Dialog(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar);
+                  d.setContentView(wrap);
+                  d.setCancelable(cancel);
+                  if (d.getWindow() != null) d.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                  return d;
+              }
+
+              private void endGame(final boolean win) {
+                  over = true;
+                  myTurn = false;
+                  bv.myTurn = false;
+                  bv.reveal = true;
+                  final int g = gen;
+                  ui.postDelayed(new Runnable() {
+                      public void run() {
+                          if (g != gen) return;
+                          snd.play(win ? Snd.WIN : Snd.LOSE);
+                          showEnd(win, win ? (mp ? "Флот суперника знищено" : "Флот бота знищено") : "Ваш флот знищено", true);
+                      }
+                  }, 1300);
+              }
+
+              private void showEnd(boolean win, String text, boolean rematchOk) {
+                  LinearLayout box = column();
+                  box.addView(tv(win ? "Перемога!" : "Поразка", 0.8f, win ? 0xFF69F0AE : 0xFFFF8A80, true), lp(WRAP, WRAP, 0.1f));
+                  box.addView(tv(text, 0.38f, WHITE, false), lp(WRAP, WRAP, 0.1f));
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  if (rematchOk) {
+                      final Button rb = btn("Реванш", 0xFF2E7D32, null);
+                      rb.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View v) {
+                              snd.play(Snd.BTN);
+                              if (!mp) {
+                                  showPlace(level);
+                                  return;
+                              }
+                              if (myRematch) return;
+                              myRematch = true;
+                              net.send("REMATCH");
+                              rb.setText("Чекаємо…");
+                              rb.setAlpha(0.6f);
+                              if (peerRematch) rematch();
+                          }
+                      });
+                      row.addView(rb, new LinearLayout.LayoutParams(0, px(1.0f), 1f));
+                  }
+                  row.addView(btn("В меню", 0xFF1565C0, new View.OnClickListener() {
+                      public void onClick(View v) {
+                          showSea();
+                      }
+                  }), new LinearLayout.LayoutParams(0, px(1.0f), 1f));
+                  for (int k = 0; k < row.getChildCount(); k++) {
+                      ((LinearLayout.LayoutParams) row.getChildAt(k).getLayoutParams()).setMargins(px(0.1f), px(0.1f), px(0.1f), px(0.1f));
+                  }
+                  box.addView(row, new LinearLayout.LayoutParams(px(7.2f), WRAP));
+                  Dialog d = dialog(box, false);
+                  endDlg = d;
+                  d.show();
+              }
+
+              private void rematch() {
+                  if (net == null) return;
+                  showPlace(-1);
+              }
+
+              // ---------- налаштування ----------
               private void showSettings() {
                   final int back = screen == S_SEA ? S_SEA : S_MENU;
                   begin(S_SET);
                   LinearLayout col = column();
-                  col.addView(tv("Налаштування", 0.7f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.1f));
-                  col.addView(tv("Тема фігур", 0.4f, WHITE, false), lp(WRAP, WRAP, 0.08f));
-                  final Prev prev = new Prev(this);
-                  final Button[] tb = new Button[Painter.THEMES.length];
-                  LinearLayout row = new LinearLayout(this);
-                  for (int k = 0; k < tb.length; k++) {
-                      final int tk = k;
-                      tb[k] = btn(Painter.THEMES[k], k == theme ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
-                          public void onClick(View v) {
-                              theme = tk;
-                              sp.edit().putInt("theme", theme).commit();
-                              for (int j = 0; j < tb.length; j++) tb[j].setBackground(bg(j == theme ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
-                              prev.invalidate();
-                          }
-                      });
-                      row.addView(tb[k], lp(2.8f, 0.95f, 0.06f));
-                  }
-                  col.addView(row);
-                  col.addView(prev, lp(9.5f, 2.4f, 0.1f));
+                  col.addView(tv("Налаштування", 0.7f, 0xFFFFD54F, true), lp(WRAP, WRAP, 0.2f));
                   final Button sb = btn(snd.sound ? "Звук: увімкнено" : "Звук: вимкнено", snd.sound ? 0xFF2E7D32 : 0xFF455A64, null);
                   sb.setOnClickListener(new View.OnClickListener() {
                       public void onClick(View v) {
@@ -1569,6 +3585,7 @@ jobs:
                       }
                   });
                   col.addView(sb, lp(7.5f, 1.0f, 0.1f));
+                  col.addView(tv("Тему фігур (кораблі, машини, поїзди, жуки, лего) обирають під час розстановки.", 0.32f, 0xFFB0BEC5, false), lp(WRAP, WRAP, 0.15f));
                   col.addView(btn("Готово", 0xFF1565C0, new View.OnClickListener() {
                       public void onClick(View v) {
                           if (back == S_SEA) showSea();
@@ -1582,12 +3599,13 @@ jobs:
               public void onBackPressed() {
                   if (screen == S_MENU) {
                       finish();
-                  } else if (screen == S_SEA) {
-                      showMenu();
+                  } else if (screen == S_SEA || screen == S_LOBBY || screen == S_JOIN) {
+                      if (screen == S_SEA) showMenu();
+                      else showSea();
                   } else if (screen == S_PLACE) {
                       showSea();
                   } else if (screen == S_BATTLE) {
-                      askSurrender();
+                      askExit();
                   } else {
                       if (prevScreen == S_SEA) showSea();
                       else showMenu();
