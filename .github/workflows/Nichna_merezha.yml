@@ -95,8 +95,8 @@ jobs:
                   applicationId = "com.example.nightnet"
                   minSdk = 29
                   targetSdk = 34
-                  versionCode = 25
-                  versionName = "1.25"
+                  versionCode = 26
+                  versionName = "1.26"
               }
 
               signingConfigs {
@@ -1964,6 +1964,12 @@ jobs:
               private static final String CH = "monitor_v3";
               private static final String CH_CUR = "monitor_cur";
               private static final String CH_USE = "monitor_use";
+
+              private boolean cp(String k) { return Prefs.get(this).getBoolean(k, false); }
+              /** Compatibility mode: the status bar channels with raised importance. */
+              private String bar(String ch) { return cp("cp_high") ? "hi_" + ch : ch; }
+              private boolean once() { return !cp("cp_alert"); }
+              private int curId = 4, useId = 7;
               private static final String CH_MIN = "monitor_min";
               private HandlerThread ht;
               private Handler h;
@@ -2056,9 +2062,9 @@ jobs:
               /** quiet = minimal channel (no status bar icon); otherwise the icon is shown in the status bar. */
               private Notification build(CharSequence left, CharSequence right, Icon icon, boolean quiet) {
                   PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-                  Notification.Builder b = new Notification.Builder(this, quiet ? CH_MIN : CH)
+                  Notification.Builder b = new Notification.Builder(this, quiet ? CH_MIN : bar(CH))
                           .setOngoing(true)
-                          .setOnlyAlertOnce(true)
+                          .setOnlyAlertOnce(once())
                           .setShowWhen(false)
                           .setGroup("nn_main")
                           .setContentIntent(pi);
@@ -2101,6 +2107,15 @@ jobs:
                   chUse.enableVibration(false);
                   chUse.enableLights(false);
                   nm.createNotificationChannel(chUse);
+                  String[][] hi = {{CH, "Швидкість у рядку стану (висока важливість)"}, {CH_CUR, "Струм у рядку стану (висока важливість)"}, {CH_USE, "Трафік у рядку стану (висока важливість)"}};
+                  for (String[] x : hi) {
+                      NotificationChannel hc = new NotificationChannel("hi_" + x[0], x[1], NotificationManager.IMPORTANCE_HIGH);
+                      hc.setShowBadge(false);
+                      hc.setSound(silent, aa);
+                      hc.enableVibration(false);
+                      hc.enableLights(false);
+                      nm.createNotificationChannel(hc);
+                  }
                   // Idle state uses a minimal channel: no icon in the status bar, only in the shade.
                   NotificationChannel chMin = new NotificationChannel(CH_MIN, "Фонова робота (без значка)", NotificationManager.IMPORTANCE_MIN);
                   chMin.setShowBadge(false);
@@ -2146,7 +2161,7 @@ jobs:
                   try {
                       if (netCb != null) getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netCb);
                   } catch (Throwable ignored) { }
-                  try { nm.cancel(4); } catch (Throwable ignored) { }
+                  try { nm.cancel(4); nm.cancel(8); nm.cancel(7); nm.cancel(9); } catch (Throwable ignored) { }
                   try {
                       if (shzRegistered) {
                           rikka.shizuku.Shizuku.removeBinderReceivedListener(shzUp);
@@ -2247,7 +2262,7 @@ jobs:
               private void usageIcon(boolean on) {
                   try {
                       if (!on) {
-                          if (usageBarShown) { nm.cancel(7); usageBarShown = false; usageBarKey = ""; }
+                          if (usageBarShown) { nm.cancel(useId); usageBarShown = false; usageBarKey = ""; }
                           return;
                       }
                       double gb = Usage.monthBytes(this) / 1073741824.0;
@@ -2256,12 +2271,13 @@ jobs:
                       String key = num + unit;
                       if (usageBarShown && key.equals(usageBarKey)) return;
                       PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
-                      nm.notify(7, new Notification.Builder(this, CH_USE)
+                      if (!usageBarShown) useId = cp("cp_newid") ? (useId == 7 ? 9 : 7) : 7;
+                      nm.notify(useId, new Notification.Builder(this, bar(CH_USE))
                               .setSmallIcon(textIcon(num, unit, false))
                               .setContentTitle("Трафік за місяць: " + num + " " + unit)
                               .setGroup("nn_use")
                               .setOngoing(true)
-                              .setOnlyAlertOnce(true)
+                              .setOnlyAlertOnce(once())
                               .setShowWhen(false)
                               .setContentIntent(pi)
                               .build());
@@ -2278,7 +2294,7 @@ jobs:
                       if (refresh) usageAt = 0;
                       String t = usageLine();
                       CharSequence rt = netRight();
-                      String key = t == null ? "" : t + "|" + rt;
+                      String key = (t == null ? "" : t) + "|" + rt;
                       if (basicShown && key.equals(lastBasic)) return;
                       nm.notify(2, build(t, rt, null, true));
                       basicShown = true;
@@ -2311,14 +2327,14 @@ jobs:
                   PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
                   boolean amps = Math.abs(ma) >= 1000;
                   String n = amps ? String.format(Locale.US, "%.1f", ma / 1000.0) : String.format(Locale.US, "%.0f", ma);
-                  Notification.Builder nb = new Notification.Builder(this, bar ? CH_CUR : CH_MIN);
+                  Notification.Builder nb = new Notification.Builder(this, bar ? bar(CH_CUR) : CH_MIN);
                   if (bar) nb.setSmallIcon(textIcon(n, amps ? "A" : "mA", false));
                   else nb.setSmallIcon(R.drawable.ic_stat);
                   return nb
                           .setContentTitle("Струм заряду: " + n + (amps ? " А" : " мА"))
                           .setGroup("nn_cur")
                           .setOngoing(true)
-                          .setOnlyAlertOnce(true)
+                          .setOnlyAlertOnce(once())
                           .setShowWhen(false)
                           .setContentIntent(pi)
                           .build();
@@ -2338,29 +2354,34 @@ jobs:
                   boolean curBar = cfg.getBoolean("show_current", false);
                   boolean cur = curBar || cfg.getBoolean("cur_shade", false);
                   boolean useBar = cfg.getBoolean("usage_bar", false);
-                  usageIcon(unlocked && useBar);
+                  boolean keep = cfg.getBoolean("cp_keep", false);
+                  usageIcon((unlocked || keep) && useBar);
                   long t = SystemClock.elapsedRealtime();
                   long minBps = Math.max(1, cfg.getInt("speed_min_kb", 10)) * 1024L;
                   long idleMs = Math.max(1, cfg.getInt("speed_idle_s", 5)) * 1000L;
                   long curMs = Math.max(1, cfg.getInt("cur_s", 5)) * 1000L;
                   // The charging current has its own status bar icon, refreshed at the chosen interval.
-                  if (unlocked && cur) {
+                  if ((unlocked || keep) && cur) {
                       if (curAt == 0 || t - curAt >= curMs) {
                           curAt = t;
                           BatInfo b = Power.info(this);
                           boolean sc = b != null && b.charging && !Double.isNaN(b.ma);
                           if (sc) {
                               String key = Math.round(b.ma / 5.0) + (curBar ? "b" : "s");
-                              if (!curShown || !key.equals(curKey)) { nm.notify(4, curNote(b.ma, curBar)); curKey = key; }
+                              if (!curShown || !key.equals(curKey)) {
+                                  if (!curShown) curId = cfg.getBoolean("cp_newid", false) ? (curId == 4 ? 8 : 4) : 4;
+                                  nm.notify(curId, curNote(b.ma, curBar));
+                                  curKey = key;
+                              }
                               curShown = true;
                           } else if (curShown) {
-                              nm.cancel(4);
+                              nm.cancel(curId);
                               curShown = false;
                           }
                       }
                   } else {
                       curAt = 0;
-                      if (curShown) { nm.cancel(4); curShown = false; }
+                      if (curShown) { nm.cancel(curId); nm.cancel(4); nm.cancel(8); curShown = false; }
                   }
                   if (!unlocked || (!speed && !curShown && !useBar)) {
                       lastT = 0;
@@ -3814,7 +3835,7 @@ jobs:
 
           public class MainActivity extends Activity {
               private SharedPreferences prefs;
-              private ToggleRow rWifi, rData, rEnabled, rAuto, rVf, rSpeedS, rUsageB, rCurS, rOp, rSpeed, rUsage, rCur, rShz;
+              private ToggleRow rWifi, rData, rEnabled, rAuto, rVf, rCpKeep, rCpId, rCpAlert, rCpHigh, rSpeedS, rUsageB, rCurS, rOp, rSpeed, rUsage, rCur, rShz;
               private Button btnWeekdayFrom, btnWeekdayTo, btnWeekendFrom, btnWeekendTo, btnTheme, btnPermission, btnLogRefresh, btnLogClear, btnCrash, btnCrashCopy;
               private final List<ToggleRow> rows = new ArrayList<>();
               private final List<Button> btns = new ArrayList<>();
@@ -3935,6 +3956,26 @@ jobs:
                   nt.addView(rCurS);
                   nt.addView(rCur);
                   nt.addView(rOp);
+                  final TextView cpHead = Ui.tv(this, "Сумісність (для G05)  ▾", 15, color(), true);
+                  cpHead.setPadding(dp(4), dp(12), dp(4), dp(8));
+                  final LinearLayout cpBox = new LinearLayout(this);
+                  cpBox.setOrientation(LinearLayout.VERTICAL);
+                  cpBox.setVisibility(View.GONE);
+                  rCpKeep = row("Не знімати значки при блокуванні", null);
+                  rCpId = row("Новий id при розблокуванні", null);
+                  rCpAlert = row("Дозволяти повторний сигнал", null);
+                  rCpHigh = row("Підвищена важливість каналів", null);
+                  cpBox.addView(rCpKeep);
+                  cpBox.addView(rCpId);
+                  cpBox.addView(rCpAlert);
+                  cpBox.addView(rCpHigh);
+                  cpHead.setOnClickListener(v -> {
+                      boolean open = cpBox.getVisibility() == View.VISIBLE;
+                      cpBox.setVisibility(open ? View.GONE : View.VISIBLE);
+                      cpHead.setText("Сумісність (для G05)  " + (open ? "▾" : "▴"));
+                  });
+                  nt.addView(cpHead);
+                  nt.addView(cpBox);
                   btnNotifDiag = button("Діагностика сповіщень");
                   nt.addView(btnNotifDiag, Ui.lp(this, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0, 10, 0, 4));
                   rShz = row("Shizuku", null);
@@ -3979,6 +4020,10 @@ jobs:
                   rUsageB.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("usage_bar", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
                   rCurS.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("cur_shade", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
                   rOp.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("show_op", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
+                  rCpKeep.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("cp_keep", on).apply(); MonitorService.ensure(getApplicationContext()); } });
+                  rCpId.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("cp_newid", on).apply(); MonitorService.ensure(getApplicationContext()); } });
+                  rCpAlert.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("cp_alert", on).apply(); MonitorService.ensure(getApplicationContext()); } });
+                  rCpHigh.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("cp_high", on).apply(); MonitorService.ensure(getApplicationContext()); } });
                   btnNotifDiag.setOnClickListener(v -> notifDiagnostics());
                   rShz.setOnCheckedChangeListener((v, on) -> { if (!loading) { prefs.edit().putBoolean("shizuku_warn", on).apply(); if (on) requestNotificationPermissionIfNeeded(); MonitorService.ensure(getApplicationContext()); } });
                   btnCrash.setOnClickListener(v -> {
@@ -4192,7 +4237,9 @@ jobs:
                   rSpeed.setChecked(prefs.getBoolean("show_speed", false)); rAuto.setChecked(prefs.getBoolean("wifi_auto", false)); rVf.setChecked(prefs.getBoolean("vf_on", false));
                   rUsage.setChecked(prefs.getBoolean("show_usage", false)); rCur.setChecked(prefs.getBoolean("show_current", false)); rShz.setChecked(prefs.getBoolean("shizuku_warn", false));
                   rSpeedS.setChecked(prefs.getBoolean("speed_shade", false)); rUsageB.setChecked(prefs.getBoolean("usage_bar", false));
-                  rCurS.setChecked(prefs.getBoolean("cur_shade", false)); rOp.setChecked(prefs.getBoolean("show_op", false));
+                  rCurS.setChecked(prefs.getBoolean("cur_shade", false));
+                  rCpKeep.setChecked(prefs.getBoolean("cp_keep", false)); rCpId.setChecked(prefs.getBoolean("cp_newid", false));
+                  rCpAlert.setChecked(prefs.getBoolean("cp_alert", false)); rCpHigh.setChecked(prefs.getBoolean("cp_high", false)); rOp.setChecked(prefs.getBoolean("show_op", false));
                   loading = false;
                   btnWeekdayFrom.setText("З " + Scheduler.hhmm(prefs.getInt("weekday_start", 23 * 60)));
                   btnWeekdayTo.setText("До " + Scheduler.hhmm(prefs.getInt("weekday_end", 6 * 60)));
