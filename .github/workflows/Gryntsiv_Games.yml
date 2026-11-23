@@ -73,8 +73,8 @@ jobs:
                   applicationId "com.example.gryntsivgames"
                   minSdk 23
                   targetSdk 26
-                  versionCode 7
-                  versionName "0.7"
+                  versionCode 8
+                  versionName "0.8"
               }
               signingConfigs {
                   debug {
@@ -128,6 +128,12 @@ jobs:
                   </activity>
                   <activity
                       android:name=".uno.MainActivity"
+                      android:exported="false"
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+                      android:windowSoftInputMode="stateHidden|adjustResize"/>
+                  <activity
+                      android:name=".sea.SeaActivity"
                       android:exported="false"
                       android:screenOrientation="sensorLandscape"
                       android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
