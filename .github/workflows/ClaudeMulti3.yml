@@ -1,10 +1,10 @@
-name: ClaudeMulti4
+name: ClaudeMulti5
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/ClaudeMulti4.yml'
+      - '.github/workflows/ClaudeMulti5.yml'
 
 jobs:
   build:
@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.claudemulti"
                   minSdk 23
                   targetSdk 26
-                  versionCode 4
-                  versionName "1.3"
+                  versionCode 5
+                  versionName "1.4"
               }
               signingConfigs {
                   debug {
@@ -91,6 +91,7 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
               <application
                   android:label="Claude x4"
                   android:icon="@drawable/ic_launcher"
@@ -339,16 +340,32 @@ jobs:
           cat > app/src/main/java/com/example/claudemulti/BaseWeb.java <<'EOF'
           package com.example.claudemulti;
 
+          import android.Manifest;
           import android.app.Activity;
           import android.app.AlertDialog;
           import android.content.ActivityNotFoundException;
           import android.content.DialogInterface;
+          import android.content.ContentValues;
           import android.content.Intent;
+          import android.content.pm.PackageManager;
           import android.graphics.Bitmap;
           import android.graphics.drawable.GradientDrawable;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.os.Environment;
+          import android.provider.MediaStore;
+          import android.util.Base64;
+          import android.view.MotionEvent;
+          import android.webkit.DownloadListener;
+          import android.webkit.URLUtil;
+          import android.widget.Toast;
+          import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
           import android.view.Gravity;
           import android.view.View;
           import android.webkit.CookieManager;
@@ -393,6 +410,14 @@ jobs:
 
               public class Bridge {
                   @JavascriptInterface
+                  public void saveData(String dataUrl, String name) {
+                      if (!onClaude || dataUrl == null) {
+                          return;
+                      }
+                      saveDataUrl(dataUrl, name);
+                  }
+
+                  @JavascriptInterface
                   public void email(String e) {
                       if (!onClaude || e == null) {
                           return;
@@ -421,6 +446,7 @@ jobs:
                   s.setDomStorageEnabled(true);
                   s.setDatabaseEnabled(true);
                   s.setAllowFileAccess(false);
+                  s.setTextZoom(100);
                   s.setUserAgentString(s.getUserAgentString().replace("; wv", ""));
                   CookieManager cm = CookieManager.getInstance();
                   cm.setAcceptCookie(true);
@@ -471,6 +497,13 @@ jobs:
                       }
                   });
 
+                  web.setDownloadListener(new DownloadListener() {
+                      @Override
+                      public void onDownloadStart(String url, String ua, String cd, String mime, long len) {
+                          startDownload(url, ua, cd, mime);
+                      }
+                  });
+
                   FrameLayout box = new FrameLayout(this);
                   box.addView(web, new FrameLayout.LayoutParams(
                           FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -493,14 +526,44 @@ jobs:
                   lo.setBackground(lbg);
                   FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                           FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-                  lp.gravity = Gravity.BOTTOM | Gravity.START;
+                  lp.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
                   int mg = (int) (8 * dp);
                   lp.setMargins(mg, mg, mg, mg);
                   box.addView(lo, lp);
-                  lo.setOnClickListener(new View.OnClickListener() {
+                  lo.setOnTouchListener(new View.OnTouchListener() {
+                      private float offX;
+                      private float offY;
+                      private float startX;
+                      private float startY;
+                      private boolean moved;
+
                       @Override
-                      public void onClick(View v) {
-                          confirmLogout();
+                      public boolean onTouch(View v, MotionEvent e) {
+                          switch (e.getActionMasked()) {
+                              case MotionEvent.ACTION_DOWN:
+                                  offX = v.getX() - e.getRawX();
+                                  offY = v.getY() - e.getRawY();
+                                  startX = e.getRawX();
+                                  startY = e.getRawY();
+                                  moved = false;
+                                  return true;
+                              case MotionEvent.ACTION_MOVE:
+                                  if (Math.abs(e.getRawX() - startX) > 12 || Math.abs(e.getRawY() - startY) > 12) {
+                                      moved = true;
+                                  }
+                                  if (moved) {
+                                      v.setX(e.getRawX() + offX);
+                                      v.setY(e.getRawY() + offY);
+                                  }
+                                  return true;
+                              case MotionEvent.ACTION_UP:
+                                  if (!moved) {
+                                      confirmLogout();
+                                  }
+                                  return true;
+                              default:
+                                  return true;
+                          }
                       }
                   });
                   setContentView(box);
@@ -510,6 +573,124 @@ jobs:
                   } else {
                       web.loadUrl(URL);
                   }
+              }
+
+              private void toast(final String m) {
+                  runOnUiThread(new Runnable() {
+                      @Override
+                      public void run() {
+                          Toast.makeText(BaseWeb.this, m, Toast.LENGTH_LONG).show();
+                      }
+                  });
+              }
+
+              private void saveBytes(byte[] data, String name, String mime) {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 29) {
+                          ContentValues cv = new ContentValues();
+                          cv.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+                          cv.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                          cv.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                          Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                          OutputStream o = getContentResolver().openOutputStream(u);
+                          o.write(data);
+                          o.close();
+                      } else {
+                          if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                  != PackageManager.PERMISSION_GRANTED) {
+                              runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      requestPermissions(new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE }, 7);
+                                  }
+                              });
+                              toast("Дозвольте доступ до файлів і повторіть завантаження");
+                              return;
+                          }
+                          File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                          dir.mkdirs();
+                          FileOutputStream o = new FileOutputStream(new File(dir, name));
+                          o.write(data);
+                          o.close();
+                      }
+                      toast("Збережено в Завантаження: " + name);
+                  } catch (Exception e) {
+                      toast("Не вдалося зберегти файл");
+                  }
+              }
+
+              private void saveDataUrl(String d, String name) {
+                  try {
+                      int c = d.indexOf(',');
+                      String head = d.substring(0, c);
+                      String body = d.substring(c + 1);
+                      String mime = "application/octet-stream";
+                      if (head.startsWith("data:")) {
+                          String m = head.substring(5);
+                          int sc = m.indexOf(';');
+                          if (sc >= 0) {
+                              m = m.substring(0, sc);
+                          }
+                          if (m.length() > 0) {
+                              mime = m;
+                          }
+                      }
+                      byte[] bytes;
+                      if (head.contains(";base64")) {
+                          bytes = Base64.decode(body, Base64.DEFAULT);
+                      } else {
+                          bytes = Uri.decode(body).getBytes("UTF-8");
+                      }
+                      saveBytes(bytes, name, mime);
+                  } catch (Exception e) {
+                      toast("Не вдалося зберегти файл");
+                  }
+              }
+
+              private void startDownload(final String url, final String ua, String cd, final String mime) {
+                  final String name = URLUtil.guessFileName(url, cd, mime);
+                  if (url.startsWith("blob:")) {
+                      String u = url.replace("\\", "").replace("'", "");
+                      String n = name.replace("\\", "").replace("'", "");
+                      web.evaluateJavascript("(function(u,n){var x=new XMLHttpRequest();x.open('GET',u);"
+                              + "x.responseType='blob';x.onload=function(){var r=new FileReader();"
+                              + "r.onloadend=function(){AndroidBridge.saveData(String(r.result),n);};"
+                              + "r.readAsDataURL(x.response);};x.send();})('" + u + "','" + n + "');", null);
+                      toast("Завантаження…");
+                      return;
+                  }
+                  final String cookie = CookieManager.getInstance().getCookie(url);
+                  toast("Завантаження…");
+                  new Thread(new Runnable() {
+                      @Override
+                      public void run() {
+                          try {
+                              if (url.startsWith("data:")) {
+                                  saveDataUrl(url, name);
+                                  return;
+                              }
+                              HttpURLConnection c = (HttpURLConnection) new java.net.URL(url).openConnection();
+                              c.setRequestProperty("User-Agent", ua);
+                              if (cookie != null) {
+                                  c.setRequestProperty("Cookie", cookie);
+                              }
+                              c.setConnectTimeout(20000);
+                              c.setReadTimeout(60000);
+                              InputStream in = c.getInputStream();
+                              ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                              byte[] buf = new byte[8192];
+                              int r;
+                              while ((r = in.read(buf)) > 0) {
+                                  bo.write(buf, 0, r);
+                              }
+                              in.close();
+                              String mt = (mime != null && mime.length() > 0) ? mime : "application/octet-stream";
+                              saveBytes(bo.toByteArray(), name, mt);
+                          } catch (Exception e) {
+                              toast("Не вдалося завантажити файл");
+                          }
+                      }
+                  }).start();
               }
 
               private void confirmLogout() {
