@@ -1,10 +1,10 @@
-name: ClaudeMulti5
+name: ClaudeMulti6
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/ClaudeMulti5.yml'
+      - '.github/workflows/ClaudeMulti6.yml'
 
 jobs:
   build:
@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.claudemulti"
                   minSdk 23
                   targetSdk 26
-                  versionCode 5
-                  versionName "1.4"
+                  versionCode 6
+                  versionName "1.5"
               }
               signingConfigs {
                   debug {
@@ -265,7 +265,7 @@ jobs:
                       btn.setOnLongClickListener(new View.OnLongClickListener() {
                           @Override
                           public boolean onLongClick(View v) {
-                              renameAcc(idx + 1);
+                              menuAcc(idx + 1);
                               return true;
                           }
                       });
@@ -277,7 +277,7 @@ jobs:
                   }
 
                   TextView hint = new TextView(this);
-                  hint.setText("Довге натискання на кнопку: змінити назву");
+                  hint.setText("Довге натискання на кнопку: назва або вихід з акаунта");
                   hint.setTextSize(12);
                   hint.setTextColor(0x99FFFFFF);
                   hint.setGravity(Gravity.CENTER);
@@ -305,6 +305,39 @@ jobs:
                   Intent it = new Intent(this, cls[i]);
                   it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                   startActivity(it);
+              }
+
+              private void menuAcc(final int n) {
+                  new AlertDialog.Builder(this)
+                          .setTitle(Store.label(this, n))
+                          .setItems(new String[] { "Змінити назву", "Вийти з акаунта" },
+                                  new DialogInterface.OnClickListener() {
+                                      @Override
+                                      public void onClick(DialogInterface d, int which) {
+                                          if (which == 0) {
+                                              renameAcc(n);
+                                          } else {
+                                              confirmLogout(n);
+                                          }
+                                      }
+                                  })
+                          .show();
+              }
+
+              private void confirmLogout(final int n) {
+                  new AlertDialog.Builder(this)
+                          .setMessage("Вийти з акаунта " + Store.label(this, n) + "?")
+                          .setPositiveButton("Вийти", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int w) {
+                                  Intent it = new Intent(MainActivity.this, cls[n - 1]);
+                                  it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                  it.putExtra("logout", true);
+                                  startActivity(it);
+                              }
+                          })
+                          .setNegativeButton("Скасувати", null)
+                          .show();
               }
 
               private void renameAcc(final int n) {
@@ -377,6 +410,8 @@ jobs:
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
           import android.widget.Button;
+          import android.widget.EditText;
+          import android.webkit.MimeTypeMap;
           import android.widget.FrameLayout;
 
           public abstract class BaseWeb extends Activity {
@@ -386,6 +421,14 @@ jobs:
                       + ".then(function(r){return r.json();})"
                       + ".then(function(j){var e=j&&(j.email_address||j.email);if(e){AndroidBridge.email(String(e));}})"
                       + ".catch(function(){});}catch(x){}})();";
+              private static final String HOOK = "(function(){if(window.__dlHook){return;}window.__dlHook=1;"
+                      + "document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[download]'):null;"
+                      + "if(a){AndroidBridge.dlName(a.getAttribute('download')||'');}},true);"
+                      + "var o=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){"
+                      + "if(this.hasAttribute&&this.hasAttribute('download')){AndroidBridge.dlName(this.getAttribute('download')||'');}"
+                      + "return o.apply(this,arguments);};})();";
+              private volatile String lastDlName = "";
+              private volatile long lastDlTime = 0;
               private WebView web;
               private ValueCallback<Uri[]> fileCb;
               private volatile boolean onClaude = false;
@@ -409,6 +452,19 @@ jobs:
               }
 
               public class Bridge {
+                  @JavascriptInterface
+                  public void dlName(String n) {
+                      if (!onClaude || n == null) {
+                          return;
+                      }
+                      n = n.trim();
+                      if (n.length() == 0 || n.length() > 120) {
+                          return;
+                      }
+                      lastDlName = n;
+                      lastDlTime = System.currentTimeMillis();
+                  }
+
                   @JavascriptInterface
                   public void saveData(String dataUrl, String name) {
                       if (!onClaude || dataUrl == null) {
@@ -464,6 +520,7 @@ jobs:
                           onClaude = isClaude(url);
                           if (onClaude) {
                               v.evaluateJavascript(JS, null);
+                              v.evaluateJavascript(HOOK, null);
                           }
                       }
 
@@ -504,74 +561,25 @@ jobs:
                       }
                   });
 
-                  FrameLayout box = new FrameLayout(this);
-                  box.addView(web, new FrameLayout.LayoutParams(
-                          FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-                  float dp = getResources().getDisplayMetrics().density;
-                  Button lo = new Button(this);
-                  lo.setText("Вийти");
-                  lo.setAllCaps(false);
-                  lo.setTextSize(11);
-                  lo.setTextColor(0xFFFFFFFF);
-                  lo.setMinHeight(0);
-                  lo.setMinWidth(0);
-                  lo.setMinimumHeight(0);
-                  lo.setMinimumWidth(0);
-                  int ph = (int) (12 * dp);
-                  int pv = (int) (4 * dp);
-                  lo.setPadding(ph, pv, ph, pv);
-                  GradientDrawable lbg = new GradientDrawable();
-                  lbg.setColor(0xAA000000);
-                  lbg.setCornerRadius(20 * dp);
-                  lo.setBackground(lbg);
-                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                          FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-                  lp.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
-                  int mg = (int) (8 * dp);
-                  lp.setMargins(mg, mg, mg, mg);
-                  box.addView(lo, lp);
-                  lo.setOnTouchListener(new View.OnTouchListener() {
-                      private float offX;
-                      private float offY;
-                      private float startX;
-                      private float startY;
-                      private boolean moved;
+                  setContentView(web);
 
-                      @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          switch (e.getActionMasked()) {
-                              case MotionEvent.ACTION_DOWN:
-                                  offX = v.getX() - e.getRawX();
-                                  offY = v.getY() - e.getRawY();
-                                  startX = e.getRawX();
-                                  startY = e.getRawY();
-                                  moved = false;
-                                  return true;
-                              case MotionEvent.ACTION_MOVE:
-                                  if (Math.abs(e.getRawX() - startX) > 12 || Math.abs(e.getRawY() - startY) > 12) {
-                                      moved = true;
-                                  }
-                                  if (moved) {
-                                      v.setX(e.getRawX() + offX);
-                                      v.setY(e.getRawY() + offY);
-                                  }
-                                  return true;
-                              case MotionEvent.ACTION_UP:
-                                  if (!moved) {
-                                      confirmLogout();
-                                  }
-                                  return true;
-                              default:
-                                  return true;
-                          }
-                      }
-                  });
-                  setContentView(box);
-
-                  if (b != null) {
+                  if (getIntent().getBooleanExtra("logout", false)) {
+                      getIntent().removeExtra("logout");
+                      doLogout();
+                  } else if (b != null) {
                       web.restoreState(b);
                   } else {
                       web.loadUrl(URL);
+                  }
+              }
+
+              @Override
+              protected void onNewIntent(Intent i) {
+                  super.onNewIntent(i);
+                  setIntent(i);
+                  if (i.getBooleanExtra("logout", false)) {
+                      i.removeExtra("logout");
+                      doLogout();
                   }
               }
 
@@ -589,7 +597,12 @@ jobs:
                       if (Build.VERSION.SDK_INT >= 29) {
                           ContentValues cv = new ContentValues();
                           cv.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
-                          cv.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                          int dot = name.lastIndexOf('.');
+                          String ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
+                          String mm = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+                          if (mm != null) {
+                              cv.put(MediaStore.MediaColumns.MIME_TYPE, mm);
+                          }
                           cv.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
                           Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
                           OutputStream o = getContentResolver().openOutputStream(u);
@@ -648,10 +661,46 @@ jobs:
               }
 
               private void startDownload(final String url, final String ua, String cd, final String mime) {
-                  final String name = URLUtil.guessFileName(url, cd, mime);
+                  String known = "";
+                  if (System.currentTimeMillis() - lastDlTime < 20000) {
+                      known = lastDlName;
+                  }
+                  lastDlName = "";
+                  final String guessed = URLUtil.guessFileName(url, cd, mime);
+                  boolean hasCd = cd != null && cd.toLowerCase().contains("filename");
+                  if (known.length() > 0) {
+                      doDownload(url, ua, known, mime);
+                      return;
+                  }
+                  if (hasCd || !guessed.endsWith(".bin")) {
+                      doDownload(url, ua, guessed, mime);
+                      return;
+                  }
+                  final EditText et = new EditText(this);
+                  et.setSingleLine(true);
+                  et.setText(guessed);
+                  new AlertDialog.Builder(this)
+                          .setTitle("Назва файлу")
+                          .setView(et)
+                          .setPositiveButton("Зберегти", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int w) {
+                                  String n = et.getText().toString().trim();
+                                  if (n.length() == 0) {
+                                      n = guessed;
+                                  }
+                                  doDownload(url, ua, n, mime);
+                              }
+                          })
+                          .setNegativeButton("Скасувати", null)
+                          .show();
+              }
+
+              private void doDownload(final String url, final String ua, String nm, final String mime) {
+                  final String name = nm.replace("/", "_").replace("\\", "_");
                   if (url.startsWith("blob:")) {
                       String u = url.replace("\\", "").replace("'", "");
-                      String n = name.replace("\\", "").replace("'", "");
+                      String n = name.replace("'", "");
                       web.evaluateJavascript("(function(u,n){var x=new XMLHttpRequest();x.open('GET',u);"
                               + "x.responseType='blob';x.onload=function(){var r=new FileReader();"
                               + "r.onloadend=function(){AndroidBridge.saveData(String(r.result),n);};"
@@ -691,19 +740,6 @@ jobs:
                           }
                       }
                   }).start();
-              }
-
-              private void confirmLogout() {
-                  new AlertDialog.Builder(this)
-                          .setMessage("Вийти з цього акаунта?")
-                          .setPositiveButton("Вийти", new DialogInterface.OnClickListener() {
-                              @Override
-                              public void onClick(DialogInterface d, int w) {
-                                  doLogout();
-                              }
-                          })
-                          .setNegativeButton("Скасувати", null)
-                          .show();
               }
 
               private void doLogout() {
@@ -789,6 +825,18 @@ jobs:
                   return bm;
               }
 
+              private static String cut(String x) {
+                  return x.length() > 11 ? x.substring(0, 10) + "…" : x;
+              }
+
+              private static String fmt(String s) {
+                  int at = s.indexOf('@');
+                  if (at > 0) {
+                      return cut(s.substring(0, at)) + "\n" + cut(s.substring(at));
+                  }
+                  return s;
+              }
+
               public static void render(Context ctx, AppWidgetManager mgr, int[] ids) {
                   Class<?>[] cls = new Class<?>[] { Web1.class, Web2.class, Web3.class, Web4.class };
                   int[] cell = new int[] { R.id.c1, R.id.c2, R.id.c3, R.id.c4 };
@@ -804,7 +852,7 @@ jobs:
                                   PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                           rv.setOnClickPendingIntent(cell[i], pi);
                           rv.setImageViewBitmap(img[i], cl);
-                          rv.setTextViewText(txt[i], Store.label(ctx, i + 1));
+                          rv.setTextViewText(txt[i], fmt(Store.label(ctx, i + 1)));
                       }
                       mgr.updateAppWidget(id, rv);
                   }
@@ -827,12 +875,12 @@ jobs:
                   android:layout_margin="3dp"
                   android:orientation="vertical"
                   android:gravity="center"
-                  android:padding="4dp"
+                  android:padding="2dp"
                   android:background="@drawable/w_bg1">
                   <ImageView
                       android:id="@+id/i1"
-                      android:layout_width="30dp"
-                      android:layout_height="30dp"
+                      android:layout_width="22dp"
+                      android:layout_height="22dp"
                       android:scaleType="fitCenter"/>
                   <TextView
                       android:id="@+id/t1"
@@ -842,7 +890,7 @@ jobs:
                       android:maxLines="2"
                       android:ellipsize="end"
                       android:textColor="#FFFFFFFF"
-                      android:textSize="10sp"
+                      android:textSize="9sp"
                       android:textStyle="bold"/>
               </LinearLayout>
               <LinearLayout
@@ -853,12 +901,12 @@ jobs:
                   android:layout_margin="3dp"
                   android:orientation="vertical"
                   android:gravity="center"
-                  android:padding="4dp"
+                  android:padding="2dp"
                   android:background="@drawable/w_bg2">
                   <ImageView
                       android:id="@+id/i2"
-                      android:layout_width="30dp"
-                      android:layout_height="30dp"
+                      android:layout_width="22dp"
+                      android:layout_height="22dp"
                       android:scaleType="fitCenter"/>
                   <TextView
                       android:id="@+id/t2"
@@ -868,7 +916,7 @@ jobs:
                       android:maxLines="2"
                       android:ellipsize="end"
                       android:textColor="#FFFFFFFF"
-                      android:textSize="10sp"
+                      android:textSize="9sp"
                       android:textStyle="bold"/>
               </LinearLayout>
               <LinearLayout
@@ -879,12 +927,12 @@ jobs:
                   android:layout_margin="3dp"
                   android:orientation="vertical"
                   android:gravity="center"
-                  android:padding="4dp"
+                  android:padding="2dp"
                   android:background="@drawable/w_bg3">
                   <ImageView
                       android:id="@+id/i3"
-                      android:layout_width="30dp"
-                      android:layout_height="30dp"
+                      android:layout_width="22dp"
+                      android:layout_height="22dp"
                       android:scaleType="fitCenter"/>
                   <TextView
                       android:id="@+id/t3"
@@ -894,7 +942,7 @@ jobs:
                       android:maxLines="2"
                       android:ellipsize="end"
                       android:textColor="#FFFFFFFF"
-                      android:textSize="10sp"
+                      android:textSize="9sp"
                       android:textStyle="bold"/>
               </LinearLayout>
               <LinearLayout
@@ -905,12 +953,12 @@ jobs:
                   android:layout_margin="3dp"
                   android:orientation="vertical"
                   android:gravity="center"
-                  android:padding="4dp"
+                  android:padding="2dp"
                   android:background="@drawable/w_bg4">
                   <ImageView
                       android:id="@+id/i4"
-                      android:layout_width="30dp"
-                      android:layout_height="30dp"
+                      android:layout_width="22dp"
+                      android:layout_height="22dp"
                       android:scaleType="fitCenter"/>
                   <TextView
                       android:id="@+id/t4"
@@ -920,7 +968,7 @@ jobs:
                       android:maxLines="2"
                       android:ellipsize="end"
                       android:textColor="#FFFFFFFF"
-                      android:textSize="10sp"
+                      android:textSize="9sp"
                       android:textStyle="bold"/>
               </LinearLayout>
           </LinearLayout>
@@ -930,7 +978,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
               android:minWidth="250dp"
-              android:minHeight="60dp"
+              android:minHeight="70dp"
               android:updatePeriodMillis="0"
               android:resizeMode="horizontal|vertical"
               android:initialLayout="@layout/widget"/>
@@ -1125,12 +1173,14 @@ jobs:
           </shape>
           EOF
 
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAET0lEQVR42u3dPW7cMBRFYekhnTs3ab2GIL23kqVlK+4Dr8FtGneunTIIEMA/I2oeeb+zAEMi7+El5ZnRtgEAAAAAAADA0uyGYBw3t3evR/ydl+cn80SAtUNODgIIOykIIPCEIIDQk4EAQk8GAgg+EQgg9GQggOATgQCCTwQCCD4RCCD4RDiCEn4kj/FuUpDcBrvgI1mEEn4kz0UZcCTPyW6QkbwlKuFH8lyVAUXynO0GEclbohJ+JM9lGTAkz2kZKCTPbRkgJM9xGRgkz3UZECTPeRkIJM99CT+SM1DCj2QJSviRLEEJP5IlKOFHsgRlyJFMWf2R3AIl/EiWoIQfyRI4A8AZwOqP1BYo4f/L14dHiQuToIT/3/CTIEsCZ4D/hJ4EzgD2/YhogbL6PzoPaIDM1f+tkJNg/RYo4d9IECxB2faQwBbIwZcEoS1QVn9ogJDV/9Lwk2e9FigrPwk0wOKr/9GhJcE6LeCjECTQAFZ/EqS2QFmloQGEn2QEWGf7c3YoSTDvNsghmAQawOpPgtQWKKswCTSA8IMA825/uoWfjPNsgxyCSaABBI0EBJhw+zNDwEjQextUVn7XqgGEH6F8MQTnSfv7/tuQv33/68ew6374/lMDdNr/z7z6a65+54ASIPfgDCA47oUAAuOeCAAQoNMBeOWVUgtc/yBcAuIeN/8H6MkRz81HBmzUc304AwAEAAgAEAC4ggDe+Iht8UehGgAaACAAQACAAAABAAIABAAIABAAIABAAIAAAAEAAgAEAAgArCPAy/PTbogwM29lWANAAwAEAAgAbH4bFOcx8v1eXa6v83vGNMCVWf0ldN3vry59jAQSdL2v92RXA8AhGFbL1PshgNBE3wcBhCf6+uuowwRI0Om635vZ5f8P4D1esAWymrpeApBA+C8QwDlAuGa5vo9kVQOQIPqxLQHgEGwbpAVWWf0/mlENQILoj20QgATRn1mq0RWDdULYPfyfyaYGgEOwFtACiau/BiBB/Nc2CUCC6O8s19mVg3lCOkv4L8miBoBDsBbQAomrvwYgQeS+/1ABtMBaEswU/iOypwFIELnyHyqAFsCMq78G0ALRq/+hAmiBeSWYLfxHZq26XhjOkSA5/LZA4RKkbnuGCqAFMMvqrwGCW8DqP1AALdBbghnDPypTQ4N6c3v3KnbovKDWrBcO4XcGALoLoAXQOTu1yo1A+FtvgUiAjllxBoAzgBZA4up/lQYgATplo1JuFMLf6gxAAnTIQqXeOIS/xVMgEgh//G+DkkD4438clwTCH//r0CQQ/vifRyeB8Me/H4AEwh//WSASCP8ZTBEyX60U/OhPg2oD4Y//ODQJhD92C2RLJPi+EKMNzAkBSGAubIFsiQSfAEQQfF+Kty0yxhpAGwg+AYgg+AQgguATgAiCTwAyCD0BiCD4BCCD0BMgXAahJ0CUEAJPgBgphJ0Ay8sh5AAAAAAAAACAT/IHy9hqkPbbRk0AAAAASUVORK5CYII=' | base64 -d > app/src/main/res/drawable/ic_launcher.png
+          echo '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' | base64 -d > app/src/main/res/drawable/ic_launcher.png
 
       - name: Build
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ClaudeMulti.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: ClaudeMulti
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ClaudeMulti.apk
