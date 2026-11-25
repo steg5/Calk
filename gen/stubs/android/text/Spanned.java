@@ -1,0 +1,2 @@
+package android.text;
+public interface Spanned { int SPAN_EXCLUSIVE_EXCLUSIVE = 33; }
