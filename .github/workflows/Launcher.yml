@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.launcher"
                   minSdk 23
                   targetSdk 26
-                  versionCode 43
-                  versionName "3.24"
+                  versionCode 44
+                  versionName "3.25"
               }
               signingConfigs {
                   debug {
@@ -91,6 +91,8 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
               <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
               <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
               <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -115,6 +117,9 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+                  <service
+                      android:name=".Keeper"
+                      android:exported="false"/>
                   <receiver
                       android:name=".BootReceiver"
                       android:exported="true">
@@ -391,20 +396,182 @@ jobs:
                   final String[] paths = new String[l.size() + 1];
                   names[0] = "Стандартний";
                   paths[0] = "";
-                  String cur = sp.getString("fontfile", "");
-                  int sel = 0;
+                  final String old = sp.getString("fontfile", "");
+                  final int[] sel = {0};
                   for (int i = 0; i < l.size(); i++) {
                       String n = l.get(i).getName();
                       names[i + 1] = n.substring(0, n.lastIndexOf('.'));
                       paths[i + 1] = l.get(i).getAbsolutePath();
-                      if (paths[i + 1].equals(cur)) sel = i + 1;
+                      if (paths[i + 1].equals(old)) sel[0] = i + 1;
                   }
-                  new AlertDialog.Builder(this).setTitle("Шрифт (" + l.size() + ")")
-                          .setSingleChoiceItems(names, sel, (d, i) -> {
-                              sp.edit().putString("fontfile", paths[i]).apply();
-                              d.dismiss();
-                              recreate();
-                          }).show();
+                  final boolean[] applied = {false};
+                  final Runnable rbRun = () -> liveRebuild();
+                  final int total = names.length;
+
+                  final LinearLayout panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setPadding(px(14), px(6), px(14), px(12));
+                  GradientDrawable pbg = new GradientDrawable();
+                  pbg.setColor(0xB3101010);
+                  pbg.setCornerRadius(px(18));
+                  pbg.setStroke(px(1), 0x55FFFFFF);
+                  panel.setBackground(pbg);
+                  TextView hd = new TextView(this);
+                  hd.setText("≡  Шрифт  (потягніть, щоб пересунути)");
+                  hd.setTextColor(0xFFEEEEEE);
+                  hd.setTextSize(TypedValue.COMPLEX_UNIT_PX, 19 * u);
+                  hd.setGravity(Gravity.CENTER);
+                  hd.setPadding(0, px(8), 0, px(8));
+                  panel.addView(hd, new LinearLayout.LayoutParams(-1, -2));
+
+                  final TextView tvName = new TextView(this);
+                  tvName.setTextColor(0xFFFFFFFF);
+                  tvName.setTextSize(TypedValue.COMPLEX_UNIT_PX, 22 * u);
+                  tvName.setGravity(Gravity.CENTER);
+                  tvName.setPadding(0, px(2), 0, px(6));
+                  panel.addView(tvName, new LinearLayout.LayoutParams(-1, -2));
+
+                  final Button bPrev = new Button(this);
+                  bPrev.setText("‹  Попередній");
+                  final Button bNext = new Button(this);
+                  bNext.setText("Наступний  ›");
+                  LinearLayout nr = new LinearLayout(this);
+                  for (Button bx : new Button[]{bPrev, bNext}) {
+                      GradientDrawable bd = new GradientDrawable();
+                      bd.setColor(0xFF2A2A2A);
+                      bd.setCornerRadius(px(12));
+                      bd.setStroke(px(1), 0x88FFFFFF);
+                      bx.setBackground(bd);
+                      bx.setTextColor(0xFFFFFFFF);
+                      bx.setAllCaps(false);
+                      bx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 20 * u);
+                      bx.setMinHeight(0);
+                      bx.setMinimumHeight(0);
+                      bx.setPadding(px(10), px(10), px(10), px(10));
+                      LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, px(56), 1);
+                      bp.setMargins(px(4), 0, px(4), 0);
+                      nr.addView(bx, bp);
+                  }
+                  panel.addView(nr, new LinearLayout.LayoutParams(-1, -2));
+
+                  final LinearLayout grid = new LinearLayout(this);
+                  grid.setOrientation(LinearLayout.VERTICAL);
+                  final ScrollView gsv = new ScrollView(this);
+                  gsv.addView(grid);
+                  LinearLayout.LayoutParams gvp = new LinearLayout.LayoutParams(-1, px(200));
+                  gvp.setMargins(0, px(8), 0, px(4));
+                  panel.addView(gsv, gvp);
+
+                  final TextView[] rows = new TextView[total];
+                  final Runnable[] go = new Runnable[1];
+                  for (int i = 0; i < total; i++) {
+                      final int ii = i;
+                      TextView r = new TextView(this);
+                      r.setText(names[i]);
+                      r.setTextColor(0xFFFFFFFF);
+                      r.setTextSize(TypedValue.COMPLEX_UNIT_PX, 22 * u);
+                      r.setPadding(px(12), px(8), px(12), px(8));
+                      if (!paths[i].isEmpty()) {
+                          try {
+                              r.setTypeface(Typeface.createFromFile(paths[i]));
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                      r.setOnClickListener(v -> {
+                          sel[0] = ii;
+                          go[0].run();
+                      });
+                      rows[i] = r;
+                      grid.addView(r, new LinearLayout.LayoutParams(-1, -2));
+                  }
+                  go[0] = () -> {
+                      for (int i = 0; i < total; i++) rows[i].setBackgroundColor(i == sel[0] ? 0x55FFFFFF : 0);
+                      tvName.setText(sel[0] + " / " + (total - 1) + "   " + names[sel[0]]);
+                      sp.edit().putString("fontfile", paths[sel[0]]).apply();
+                      ui.removeCallbacks(rbRun);
+                      ui.postDelayed(rbRun, 150);
+                      final View rv = rows[sel[0]];
+                      gsv.post(() -> gsv.smoothScrollTo(0, Math.max(0, rv.getTop() - px(70))));
+                  };
+                  bPrev.setOnClickListener(v -> {
+                      sel[0] = (sel[0] + total - 1) % total;
+                      go[0].run();
+                  });
+                  bNext.setOnClickListener(v -> {
+                      sel[0] = (sel[0] + 1) % total;
+                      go[0].run();
+                  });
+
+                  final Button bOk = new Button(this);
+                  bOk.setText("Застосувати");
+                  final Button bNo = new Button(this);
+                  bNo.setText("Скасувати");
+                  LinearLayout fb = new LinearLayout(this);
+                  for (Button bx : new Button[]{bNo, bOk}) {
+                      GradientDrawable bd = new GradientDrawable();
+                      bd.setColor(0xFF2A2A2A);
+                      bd.setCornerRadius(px(12));
+                      bd.setStroke(px(1), 0x88FFFFFF);
+                      bx.setBackground(bd);
+                      bx.setTextColor(0xFFFFFFFF);
+                      bx.setAllCaps(false);
+                      bx.setTextSize(TypedValue.COMPLEX_UNIT_PX, 22 * u);
+                      bx.setMinHeight(0);
+                      bx.setMinimumHeight(0);
+                      bx.setPadding(px(10), px(10), px(10), px(10));
+                      LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, px(58), 1);
+                      bp.setMargins(px(4), 0, px(4), 0);
+                      fb.addView(bx, bp);
+                  }
+                  LinearLayout.LayoutParams fbp = new LinearLayout.LayoutParams(-1, -2);
+                  fbp.setMargins(0, px(6), 0, 0);
+                  panel.addView(fb, fbp);
+
+                  final Dialog dlg = new Dialog(this);
+                  dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+                  dlg.setContentView(panel);
+                  final android.view.Window win = dlg.getWindow();
+                  win.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                  win.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                  win.setLayout(px(720), -2);
+                  dlg.setCanceledOnTouchOutside(false);
+                  final float[] dr = new float[4];
+                  hd.setOnTouchListener((v, e) -> {
+                      android.view.WindowManager.LayoutParams wl = win.getAttributes();
+                      switch (e.getActionMasked()) {
+                          case MotionEvent.ACTION_DOWN:
+                              dr[0] = e.getRawX();
+                              dr[1] = e.getRawY();
+                              dr[2] = wl.x;
+                              dr[3] = wl.y;
+                              break;
+                          case MotionEvent.ACTION_MOVE:
+                              wl.x = (int) (dr[2] + e.getRawX() - dr[0]);
+                              wl.y = (int) (dr[3] + e.getRawY() - dr[1]);
+                              win.setAttributes(wl);
+                              break;
+                          default:
+                              break;
+                      }
+                      return true;
+                  });
+                  bNo.setOnClickListener(v -> dlg.cancel());
+                  bOk.setOnClickListener(v -> {
+                      applied[0] = true;
+                      dlg.dismiss();
+                  });
+                  dlg.setOnDismissListener(d -> {
+                      ui.removeCallbacks(rbRun);
+                      if (!applied[0]) sp.edit().putString("fontfile", old).apply();
+                      liveRebuild();
+                      if (setDlg != null) {
+                          setDlg.show();
+                          rebuildSettings();
+                      }
+                  });
+                  if (setDlg != null && setDlg.isShowing()) setDlg.hide();
+                  go[0].run();
+                  dlg.show();
               }
 
               boolean magnet = true;
@@ -2023,6 +2190,13 @@ jobs:
                   addBlock(0, clockCard);
                   tvClock = text("00:00", 76, TXT, true);
                   tvClock.setGravity(Gravity.CENTER);
+                  tvClock.setOnClickListener(v -> {
+                      try {
+                          startActivity(new Intent(Settings.ACTION_DATE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                      } catch (Throwable e) {
+                          Toast.makeText(this, "На цій магнітолі немає екрана дати й часу", Toast.LENGTH_SHORT).show();
+                      }
+                  });
                   clockCard.put(0, tvClock, -2, -2);
                   tvDate = text("", 22, DIM, false);
                   tvDate.setSingleLine(true);
@@ -2168,9 +2342,11 @@ jobs:
                   aimp.setClickable(true);
                   aimp.setOnClickListener(v -> launchKey("aimp"));
                   cover = new ImageView(this);
-                  cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                  cover.setBackground(rounded(BTN, 14));
-                  aimp.addView(cover, lp(130, 130, 0));
+                  cover.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                  cover.setImageBitmap(aimpLogo());
+                  LinearLayout.LayoutParams cvp = lp(-1, 0, 1);
+                  cvp.setMargins(0, 0, 0, px(4));
+                  aimp.addView(cover, cvp);
                   tvTrack = text("AIMP", 24, TXT, true);
                   tvTrack.setGravity(Gravity.CENTER);
                   tvTrack.setMaxLines(2);
@@ -2187,7 +2363,9 @@ jobs:
                   tvArtist.setSingleLine(true);
                   tvArtist.setEllipsize(android.text.TextUtils.TruncateAt.END);
                   aimp.addView(tvArtist, lp(-1, -2, 0));
-                  aimp.addView(new View(this), lp(-1, 0, 1));
+                  LinearLayout.LayoutParams gp = lp(-1, 0, 0);
+                  gp.setMargins(0, px(4), 0, 0);
+                  aimp.addView(new View(this), gp);
                   LinearLayout ab = new LinearLayout(this);
                   ab.setOrientation(LinearLayout.HORIZONTAL);
                   Button aPrev = mbtn("⏮", 30);
@@ -2412,6 +2590,10 @@ jobs:
                   buildHome();
           preloadApps(null);
                   ready = true;
+                  try {
+                      startService(new Intent(this, Keeper.class));
+                  } catch (Throwable ignored) {
+                  }
                   loadBg();
                   tick();
                   startGps();
@@ -2478,6 +2660,7 @@ jobs:
               @Override
               protected void onResume() {
                   super.onResume();
+                  resumed = true;
                   if (!ready) return;
                   if (syncIn()) {
                       recreate();
@@ -2494,6 +2677,7 @@ jobs:
               @Override
               protected void onPause() {
                   super.onPause();
+                  resumed = false;
                   logoPolling = false;
                   if (ready) {
                       saveTrip();
@@ -2534,6 +2718,7 @@ jobs:
               int tickN = 0;
 
               boolean preview = false;
+              static volatile boolean resumed = false;
               MapView savedMap = null;
 
               void tickText() {
@@ -3872,13 +4057,31 @@ jobs:
                   };
                   ScrollView sc = new ScrollView(this);
                   setSc = sc;
-                  sc.setBackgroundColor(BG2 | 0xFF000000);
+                  FrameLayout sroot = new FrameLayout(this);
+                  sroot.setBackgroundColor(BG2 | 0xFF000000);
+                  try {
+                      File bgf = new File(getFilesDir(), "bg.jpg");
+                      if (bgf.exists()) {
+                          if (bgCache == null) bgCache = BitmapFactory.decodeFile(bgf.getAbsolutePath());
+                          if (bgCache != null) {
+                              ImageView sbg = new ImageView(this);
+                              sbg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                              sbg.setImageBitmap(bgCache);
+                              sroot.addView(sbg, new FrameLayout.LayoutParams(-1, -1));
+                              View sdim = new View(this);
+                              sdim.setBackgroundColor(0x88000000);
+                              sroot.addView(sdim, new FrameLayout.LayoutParams(-1, -1));
+                          }
+                      }
+                  } catch (Throwable ignored) {
+                  }
+                  sroot.addView(sc, new FrameLayout.LayoutParams(-1, -1));
                   setCol = new LinearLayout(this);
                   setCol.setOrientation(LinearLayout.VERTICAL);
                   setCol.setPadding(px(28), px(20), px(28), px(28));
                   sc.addView(setCol, new FrameLayout.LayoutParams(-1, -2));
                   buildSettings();
-                  setDlg.setContentView(sc);
+                  setDlg.setContentView(sroot);
                   setDlg.show();
               }
 
@@ -5550,7 +5753,7 @@ jobs:
                   if (m == null) {
                       tvTrack.setText("AIMP");
                       tvArtist.setText("");
-                      cover.setImageDrawable(null);
+                      cover.setImageBitmap(aimpLogo());
                       return;
                   }
                   CharSequence t = m.getText(MediaMetadata.METADATA_KEY_TITLE);
@@ -5560,7 +5763,50 @@ jobs:
                   Bitmap bm = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
                   if (bm == null) bm = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
                   if (bm == null) bm = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
-                  cover.setImageBitmap(bm);
+                  cover.setImageBitmap(bm != null ? bm : aimpLogo());
+              }
+
+              Bitmap aimpLogoBm;
+              int aimpLogoCol;
+
+              /** Власний нейтральний значок плеєра (не офіційний логотип). */
+              Bitmap aimpLogo() {
+                  if (aimpLogoBm != null && aimpLogoCol == ACC) return aimpLogoBm;
+                  int n = 256;
+                  Bitmap b = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888);
+                  Canvas c = new Canvas(b);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  p.setColor(BTN | 0xFF000000);
+                  c.drawRoundRect(new RectF(8, 8, n - 8, n - 8), 44, 44, p);
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(6);
+                  p.setColor(ACC | 0xFF000000);
+                  c.drawRoundRect(new RectF(8, 8, n - 8, n - 8), 44, 44, p);
+                  p.setStyle(Paint.Style.FILL);
+                  // нота
+                  c.save();
+                  c.rotate(-20, 90, 175);
+                  c.drawOval(new RectF(52, 160, 122, 204), p);
+                  c.restore();
+                  c.save();
+                  c.rotate(-20, 170, 150);
+                  c.drawOval(new RectF(134, 135, 204, 179), p);
+                  c.restore();
+                  p.setStrokeWidth(12);
+                  p.setStyle(Paint.Style.STROKE);
+                  c.drawLine(116, 176, 116, 62, p);
+                  c.drawLine(196, 153, 196, 50, p);
+                  p.setStyle(Paint.Style.FILL);
+                  Path bm = new Path();
+                  bm.moveTo(110, 52);
+                  bm.lineTo(202, 36);
+                  bm.lineTo(202, 64);
+                  bm.lineTo(110, 80);
+                  bm.close();
+                  c.drawPath(bm, p);
+                  aimpLogoBm = b;
+                  aimpLogoCol = ACC;
+                  return b;
               }
 
               void refreshMedia() {
@@ -5592,7 +5838,7 @@ jobs:
                           aPlay.setText("▶");
                           tvTrack.setText("AIMP");
                           tvArtist.setText("");
-                          cover.setImageDrawable(null);
+                          cover.setImageBitmap(aimpLogo());
                           return;
                       }
                       if (ctl == null || !ctl.getSessionToken().equals(f.getSessionToken())) {
@@ -7366,11 +7612,189 @@ jobs:
                   try {
                       SharedPreferences sp = c.getSharedPreferences("launcher", Context.MODE_PRIVATE);
                       if (!sp.getBoolean("autostart", true)) return;
+                      try {
+                          Intent s = new Intent(c, Keeper.class);
+                          s.putExtra("boot", true);
+                          if (android.os.Build.VERSION.SDK_INT >= 26) c.startForegroundService(s);
+                          else c.startService(s);
+                      } catch (Throwable ignored) {
+                      }
                       Intent in = new Intent(c, MainActivity.class);
                       in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                       c.startActivity(in);
                   } catch (Throwable ignored) {
                   }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/example/launcher/Keeper.java <<'EOF'
+          package com.example.launcher;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.SharedPreferences;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.graphics.PixelFormat;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.ImageView;
+
+          import java.io.File;
+
+          /** Після запуску магнітоли повертає наш лаунчер на передній план і на цей час закриває екран накладкою. */
+          public class Keeper extends Service {
+              private final Handler h = new Handler(Looper.getMainLooper());
+              private WindowManager wm;
+              private View overlay;
+              private BroadcastReceiver rcv;
+              private long winEnd = 0, topSince = 0, need = 20000, ovEnd = 0;
+
+              @Override
+              public IBinder onBind(Intent i) {
+                  return null;
+              }
+
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                  rcv = new BroadcastReceiver() {
+                      @Override
+                      public void onReceive(Context c, Intent i) {
+                          open(15000, 5000);
+                      }
+                  };
+                  try {
+                      IntentFilter f = new IntentFilter();
+                      f.addAction(Intent.ACTION_SCREEN_ON);
+                      f.addAction(Intent.ACTION_USER_PRESENT);
+                      f.addAction(Intent.ACTION_POWER_CONNECTED);
+                      registerReceiver(rcv, f);
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              @Override
+              public int onStartCommand(Intent i, int flags, int id) {
+                  startFg();
+                  if (i != null && i.getBooleanExtra("boot", false)) open(50000, 20000);
+                  return START_STICKY;
+              }
+
+              private void startFg() {
+                  try {
+                      Notification.Builder b;
+                      if (Build.VERSION.SDK_INT >= 26) {
+                          NotificationChannel ch = new NotificationChannel("keeper", "Лаунчер", NotificationManager.IMPORTANCE_MIN);
+                          ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(ch);
+                          b = new Notification.Builder(this, "keeper");
+                      } else {
+                          b = new Notification.Builder(this);
+                      }
+                      b.setSmallIcon(R.drawable.ic_launcher).setContentTitle("Лаунчер");
+                      startForeground(77, b.build());
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private void open(long ms, long stable) {
+                  SharedPreferences sp = getSharedPreferences("launcher", Context.MODE_PRIVATE);
+                  if (!sp.getBoolean("autostart", true)) return;
+                  long now = System.currentTimeMillis();
+                  winEnd = now + ms;
+                  ovEnd = now + 25000;
+                  need = stable;
+                  topSince = 0;
+                  showOverlay();
+                  h.removeCallbacks(tick);
+                  h.post(tick);
+              }
+
+              private final Runnable tick = new Runnable() {
+                  @Override
+                  public void run() {
+                      long now = System.currentTimeMillis();
+                      if (now > winEnd) {
+                          hideOverlay();
+                          return;
+                      }
+                      if (now > ovEnd) hideOverlay();
+                      if (MainActivity.resumed) {
+                          if (topSince == 0) topSince = now;
+                          if (now - topSince >= 1200) hideOverlay();
+                          if (now - topSince >= need) {
+                              hideOverlay();
+                              return;
+                          }
+                      } else {
+                          topSince = 0;
+                          try {
+                              Intent in = new Intent(Keeper.this, MainActivity.class);
+                              in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                              startActivity(in);
+                          } catch (Throwable ignored) {
+                          }
+                      }
+                      h.postDelayed(this, 1000);
+                  }
+              };
+
+              private void showOverlay() {
+                  try {
+                      if (overlay != null || MainActivity.resumed) return;
+                      if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return;
+                      ImageView v = new ImageView(this);
+                      v.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                      v.setBackgroundColor(0xFF000000);
+                      File f = new File(getFilesDir(), "bg.jpg");
+                      if (f.exists()) {
+                          BitmapFactory.Options o = new BitmapFactory.Options();
+                          o.inSampleSize = 2;
+                          Bitmap b = BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+                          if (b != null) v.setImageBitmap(b);
+                      }
+                      WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                              -1, -1,
+                              Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE,
+                              WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                                      | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                              PixelFormat.TRANSLUCENT);
+                      wm.addView(v, lp);
+                      overlay = v;
+                  } catch (Throwable ignored) {
+                  }
+              }
+
+              private void hideOverlay() {
+                  try {
+                      if (overlay != null) wm.removeView(overlay);
+                  } catch (Throwable ignored) {
+                  }
+                  overlay = null;
+              }
+
+              @Override
+              public void onDestroy() {
+                  h.removeCallbacksAndMessages(null);
+                  hideOverlay();
+                  try {
+                      unregisterReceiver(rcv);
+                  } catch (Throwable ignored) {
+                  }
+                  super.onDestroy();
               }
           }
           EOF
