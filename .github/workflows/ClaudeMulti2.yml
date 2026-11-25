@@ -1,10 +1,10 @@
-name: ClaudeMulti2
+name: ClaudeMulti4
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/ClaudeMulti2.yml'
+      - '.github/workflows/ClaudeMulti4.yml'
 
 jobs:
   build:
@@ -64,8 +64,8 @@ jobs:
                   applicationId "com.example.claudemulti"
                   minSdk 23
                   targetSdk 26
-                  versionCode 2
-                  versionName "1.1"
+                  versionCode 4
+                  versionName "1.3"
               }
               signingConfigs {
                   debug {
@@ -175,49 +175,163 @@ jobs:
           package com.example.claudemulti;
 
           import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.DialogInterface;
           import android.content.Intent;
+          import android.content.res.ColorStateList;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
           import android.os.Bundle;
+          import android.text.TextUtils;
           import android.view.Gravity;
           import android.view.View;
           import android.widget.Button;
+          import android.widget.EditText;
           import android.widget.LinearLayout;
           import android.widget.TextView;
 
           public class MainActivity extends Activity {
+              private static final int[][] COLORS = new int[][] {
+                  { 0xFFFF9966, 0xFFFF5E62 },
+                  { 0xFF56CCF2, 0xFF2F80ED },
+                  { 0xFF11998E, 0xFF38EF7D },
+                  { 0xFFB24592, 0xFFF15F79 }
+              };
+              private final Class<?>[] cls = new Class<?>[] { Web1.class, Web2.class, Web3.class, Web4.class };
+              private final Button[] btns = new Button[4];
+              private float dp = 1f;
+
+              private int px(int v) {
+                  return (int) (v * dp + 0.5f);
+              }
+
               @Override
               protected void onCreate(Bundle b) {
                   super.onCreate(b);
+                  dp = getResources().getDisplayMetrics().density;
+
                   LinearLayout root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
                   root.setGravity(Gravity.CENTER);
-                  int p = (int) (24 * getResources().getDisplayMetrics().density);
-                  root.setPadding(p, p, p, p);
+                  root.setPadding(px(28), px(28), px(28), px(28));
+                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                          new int[] { 0xFF141E30, 0xFF243B55, 0xFF5B3A8C }));
 
                   TextView title = new TextView(this);
-                  title.setText("Claude: 4 акаунти");
-                  title.setTextSize(24);
+                  title.setText("☁ Claude");
+                  title.setTextSize(34);
+                  title.setTextColor(Color.WHITE);
+                  title.setTypeface(null, Typeface.BOLD);
                   title.setGravity(Gravity.CENTER);
                   root.addView(title);
 
-                  final Class<?>[] cls = new Class<?>[] { Web1.class, Web2.class, Web3.class, Web4.class };
-                  for (int i = 0; i < cls.length; i++) {
-                      final Class<?> target = cls[i];
+                  TextView sub = new TextView(this);
+                  sub.setText("4 акаунти");
+                  sub.setTextSize(14);
+                  sub.setTextColor(0xB3FFFFFF);
+                  sub.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                  slp.bottomMargin = px(14);
+                  root.addView(sub, slp);
+
+                  for (int i = 0; i < 4; i++) {
+                      final int idx = i;
                       Button btn = new Button(this);
-                      btn.setText("Акаунт " + (i + 1));
+                      btn.setAllCaps(false);
+                      btn.setTextColor(Color.WHITE);
+                      btn.setTextSize(17);
+                      btn.setTypeface(null, Typeface.BOLD);
+                      btn.setSingleLine(true);
+                      btn.setEllipsize(TextUtils.TruncateAt.END);
+                      btn.setPadding(px(20), 0, px(20), 0);
+
+                      GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, COLORS[i]);
+                      g.setCornerRadius(px(20));
+                      GradientDrawable mask = new GradientDrawable();
+                      mask.setColor(Color.WHITE);
+                      mask.setCornerRadius(px(20));
+                      btn.setBackground(new RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), g, mask));
+
                       btn.setOnClickListener(new View.OnClickListener() {
                           @Override
                           public void onClick(View v) {
-                              Intent it = new Intent(MainActivity.this, target);
-                              it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                              startActivity(it);
+                              openAcc(idx);
+                          }
+                      });
+                      btn.setOnLongClickListener(new View.OnLongClickListener() {
+                          @Override
+                          public boolean onLongClick(View v) {
+                              renameAcc(idx + 1);
+                              return true;
                           }
                       });
                       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                              LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                      lp.topMargin = p / 2;
+                              LinearLayout.LayoutParams.MATCH_PARENT, px(64));
+                      lp.topMargin = px(14);
                       root.addView(btn, lp);
+                      btns[i] = btn;
                   }
+
+                  TextView hint = new TextView(this);
+                  hint.setText("Довге натискання на кнопку: змінити назву");
+                  hint.setTextSize(12);
+                  hint.setTextColor(0x99FFFFFF);
+                  hint.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                  hlp.topMargin = px(26);
+                  root.addView(hint, hlp);
+
                   setContentView(root);
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  refreshLabels();
+              }
+
+              private void refreshLabels() {
+                  for (int i = 0; i < btns.length; i++) {
+                      btns[i].setText(Store.label(this, i + 1));
+                  }
+              }
+
+              private void openAcc(int i) {
+                  Intent it = new Intent(this, cls[i]);
+                  it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  startActivity(it);
+              }
+
+              private void renameAcc(final int n) {
+                  final EditText et = new EditText(this);
+                  et.setSingleLine(true);
+                  et.setText(Store.custom(this, n));
+                  et.setHint("Назва");
+                  new AlertDialog.Builder(this)
+                          .setTitle("Назва кнопки " + n)
+                          .setView(et)
+                          .setPositiveButton("Зберегти", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int w) {
+                                  Store.saveName(MainActivity.this, n, et.getText().toString().trim());
+                                  refreshLabels();
+                                  Store.refreshWidgets(MainActivity.this);
+                              }
+                          })
+                          .setNeutralButton("Скинути", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int w) {
+                                  Store.saveName(MainActivity.this, n, "");
+                                  refreshLabels();
+                                  Store.refreshWidgets(MainActivity.this);
+                              }
+                          })
+                          .setNegativeButton("Скасувати", null)
+                          .show();
               }
           }
           EOF
@@ -226,25 +340,71 @@ jobs:
           package com.example.claudemulti;
 
           import android.app.Activity;
+          import android.app.AlertDialog;
           import android.content.ActivityNotFoundException;
+          import android.content.DialogInterface;
           import android.content.Intent;
+          import android.graphics.Bitmap;
+          import android.graphics.drawable.GradientDrawable;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
           import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
           import android.webkit.ValueCallback;
           import android.webkit.WebChromeClient;
           import android.webkit.WebSettings;
+          import android.webkit.WebStorage;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
 
           public abstract class BaseWeb extends Activity {
               private static final String URL = "https://claude.ai";
               private static final int REQ_FILE = 1;
+              private static final String JS = "(function(){try{fetch('/api/account',{credentials:'include'})"
+                      + ".then(function(r){return r.json();})"
+                      + ".then(function(j){var e=j&&(j.email_address||j.email);if(e){AndroidBridge.email(String(e));}})"
+                      + ".catch(function(){});}catch(x){}})();";
               private WebView web;
               private ValueCallback<Uri[]> fileCb;
+              private volatile boolean onClaude = false;
 
               protected abstract String suffix();
+
+              private int idx() {
+                  try {
+                      return Integer.parseInt(suffix().substring(1));
+                  } catch (Exception e) {
+                      return 1;
+                  }
+              }
+
+              private static boolean isClaude(String url) {
+                  if (url == null) {
+                      return false;
+                  }
+                  String h = Uri.parse(url).getHost();
+                  return h != null && (h.equals("claude.ai") || h.endsWith(".claude.ai"));
+              }
+
+              public class Bridge {
+                  @JavascriptInterface
+                  public void email(String e) {
+                      if (!onClaude || e == null) {
+                          return;
+                      }
+                      e = e.trim();
+                      if (e.length() < 3 || e.length() > 120 || e.indexOf('@') < 1) {
+                          return;
+                      }
+                      Store.saveEmail(getApplicationContext(), idx(), e);
+                      Store.refreshWidgets(getApplicationContext());
+                  }
+              }
 
               @Override
               protected void onCreate(Bundle b) {
@@ -265,8 +425,22 @@ jobs:
                   CookieManager cm = CookieManager.getInstance();
                   cm.setAcceptCookie(true);
                   cm.setAcceptThirdPartyCookies(web, true);
+                  web.addJavascriptInterface(new Bridge(), "AndroidBridge");
 
                   web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageStarted(WebView v, String url, Bitmap icon) {
+                          onClaude = isClaude(url);
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView v, String url) {
+                          onClaude = isClaude(url);
+                          if (onClaude) {
+                              v.evaluateJavascript(JS, null);
+                          }
+                      }
+
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView v, String url) {
                           if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -296,12 +470,71 @@ jobs:
                           return true;
                       }
                   });
-                  setContentView(web);
+
+                  FrameLayout box = new FrameLayout(this);
+                  box.addView(web, new FrameLayout.LayoutParams(
+                          FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                  float dp = getResources().getDisplayMetrics().density;
+                  Button lo = new Button(this);
+                  lo.setText("Вийти");
+                  lo.setAllCaps(false);
+                  lo.setTextSize(11);
+                  lo.setTextColor(0xFFFFFFFF);
+                  lo.setMinHeight(0);
+                  lo.setMinWidth(0);
+                  lo.setMinimumHeight(0);
+                  lo.setMinimumWidth(0);
+                  int ph = (int) (12 * dp);
+                  int pv = (int) (4 * dp);
+                  lo.setPadding(ph, pv, ph, pv);
+                  GradientDrawable lbg = new GradientDrawable();
+                  lbg.setColor(0xAA000000);
+                  lbg.setCornerRadius(20 * dp);
+                  lo.setBackground(lbg);
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                          FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+                  lp.gravity = Gravity.BOTTOM | Gravity.START;
+                  int mg = (int) (8 * dp);
+                  lp.setMargins(mg, mg, mg, mg);
+                  box.addView(lo, lp);
+                  lo.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          confirmLogout();
+                      }
+                  });
+                  setContentView(box);
+
                   if (b != null) {
                       web.restoreState(b);
                   } else {
                       web.loadUrl(URL);
                   }
+              }
+
+              private void confirmLogout() {
+                  new AlertDialog.Builder(this)
+                          .setMessage("Вийти з цього акаунта?")
+                          .setPositiveButton("Вийти", new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int w) {
+                                  doLogout();
+                              }
+                          })
+                          .setNegativeButton("Скасувати", null)
+                          .show();
+              }
+
+              private void doLogout() {
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.removeAllCookies(null);
+                  cm.flush();
+                  WebStorage.getInstance().deleteAllData();
+                  web.clearCache(true);
+                  web.clearHistory();
+                  Store.saveEmail(getApplicationContext(), idx(), "");
+                  Store.refreshWidgets(getApplicationContext());
+                  web.loadUrl(URL);
               }
 
               @Override
@@ -351,13 +584,36 @@ jobs:
           import android.appwidget.AppWidgetProvider;
           import android.content.Context;
           import android.content.Intent;
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.RectF;
           import android.widget.RemoteViews;
 
           public class AccWidget extends AppWidgetProvider {
               @Override
               public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  render(ctx, mgr, ids);
+              }
+
+              private static Bitmap cloud() {
+                  Bitmap bm = Bitmap.createBitmap(72, 72, Bitmap.Config.ARGB_8888);
+                  Canvas c = new Canvas(bm);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  p.setColor(0xFFFFFFFF);
+                  c.drawCircle(26f, 40f, 12f, p);
+                  c.drawCircle(40f, 30f, 16f, p);
+                  c.drawCircle(54f, 41f, 11f, p);
+                  c.drawRoundRect(new RectF(14f, 40f, 65f, 54f), 7f, 7f, p);
+                  return bm;
+              }
+
+              public static void render(Context ctx, AppWidgetManager mgr, int[] ids) {
                   Class<?>[] cls = new Class<?>[] { Web1.class, Web2.class, Web3.class, Web4.class };
-                  int[] btn = new int[] { R.id.b1, R.id.b2, R.id.b3, R.id.b4 };
+                  int[] cell = new int[] { R.id.c1, R.id.c2, R.id.c3, R.id.c4 };
+                  int[] img = new int[] { R.id.i1, R.id.i2, R.id.i3, R.id.i4 };
+                  int[] txt = new int[] { R.id.t1, R.id.t2, R.id.t3, R.id.t4 };
+                  Bitmap cl = cloud();
                   for (int id : ids) {
                       RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget);
                       for (int i = 0; i < cls.length; i++) {
@@ -365,7 +621,9 @@ jobs:
                           it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                           PendingIntent pi = PendingIntent.getActivity(ctx, i, it,
                                   PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                          rv.setOnClickPendingIntent(btn[i], pi);
+                          rv.setOnClickPendingIntent(cell[i], pi);
+                          rv.setImageViewBitmap(img[i], cl);
+                          rv.setTextViewText(txt[i], Store.label(ctx, i + 1));
                       }
                       mgr.updateAppWidget(id, rv);
                   }
@@ -379,31 +637,111 @@ jobs:
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="horizontal"
-              android:padding="4dp">
-              <Button
-                  android:id="@+id/b1"
+              android:padding="3dp">
+              <LinearLayout
+                  android:id="@+id/c1"
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:text="1"/>
-              <Button
-                  android:id="@+id/b2"
+                  android:layout_margin="3dp"
+                  android:orientation="vertical"
+                  android:gravity="center"
+                  android:padding="4dp"
+                  android:background="@drawable/w_bg1">
+                  <ImageView
+                      android:id="@+id/i1"
+                      android:layout_width="30dp"
+                      android:layout_height="30dp"
+                      android:scaleType="fitCenter"/>
+                  <TextView
+                      android:id="@+id/t1"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:gravity="center"
+                      android:maxLines="2"
+                      android:ellipsize="end"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp"
+                      android:textStyle="bold"/>
+              </LinearLayout>
+              <LinearLayout
+                  android:id="@+id/c2"
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:text="2"/>
-              <Button
-                  android:id="@+id/b3"
+                  android:layout_margin="3dp"
+                  android:orientation="vertical"
+                  android:gravity="center"
+                  android:padding="4dp"
+                  android:background="@drawable/w_bg2">
+                  <ImageView
+                      android:id="@+id/i2"
+                      android:layout_width="30dp"
+                      android:layout_height="30dp"
+                      android:scaleType="fitCenter"/>
+                  <TextView
+                      android:id="@+id/t2"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:gravity="center"
+                      android:maxLines="2"
+                      android:ellipsize="end"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp"
+                      android:textStyle="bold"/>
+              </LinearLayout>
+              <LinearLayout
+                  android:id="@+id/c3"
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:text="3"/>
-              <Button
-                  android:id="@+id/b4"
+                  android:layout_margin="3dp"
+                  android:orientation="vertical"
+                  android:gravity="center"
+                  android:padding="4dp"
+                  android:background="@drawable/w_bg3">
+                  <ImageView
+                      android:id="@+id/i3"
+                      android:layout_width="30dp"
+                      android:layout_height="30dp"
+                      android:scaleType="fitCenter"/>
+                  <TextView
+                      android:id="@+id/t3"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:gravity="center"
+                      android:maxLines="2"
+                      android:ellipsize="end"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp"
+                      android:textStyle="bold"/>
+              </LinearLayout>
+              <LinearLayout
+                  android:id="@+id/c4"
                   android:layout_width="0dp"
                   android:layout_height="match_parent"
                   android:layout_weight="1"
-                  android:text="4"/>
+                  android:layout_margin="3dp"
+                  android:orientation="vertical"
+                  android:gravity="center"
+                  android:padding="4dp"
+                  android:background="@drawable/w_bg4">
+                  <ImageView
+                      android:id="@+id/i4"
+                      android:layout_width="30dp"
+                      android:layout_height="30dp"
+                      android:scaleType="fitCenter"/>
+                  <TextView
+                      android:id="@+id/t4"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:gravity="center"
+                      android:maxLines="2"
+                      android:ellipsize="end"
+                      android:textColor="#FFFFFFFF"
+                      android:textSize="10sp"
+                      android:textStyle="bold"/>
+              </LinearLayout>
           </LinearLayout>
           EOF
 
@@ -411,9 +749,9 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
               android:minWidth="250dp"
-              android:minHeight="40dp"
+              android:minHeight="60dp"
               android:updatePeriodMillis="0"
-              android:resizeMode="horizontal"
+              android:resizeMode="horizontal|vertical"
               android:initialLayout="@layout/widget"/>
           EOF
 
@@ -459,6 +797,151 @@ jobs:
                   return "a4";
               }
           }
+          EOF
+
+          cat > app/src/main/java/com/example/claudemulti/Store.java <<'EOF'
+          package com.example.claudemulti;
+
+          import android.appwidget.AppWidgetManager;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+
+          public class Store {
+              private static File file(Context c, String key, int n) {
+                  return new File(c.getApplicationContext().getFilesDir(), key + n + ".txt");
+              }
+
+              private static String read(Context c, String key, int n) {
+                  try {
+                      File f = file(c, key, n);
+                      if (!f.exists()) {
+                          return "";
+                      }
+                      FileInputStream in = new FileInputStream(f);
+                      byte[] buf = new byte[(int) f.length()];
+                      int off = 0;
+                      while (off < buf.length) {
+                          int r = in.read(buf, off, buf.length - off);
+                          if (r < 0) {
+                              break;
+                          }
+                          off += r;
+                      }
+                      in.close();
+                      return new String(buf, 0, off, "UTF-8").trim();
+                  } catch (Exception e) {
+                      return "";
+                  }
+              }
+
+              private static void write(Context c, String key, int n, String v) {
+                  try {
+                      File f = file(c, key, n);
+                      if (v == null || v.length() == 0) {
+                          f.delete();
+                          return;
+                      }
+                      FileOutputStream o = new FileOutputStream(f);
+                      o.write(v.getBytes("UTF-8"));
+                      o.close();
+                  } catch (Exception e) {
+                  }
+              }
+
+              public static String custom(Context c, int n) {
+                  return read(c, "name", n);
+              }
+
+              public static String email(Context c, int n) {
+                  return read(c, "email", n);
+              }
+
+              public static String label(Context c, int n) {
+                  String s = custom(c, n);
+                  if (s.length() > 0) {
+                      return s;
+                  }
+                  s = email(c, n);
+                  if (s.length() > 0) {
+                      return s;
+                  }
+                  return "Акаунт " + n;
+              }
+
+              public static void saveName(Context c, int n, String v) {
+                  if (v != null && v.length() > 40) {
+                      v = v.substring(0, 40);
+                  }
+                  write(c, "name", n, v);
+              }
+
+              public static void saveEmail(Context c, int n, String v) {
+                  write(c, "email", n, v);
+              }
+
+              public static void refreshWidgets(Context c) {
+                  try {
+                      Context a = c.getApplicationContext();
+                      AppWidgetManager m = AppWidgetManager.getInstance(a);
+                      int[] ids = m.getAppWidgetIds(new ComponentName(a, AccWidget.class));
+                      if (ids != null && ids.length > 0) {
+                          AccWidget.render(a, m, ids);
+                      }
+                  } catch (Exception e) {
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/drawable/w_bg1.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <gradient
+                  android:startColor="#FFFF9966"
+                  android:endColor="#FFFF5E62"
+                  android:angle="315"/>
+              <corners android:radius="18dp"/>
+          </shape>
+          EOF
+
+          cat > app/src/main/res/drawable/w_bg2.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <gradient
+                  android:startColor="#FF56CCF2"
+                  android:endColor="#FF2F80ED"
+                  android:angle="315"/>
+              <corners android:radius="18dp"/>
+          </shape>
+          EOF
+
+          cat > app/src/main/res/drawable/w_bg3.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <gradient
+                  android:startColor="#FF11998E"
+                  android:endColor="#FF38EF7D"
+                  android:angle="315"/>
+              <corners android:radius="18dp"/>
+          </shape>
+          EOF
+
+          cat > app/src/main/res/drawable/w_bg4.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <gradient
+                  android:startColor="#FFB24592"
+                  android:endColor="#FFF15F79"
+                  android:angle="315"/>
+              <corners android:radius="18dp"/>
+          </shape>
           EOF
 
           echo 'iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAET0lEQVR42u3dPW7cMBRFYekhnTs3ab2GIL23kqVlK+4Dr8FtGneunTIIEMA/I2oeeb+zAEMi7+El5ZnRtgEAAAAAAADA0uyGYBw3t3evR/ydl+cn80SAtUNODgIIOykIIPCEIIDQk4EAQk8GAgg+EQgg9GQggOATgQCCTwQCCD4RCCD4RDiCEn4kj/FuUpDcBrvgI1mEEn4kz0UZcCTPyW6QkbwlKuFH8lyVAUXynO0GEclbohJ+JM9lGTAkz2kZKCTPbRkgJM9xGRgkz3UZECTPeRkIJM99CT+SM1DCj2QJSviRLEEJP5IlKOFHsgRlyJFMWf2R3AIl/EiWoIQfyRI4A8AZwOqP1BYo4f/L14dHiQuToIT/3/CTIEsCZ4D/hJ4EzgD2/YhogbL6PzoPaIDM1f+tkJNg/RYo4d9IECxB2faQwBbIwZcEoS1QVn9ogJDV/9Lwk2e9FigrPwk0wOKr/9GhJcE6LeCjECTQAFZ/EqS2QFmloQGEn2QEWGf7c3YoSTDvNsghmAQawOpPgtQWKKswCTSA8IMA825/uoWfjPNsgxyCSaABBI0EBJhw+zNDwEjQextUVn7XqgGEH6F8MQTnSfv7/tuQv33/68ew6374/lMDdNr/z7z6a65+54ASIPfgDCA47oUAAuOeCAAQoNMBeOWVUgtc/yBcAuIeN/8H6MkRz81HBmzUc304AwAEAAgAEAC4ggDe+Iht8UehGgAaACAAQACAAAABAAIABAAIABAAIABAAIAAAAEAAgAEAAgArCPAy/PTbogwM29lWANAAwAEAAgAbH4bFOcx8v1eXa6v83vGNMCVWf0ldN3vry59jAQSdL2v92RXA8AhGFbL1PshgNBE3wcBhCf6+uuowwRI0Om635vZ5f8P4D1esAWymrpeApBA+C8QwDlAuGa5vo9kVQOQIPqxLQHgEGwbpAVWWf0/mlENQILoj20QgATRn1mq0RWDdULYPfyfyaYGgEOwFtACiau/BiBB/Nc2CUCC6O8s19mVg3lCOkv4L8miBoBDsBbQAomrvwYgQeS+/1ABtMBaEswU/iOypwFIELnyHyqAFsCMq78G0ALRq/+hAmiBeSWYLfxHZq26XhjOkSA5/LZA4RKkbnuGCqAFMMvqrwGCW8DqP1AALdBbghnDPypTQ4N6c3v3KnbovKDWrBcO4XcGALoLoAXQOTu1yo1A+FtvgUiAjllxBoAzgBZA4up/lQYgATplo1JuFMLf6gxAAnTIQqXeOIS/xVMgEgh//G+DkkD4438clwTCH//r0CQQ/vifRyeB8Me/H4AEwh//WSASCP8ZTBEyX60U/OhPg2oD4Y//ODQJhD92C2RLJPi+EKMNzAkBSGAubIFsiQSfAEQQfF+Kty0yxhpAGwg+AYgg+AQgguATgAiCTwAyCD0BiCD4BCCD0BMgXAahJ0CUEAJPgBgphJ0Ay8sh5AAAAAAAAACAT/IHy9hqkPbbRk0AAAAASUVORK5CYII=' | base64 -d > app/src/main/res/drawable/ic_launcher.png
