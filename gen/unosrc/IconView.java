@@ -109,6 +109,7 @@ public class IconView extends View {
             c.drawLine(cx - r * 0.58f, cy - r * 0.58f, cx + r * 0.58f, cy + r * 0.58f, p);
             p.setStyle(Paint.Style.FILL);
         } else if (type == TURN) {
+            if (flip) c.scale(-1f, 1f, cx, cy);
             c.drawRect(cx - r * 0.95f, cy - r * 0.26f, cx + r * 0.1f, cy + r * 0.26f, p);
             path.reset();
             path.moveTo(cx - r * 0.05f, cy - r * 0.8f);

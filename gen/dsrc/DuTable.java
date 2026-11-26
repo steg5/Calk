@@ -247,14 +247,14 @@ public class DuTable extends View {
         float cx = W / 2f;
         playL = cx - u * 1.9f;
         playR = W - u * 3.5f;
-        deckX = playL - u * 1.9f;
-        cyD = u * 4.3f;
+        deckX = playL - u * 0.8f;
+        cyD = u * 4.45f;
         tTop = u * 3.2f;
         if (n > 0 && sx.length == n && me < n) {
             sx[me] = u * 1.35f;
             sy[me] = H - u * 1.85f;
             int m = n - 1;
-            float top = u * 1.3f, side = u * 4.0f;
+            float top = u * 1.9f, side = u * 3.0f;
             for (int q = 1; q <= m; q++) {
                 int idx = (me + q) % n;
                 float x, y;
@@ -277,19 +277,19 @@ public class DuTable extends View {
                     }
                 } else if (m == 5) {
                     if (q == 1) {
-                        x = u * 1.4f;
+                        x = u * 1.2f;
                         y = u * 5.0f;
                     } else if (q == 2) {
                         x = u * 2.4f;
-                        y = u * 2.75f;
+                        y = u * 2.55f;
                     } else if (q == 3) {
                         x = W / 2f;
                         y = top;
                     } else if (q == 4) {
                         x = W - u * 2.4f;
-                        y = u * 2.75f;
+                        y = u * 2.55f;
                     } else {
-                        x = W - u * 1.4f;
+                        x = W - u * 1.2f;
                         y = u * 5.0f;
                     }
                 } else {
@@ -297,10 +297,10 @@ public class DuTable extends View {
                         x = u * 1.4f;
                         y = side;
                     } else if (q == 2) {
-                        x = W * 0.36f;
+                        x = W * 0.40f;
                         y = top;
                     } else if (q == 3) {
-                        x = W * 0.64f;
+                        x = W * 0.60f;
                         y = top;
                     } else {
                         x = W - u * 1.4f;
@@ -325,17 +325,23 @@ public class DuTable extends View {
 
     private float slotY(int k, int pairs) {
         if (pairs <= 3) return tTop + (u * 2.1f) / 2f + u * 0.05f;
-        return tTop - u * 0.3f + (k / 3) * (u * 1.5f + u * 0.12f) + u * 0.75f;
+        return tTop - u * 0.1f + (k / 3) * (pch * 1.14f + u * 0.06f) + pch / 2f;
+    }
+
+    // ширина вертикального підпису збоку від ходової карти
+    private float lblW() {
+        return u * 0.36f;
     }
 
     private void slotSize(int pairs) {
-        if (pairs <= 3) {
-            pcw = u * 1.4f;
-            pch = u * 2.1f;
-        } else {
-            pcw = u * 1.0f;
-            pch = u * 1.5f;
-        }
+        float cell = (playR - playL) / 3f;
+        float maxW = (cell - lblW() - u * 0.1f) / 1.38f;
+        pcw = Math.min(pairs <= 3 ? u * 1.4f : u * 0.9f, maxW);
+        pch = pcw * 1.5f;
+    }
+
+    private float pairAx(float cxk) {
+        return cxk - pcw / 2f - pcw * 0.19f + lblW() / 2f;
     }
 
     private float approach(float a, float target, float step) {
@@ -382,7 +388,7 @@ public class DuTable extends View {
         // козир: карта, повернута на 90°, наполовину під колодою
         float dl = deckX - dpw / 2f;
         if (g.deck > 0) {
-            float right = dl - u * 0.9f + dph;
+            float right = dl + dph * 0.2f;
             float cxr = right - dph / 2f, cyr = cyD;
             c.save();
             c.rotate(-90f, cxr, cyr);
@@ -433,7 +439,7 @@ public class DuTable extends View {
             boolean meDef = !ghost && g.def == me && !g.taking && !g.over;
             for (int k = 0; k < pairs; k++) {
                 float cxk = slotX(k, pairs), cyk = slotY(k, pairs);
-                float ax = cxk - pcw / 2f - pcw * 0.19f, ay = cyk - pch / 2f;
+                float ax = pairAx(cxk), ay = cyk - pch / 2f;
                 painter.draw(c, ta.get(k), ax, ay, pcw, pch, 0);
                 {
                     int[] ow = ghost ? gOwn : g.own;
@@ -441,9 +447,16 @@ public class DuTable extends View {
                     if (who >= 0 && who < names.length) {
                         tp.setStyle(Paint.Style.FILL);
                         tp.setTextAlign(Paint.Align.CENTER);
-                        tp.setTextSize(u * 0.22f);
+                        tp.setTextSize(u * 0.28f);
                         tp.setColor(Theme.pcol(who));
-                        c.drawText(cut(names[who], 9), ax + pcw / 2f, ay - u * 0.08f, tp);
+                        float lx = ax - u * 0.1f, ly = ay + pch / 2f;
+                        String lt = cut(names[who].startsWith("Бот ") ? names[who].substring(4) : names[who], 9);
+                        float lw0 = tp.measureText(lt);
+                        if (lw0 > pch * 0.95f) tp.setTextSize(u * 0.28f * pch * 0.95f / lw0);
+                        c.save();
+                        c.rotate(-90f, lx, ly);
+                        c.drawText(lt, lx, ly, tp);
+                        c.restore();
                     }
                 }
                 Card d = td.get(k);
@@ -634,6 +647,7 @@ public class DuTable extends View {
             boolean leftSide = cx > getWidth() * 0.75f;
             float bx = leftSide ? cx - avR - u * 0.3f - iw : cx + avR + u * 0.3f;
             float by = cy - ih / 2f;
+
             painter.back(c, bx, by, iw, ih);
             p.setStyle(Paint.Style.FILL);
             p.setColor(0x88000000);
@@ -920,7 +934,7 @@ public class DuTable extends View {
             for (int k = 0; k < pairs; k++) {
                 if (g.dfn.get(k) != null) continue;
                 float cxk = slotX(k, pairs), cyk = slotY(k, pairs);
-                float ax = cxk - pcw / 2f - pcw * 0.19f, ay = cyk - pch / 2f;
+                float ax = pairAx(cxk), ay = cyk - pch / 2f;
                 if (x >= ax && x <= ax + pcw && y >= ay && y <= ay + pch) {
                     selTarget = selTarget == k ? -1 : k;
                     invalidate();

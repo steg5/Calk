@@ -116,6 +116,11 @@ public class MainActivity extends BaseActivity {
     }
 
     @Override
+    protected boolean showHostItems() {
+        return (isHost && host != null) || screen == S_MENU;
+    }
+
+    @Override
     protected void onBotDelay(int ms) {
         if (host != null) host.setBotDelay(ms);
     }
@@ -518,7 +523,8 @@ public class MainActivity extends BaseActivity {
         musicFor(false);
         screen = S_HIST;
         root.removeAllViews();
-        root.setBackgroundColor(0xFF1F2A30);
+        root.setBackgroundColor(0xFF1B5E3A);
+        root.addView(new BgView(this), new FrameLayout.LayoutParams(MATCH, MATCH));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
@@ -561,7 +567,8 @@ public class MainActivity extends BaseActivity {
         screen = S_JOIN;
         joinSig = "";
         root.removeAllViews();
-        root.setBackgroundColor(0xFF1F2A30);
+        root.setBackgroundColor(0xFF1B5E3A);
+        root.addView(new BgView(this), new FrameLayout.LayoutParams(MATCH, MATCH));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
@@ -644,7 +651,8 @@ public class MainActivity extends BaseActivity {
         stopDisc();
         screen = S_LOBBY;
         root.removeAllViews();
-        root.setBackgroundColor(0xFF1F2A30);
+        root.setBackgroundColor(0xFF1B5E3A);
+        root.addView(new BgView(this), new FrameLayout.LayoutParams(MATCH, MATCH));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
@@ -733,7 +741,7 @@ public class MainActivity extends BaseActivity {
         boolean n = host != null && host.isInternet();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(btn("Wifi", w ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Wifi", w ? SEL : 0xFF455A64, new View.OnClickListener() {
             public void onClick(View v) {
                 if (host == null) return;
                 if (host.isWifi()) {
@@ -744,7 +752,7 @@ public class MainActivity extends BaseActivity {
                 fillNetBar();
             }
         }), lp(2.4f, 0.85f, 0.04f));
-        row.addView(btn("Інтернет", n ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Інтернет", n ? SEL : 0xFF455A64, new View.OnClickListener() {
             public void onClick(View v) {
                 if (host == null || netBusy) return;
                 if (host.isInternet()) {
@@ -807,11 +815,11 @@ public class MainActivity extends BaseActivity {
         String label = bot ? p[0] : (p[0] + (hostRow ? " - господар" : " - гість"));
         row.addView(tv(label, bot && isHost ? 0.3f : 0.38f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
         if (isHost) {
-            if (bot) {
+            if (bot && inLobby) {
                 int lv = pi(p[4]);
                 for (int k = 0; k < LEVELS.length; k++) {
                     final int lk = k;
-                    Button lb = btn(LEVELS_SHORT[k], lv == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                    Button lb = btn(LEVELS_SHORT[k], lv == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                         public void onClick(View v) {
                             if (host != null) {
                                 host.setLevel(idx, lk);
@@ -944,7 +952,14 @@ public class MainActivity extends BaseActivity {
                 if (players.get(idx)[3].equals("1")) {
                     if (isHost && host != null) {
                         final int bi = idx;
-                        showSpeedPick("Швидкість: " + pname(idx), speedOf(host.getBotDelayOf(idx)), new SpeedPick() {
+                        showBotMenu("Бот: " + pname(idx), LEVELS, pi(players.get(idx)[4]), speedOf(host.getBotDelayOf(idx)), new LevelPick() {
+                            public void pick(int lv) {
+                                if (host != null) {
+                                    host.setLevel(bi, lv);
+                                    countLevel(lv);
+                                }
+                            }
+                        }, new SpeedPick() {
                             public void pick(int val) {
                                 host.setBotDelayOf(bi, SPEED_MS[val - 1]);
                             }
@@ -1426,7 +1441,7 @@ public class MainActivity extends BaseActivity {
                 }
                 for (int k = from; k < rs.size(); k++) {
                     final int kk = k;
-                    tabs.addView(btn(String.valueOf(k + 1), sel[0] == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                    tabs.addView(btn(String.valueOf(k + 1), sel[0] == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                         public void onClick(View v) {
                             sel[0] = kk;
                             fill[0].run();

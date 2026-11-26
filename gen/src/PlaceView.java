@@ -18,22 +18,24 @@ public class PlaceView extends View {
 
         void onMix(boolean on);
 
+        void onRestore(boolean on);
+
         void onBack();
 
         void onDone();
     }
 
-    private static final int B_THEME = 0, B_MIX = 5, B_RAND = 6, B_CLEAR = 7, B_BACK = 8, B_DONE = 9;
+    private static final int B_THEME = 0, B_MIX = 5, B_RAND = 6, B_CLEAR = 7, B_BACK = 8, B_DONE = 9, B_REST = 10;
 
     public Board board = new Board();
     public Listener listener;
     public int theme;
-    public boolean mix, locked;
+    public boolean mix, locked, restoreOn = true, showRestore;
     public String status = "";
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rf = new RectF();
     private float u, ox, oy, cell, trayX, trayY, trayCell, trayH, colW, regW;
-    private float[][] btn = new float[10][4];
+    private float[][] btn = new float[11][4];
     private Board.Ship pick;
     private boolean fromBoard, moved;
     private int origR, origC, downBtn = -1;
@@ -60,7 +62,8 @@ public class PlaceView extends View {
         // кнопки: x, y, w, h
         float cw = regW / 5f;
         for (int i = 0; i < 5; i++) btn[B_THEME + i] = new float[]{trayX + i * cw, u * 0.95f, cw - u * 0.08f, u * 0.7f};
-        btn[B_MIX] = new float[]{trayX, u * 1.78f, u * 3.4f, u * 0.7f};
+        btn[B_MIX] = new float[]{trayX, u * 1.72f, u * 3.0f, u * 0.7f};
+        btn[B_REST] = new float[]{trayX + u * 3.1f, u * 1.72f, Math.max(u * 2f, regW - u * 3.1f), u * 0.7f};
         float by = H - u * 1.2f;
         float bw = u * 2.6f;
         float rEdge = W - u * 0.45f;
@@ -187,8 +190,26 @@ public class PlaceView extends View {
             p.setColor(0xFFFFFFFF);
             cv.drawCircle(mix ? m[0] + sw - sh / 2f : m[0] + sh / 2f, sy + sh / 2f, sh * 0.38f, p);
             p.setTextAlign(Paint.Align.LEFT);
-            p.setTextSize(u * 0.36f);
+            p.setTextSize(u * 0.32f);
             cv.drawText("Поєднувати", m[0] + sw + u * 0.2f, m[1] + m[3] / 2f + u * 0.13f, p);
+        }
+        if (showRestore) {
+            float[] m = btn[B_REST];
+            float sw = u * 0.95f, sh = u * 0.5f, sy = m[1] + (m[3] - sh) / 2f;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(restoreOn ? 0xFF2E7D32 : 0xFF455A64);
+            rf.set(m[0], sy, m[0] + sw, sy + sh);
+            cv.drawRoundRect(rf, sh / 2f, sh / 2f, p);
+            p.setColor(0xFFFFFFFF);
+            cv.drawCircle(restoreOn ? m[0] + sw - sh / 2f : m[0] + sh / 2f, sy + sh / 2f, sh * 0.38f, p);
+            float tw = m[2] - sw - u * 0.15f;
+            p.setTextAlign(Paint.Align.LEFT);
+            p.setTextSize(u * 0.25f);
+            String l1 = "Відновлювати один корабель", l2 = "після перемоги";
+            float w1 = Math.max(p.measureText(l1), p.measureText(l2));
+            if (w1 > tw) p.setTextSize(u * 0.25f * tw / w1);
+            cv.drawText(l1, m[0] + sw + u * 0.15f, m[1] + m[3] / 2f - u * 0.02f, p);
+            cv.drawText(l2, m[0] + sw + u * 0.15f, m[1] + m[3] / 2f + p.getTextSize() * 1.0f, p);
         }
         for (Board.Ship s : board.ships) {
             if (s.placed || s == pick) continue;
@@ -323,6 +344,10 @@ public class PlaceView extends View {
             mix = !mix;
             for (Board.Ship s : board.ships) s.theme = mix && s.placed ? theme : -1;
             listener.onMix(mix);
+        } else if (id == B_REST) {
+            if (!showRestore) return;
+            restoreOn = !restoreOn;
+            listener.onRestore(restoreOn);
         } else if (id == B_RAND) {
             randomize();
         } else if (id == B_CLEAR) {

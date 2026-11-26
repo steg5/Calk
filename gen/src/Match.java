@@ -39,6 +39,7 @@ public class Match {
     public final Ev ev;
     public int turn = -1, pauseBy = -1;
     public boolean restore;
+    public boolean restoreOn = true;
     public boolean over;
     private int pShooter = -1, pTarget = -1, pCell = -1;
     private final Random rnd = new Random();
@@ -133,11 +134,13 @@ public class Match {
                 return;
             }
             turn = shooter;
-            restore = true;
-            ev.send(-1, "TURN|" + turn + "|1");
-            ev.turn(turn, true);
-            if (bot[shooter]) botRestore(shooter);
-            return;
+            if (restoreOn) {
+                restore = true;
+                ev.send(-1, "TURN|" + turn + "|1");
+                ev.turn(turn, true);
+                if (bot[shooter]) botRestore(shooter);
+                return;
+            }
         }
         if (res == 0) turn = tgt(shooter);
         ev.send(-1, "TURN|" + turn + "|0");

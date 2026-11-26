@@ -14,6 +14,14 @@ public abstract class Link {
     public void close() {
     }
 
+    public String remote() {
+        return "";
+    }
+
+    public boolean dead() {
+        return false;
+    }
+
     public interface LineSink {
         void onLine(String line);
 
@@ -52,6 +60,18 @@ public abstract class Link {
             });
             t.setDaemon(true);
             t.start();
+        }
+
+        public String remote() {
+            try {
+                return s.getInetAddress().getHostAddress();
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        public boolean dead() {
+            return closed || s.isClosed();
         }
 
         public void send(String line) {

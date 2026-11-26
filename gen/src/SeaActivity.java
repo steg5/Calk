@@ -58,10 +58,10 @@ public class SeaActivity extends BaseActivity {
     private long busyUntil;
     private int speed = 3;
     private Banner bnr;
-    private static final String[] SPD_NAMES = {"Дуже повільно", "Повільно", "Звичайно", "Швидко", "Дуже швидко"};
-    private static final int[] LOCK_MISS = {800, 600, 400, 280, 170};
-    private static final int[] LOCK_HIT = {1100, 800, 550, 380, 230};
-    private static final int[] BOT_BASE = {1000, 700, 450, 280, 140};
+    private static final String[] SPD_NAMES = {"Повільно", "Звичайно", "Швидко", "Дуже швидко", "Блискавично"};
+    private static final int[] LOCK_MISS = {600, 400, 280, 170, 90};
+    private static final int[] LOCK_HIT = {800, 550, 380, 230, 120};
+    private static final int[] BOT_BASE = {700, 450, 280, 140, 60};
     private static final float[] BOT_MUL = {2.0f, 1.4f, 1.0f, 0.7f, 0.45f};
 
     // банер поверх усього
@@ -149,7 +149,7 @@ public class SeaActivity extends BaseActivity {
         theme = sp.getInt("sbTheme", 0);
         Scheme.set(bgId);
         autoView = sp.getBoolean("sbAuto", false);
-        speed = Math.max(1, Math.min(5, sp.getInt("sbSpeed", 3)));
+        speed = Math.max(1, Math.min(5, sp.getInt("sbSpeed2", 2)));
         root = new FrameLayout(this);
         setContentView(root);
         showSea();
@@ -245,6 +245,7 @@ public class SeaActivity extends BaseActivity {
             }
             myIdx = mi;
             m = new Match(n, mi, true, names, bot, lv, ev);
+            m.restoreOn = sp.getBoolean("sbRestore", true);
             for (int i = 0; i < n; i++) {
                 String[] bp = bs[i].split("/", -1);
                 Board b = m.boards[i];
@@ -326,6 +327,11 @@ public class SeaActivity extends BaseActivity {
 
     private void say(String s) {
         toast(s);
+    }
+
+    @Override
+    protected int btnCol() {
+        return Scheme.cur.btn;
     }
 
     private int mapColor(int c) {
@@ -695,7 +701,7 @@ public class SeaActivity extends BaseActivity {
             if (q.kind == 2) {
                 for (int k = 0; k < LV_SHORT.length; k++) {
                     final int lk = k;
-                    Button lb = btn(LV_SHORT[k], q.level == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                    Button lb = btn(LV_SHORT[k], q.level == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                         public void onClick(View v) {
                             q.level = lk;
                             sp.edit().putInt("sbLvl", lk).commit();
@@ -706,6 +712,17 @@ public class SeaActivity extends BaseActivity {
                     row.addView(lb, lp(1.9f, 0.75f, 0.02f));
                 }
             }
+            final int qi = i;
+            row.addView(btn("↑", 0xFF455A64, new View.OnClickListener() {
+                public void onClick(View v) {
+                    moveSeat(qi, -1);
+                }
+            }), lp(0.8f, 0.75f, 0.02f));
+            row.addView(btn("↓", 0xFF455A64, new View.OnClickListener() {
+                public void onClick(View v) {
+                    moveSeat(qi, 1);
+                }
+            }), lp(0.8f, 0.75f, 0.02f));
             if (q.kind != 0) {
                 Button rm = btn("Прибрати", 0xFFC62828, new View.OnClickListener() {
                     public void onClick(View v) {
@@ -748,6 +765,17 @@ public class SeaActivity extends BaseActivity {
             }
         }), lp(3f, 1.0f, 0.06f));
         lobbyBody.addView(row, new LinearLayout.LayoutParams(WRAP, WRAP));
+    }
+
+    private void moveSeat(int i, int d) {
+        int j = i + d;
+        if (j < 0 || j >= room.size()) return;
+        Pl t = room.get(i);
+        room.set(i, room.get(j));
+        room.set(j, t);
+        for (int k = 0; k < room.size(); k++) if (room.get(k).kind == 0) myIdx = k;
+        sendRoster();
+        fillLobby();
     }
 
     private void addBot() {
@@ -830,14 +858,14 @@ public class SeaActivity extends BaseActivity {
         boolean w = net.isWifi();
         boolean n = net.isInternet();
         LinearLayout row = new LinearLayout(this);
-        row.addView(btn("Wifi", w ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Wifi", w ? SEL : 0xFF455A64, new View.OnClickListener() {
             public void onClick(View v) {
                 if (net == null) return;
                 net.setWifi(!net.isWifi());
                 fillNetBar();
             }
         }), lp(2.4f, 0.85f, 0.04f));
-        row.addView(btn("Інтернет", n ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Інтернет", n ? SEL : 0xFF455A64, new View.OnClickListener() {
             public void onClick(View v) {
                 if (net == null) return;
                 if (net.isInternet()) {
@@ -983,6 +1011,8 @@ public class SeaActivity extends BaseActivity {
         pview = pv;
         pv.theme = theme;
         pv.mix = sp.getBoolean("sbMix", false);
+        pv.restoreOn = sp.getBoolean("sbRestore", true);
+        pv.showRestore = room.size() > 2 && (net == null || net.host);
         root.addView(pv, new FrameLayout.LayoutParams(MATCH, MATCH));
         FrameLayout.LayoutParams ap = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP | Gravity.RIGHT);
         ap.setMargins(0, px(0.25f), px(0.4f), 0);
@@ -1002,6 +1032,10 @@ public class SeaActivity extends BaseActivity {
 
             public void onMix(boolean on) {
                 sp.edit().putBoolean("sbMix", on).commit();
+            }
+
+            public void onRestore(boolean on) {
+                sp.edit().putBoolean("sbRestore", on).commit();
             }
 
             public void onBack() {
@@ -1057,6 +1091,7 @@ public class SeaActivity extends BaseActivity {
             lv[i] = room.get(i).level;
         }
         m = new Match(n, myIdx, host, names, bot, lv, ev);
+        m.restoreOn = sp.getBoolean("sbRestore", true);
         myBoard.baseTheme = theme;
         for (int i = 0; i < myBoard.shot.length; i++) myBoard.shot[i] = 0;
         for (int i = 0; i < n; i++) {
@@ -1146,6 +1181,7 @@ public class SeaActivity extends BaseActivity {
         public void result(int shooter, int target, int cell, int res, boolean fin) {
             if (bv == null || m == null) return;
             bv.last[target] = cell;
+            if (res >= 1) bv.flashHit(shooter);
             if (autoView && bv.rMode == 0 && target != bv.rightIdx) bv.sel = target;
             if (target == bv.rightIdx || target == bv.sel || shooter == myIdx) {
                 sounds(res);
@@ -1166,6 +1202,7 @@ public class SeaActivity extends BaseActivity {
             saveSea();
             bv.turn = idx;
             bv.tgtOfTurn = m.tgt(idx);
+            if (autoView && bv.rMode == 0 && !restore && idx != myIdx && bv.tgtOfTurn >= 0 && bv.tgtOfTurn != bv.rightIdx) bv.sel = bv.tgtOfTurn;
             myTurn = idx == myIdx && m.alive[myIdx] && !restore && !m.over;
             awaiting = false;
             bv.myTurn = myTurn;
@@ -1740,7 +1777,7 @@ public class SeaActivity extends BaseActivity {
 
     private int botDelay(int idx) {
         int sp2 = idx >= 0 && idx < room.size() ? room.get(idx).speed : 3;
-        return Math.max(60, Math.round(BOT_BASE[speed - 1] * BOT_MUL[sp2 - 1]));
+        return Math.max(30, Math.round(BOT_BASE[speed - 1] * BOT_MUL[sp2 - 1]));
     }
 
     private Dialog dlgSpeed, dlgBot;
@@ -1758,7 +1795,7 @@ public class SeaActivity extends BaseActivity {
             public void onProgressChanged(SeekBar b, int p, boolean user) {
                 speed = p + 1;
                 lab.setText(SPD_NAMES[p]);
-                sp.edit().putInt("sbSpeed", speed).commit();
+                sp.edit().putInt("sbSpeed2", speed).commit();
             }
 
             public void onStartTrackingTouch(SeekBar b) {
@@ -1798,11 +1835,11 @@ public class SeaActivity extends BaseActivity {
         LinearLayout r1 = new LinearLayout(this);
         for (int k = 0; k < 4; k++) {
             final int lk = k;
-            lv[k] = btn(LV_SHORT[k], q.level == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+            lv[k] = btn(LV_SHORT[k], q.level == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                 public void onClick(View v) {
                     q.level = lk;
                     if (m != null && idx < m.bots.length) m.bots[idx] = new Bot(lk);
-                    for (int j = 0; j < 4; j++) lv[j].setBackground(bg(j == lk ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
+                    for (int j = 0; j < 4; j++) lv[j].setBackground(btnBg(j == lk ? SEL : 0xFF455A64));
                 }
             });
             r1.addView(lv[k], new LinearLayout.LayoutParams(px(2.0f), px(0.85f)));
@@ -1813,10 +1850,10 @@ public class SeaActivity extends BaseActivity {
         LinearLayout r2 = new LinearLayout(this);
         for (int k = 0; k < 5; k++) {
             final int sk = k + 1;
-            sv[k] = btn("" + sk, q.speed == sk ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+            sv[k] = btn("" + sk, q.speed == sk ? SEL : 0xFF455A64, new View.OnClickListener() {
                 public void onClick(View v) {
                     q.speed = sk;
-                    for (int j = 0; j < 5; j++) sv[j].setBackground(bg(j + 1 == sk ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
+                    for (int j = 0; j < 5; j++) sv[j].setBackground(btnBg(j + 1 == sk ? SEL : 0xFF455A64));
                 }
             });
             r2.addView(sv[k], new LinearLayout.LayoutParams(px(1.6f), px(0.85f)));

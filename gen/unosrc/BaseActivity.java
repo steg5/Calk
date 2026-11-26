@@ -12,8 +12,10 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -145,11 +147,11 @@ public abstract class BaseActivity extends Activity {
 
     // додаткові пункти налаштувань гри; повертає кількість доданих пунктів
     protected String labelPass() {
-        return "Кнопка «Пас»";
+        return "«Пас»: показувати постійно";
     }
 
     protected String labelDraw() {
-        return "Кнопка «Добрати»";
+        return "«Добрати»: показувати постійно";
     }
 
     protected int addExtraSettings(LinearLayout right) {
@@ -179,6 +181,11 @@ public abstract class BaseActivity extends Activity {
 
     protected boolean musicIsGame() {
         return false;
+    }
+
+    // пункти лише для господаря (у головному меню теж показуються)
+    protected boolean showHostItems() {
+        return hostMode();
     }
 
     protected boolean hostMode() {
@@ -240,6 +247,18 @@ public abstract class BaseActivity extends Activity {
 
     protected void setBgMel(int bg, int m) {
         sp.edit().putInt("mel" + bg, m).commit();
+    }
+
+    protected static final int SEL = 0xFF2E7D33;
+
+    protected Drawable btnBg(int color) {
+        if (color == SEL) {
+            GradientDrawable d = bg(btnCol(), 0.2f);
+            d.setStroke(px(0.05f), 0xFFFFFFFF);
+            return d;
+        }
+        if (color == 0xFF2E7D32 || color == 0xFF1565C0) return bg(btnCol(), 0.2f);
+        return bg(color, 0.2f);
     }
 
     protected int btnCol() {
@@ -369,7 +388,7 @@ public abstract class BaseActivity extends Activity {
         b.setTextColor(WHITE);
         b.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.34f * u);
         b.setTypeface(Typeface.DEFAULT_BOLD);
-        b.setBackground(bg(color, 0.2f));
+        b.setBackground(btnBg(color));
         b.setStateListAnimator(null);
         b.setMinHeight(0);
         b.setMinimumHeight(0);
@@ -464,7 +483,7 @@ public abstract class BaseActivity extends Activity {
         LinearLayout photoRow = new LinearLayout(this);
         photoRow.setOrientation(LinearLayout.HORIZONTAL);
         photoRow.setGravity(Gravity.CENTER_VERTICAL);
-        photoRow.addView(btn("Моє фото", 0xFF455A64, new View.OnClickListener() {
+        photoRow.addView(btn("Моє фото", 0xFF1565C0, new View.OnClickListener() {
             public void onClick(View v) {
                 pickPhoto();
             }
@@ -476,8 +495,7 @@ public abstract class BaseActivity extends Activity {
         lpl.rightMargin = px(0.3f);
         if (shared) mid.addView(left, lpl);
 
-        LinearLayout right = new LinearLayout(this);
-        right.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout right = new SwGrid(this);
         right.addView(onOff(labelPass(), !autoPass, new Toggle() {
             public void set(boolean on) {
                 autoPass = !on;
@@ -494,19 +512,27 @@ public abstract class BaseActivity extends Activity {
             }
         }));
         final int extra = addExtraSettings(right);
-        if (hostMode()) {
+        if (showHostItems()) {
             LinearLayout item = new LinearLayout(this);
-            item.setOrientation(LinearLayout.VERTICAL);
-            item.setGravity(Gravity.BOTTOM);
-            speedBtn = btn("Швидкість ботів: " + botSpeed, 0xFF455A64, new View.OnClickListener() {
+            item.setOrientation(LinearLayout.HORIZONTAL);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setTag("sw");
+            speedBtn = btn("" + botSpeed, 0xFF1565C0, new View.OnClickListener() {
                 public void onClick(View v) {
                     showSpeedDialog();
                 }
             });
-            item.addView(speedBtn, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0.85f, 0.02f));
-            right.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            speedBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.34f * u);
+            item.addView(speedBtn, new LinearLayout.LayoutParams(px(1.3f), px(0.7f)));
+            TextView st = tv("Швидкість ботів", CAPS, CAP, false);
+            st.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.3f * u);
+            LinearLayout.LayoutParams stp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            stp.leftMargin = px(0.2f);
+            item.addView(st, stp);
+            item.setPadding(px(0.05f), 0, px(0.15f), 0);
+            right.addView(item);
         }
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(1.5f * (3 + extra + (hostMode() ? 1 : 0)) + 0.2f), 1f);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, px(1.0f * ((3 + extra + (showHostItems() ? 1 : 0) + 1) / 2) + 0.2f), 1f);
         if (!shared) mid.addView(right, rp);
         box.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -576,17 +602,96 @@ public abstract class BaseActivity extends Activity {
         void set(boolean on);
     }
 
-    protected LinearLayout onOff(String text, boolean init, final Toggle cb) {
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setGravity(Gravity.BOTTOM);
-        col.addView(tv(text, CAPS, CAP, false));
-        final LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        col.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        fillOnOff(row, init, cb);
-        col.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        return col;
+    // компактний вимикач із підписом справа; пари складаються у два стовпці (див. SwGrid)
+    protected View onOff(String text, boolean init, final Toggle cb) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setTag("sw");
+        final SwitchView sw = new SwitchView(this, init);
+        sw.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                sw.setOn(!sw.isOn());
+                cb.set(sw.isOn());
+            }
+        });
+        item.addView(sw, new LinearLayout.LayoutParams(px(1.3f), px(0.7f)));
+        TextView t = tv(text, CAPS, CAP, false);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.3f * u);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = px(0.2f);
+        item.addView(t, tp);
+        item.setPadding(px(0.05f), 0, px(0.15f), 0);
+        item.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                sw.performClick();
+            }
+        });
+        return item;
+    }
+
+    protected class SwitchView extends View {
+        private boolean on;
+        private final Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        SwitchView(Context c, boolean on) {
+            super(c);
+            this.on = on;
+        }
+
+        boolean isOn() {
+            return on;
+        }
+
+        void setOn(boolean v) {
+            on = v;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            float w = getWidth(), h = getHeight(), r = h / 2f;
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(on ? btnCol() : 0xFF546E7A);
+            cv.drawRoundRect(new RectF(0, 0, w, h), r, r, pt);
+            pt.setColor(on ? 0xFFA5D6A7 : 0xFF90A4AE);
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(Math.max(2f, h * 0.06f));
+            cv.drawRoundRect(new RectF(1, 1, w - 1, h - 1), r - 1, r - 1, pt);
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(0xFFFFFFFF);
+            float cx = on ? w - r : r;
+            cv.drawCircle(cx, r, r * 0.74f, pt);
+        }
+    }
+
+    // контейнер: вимикачі йдуть по два в рядок
+    protected class SwGrid extends LinearLayout {
+        private LinearLayout cur;
+        private int cnt;
+
+        SwGrid(Context c) {
+            super(c);
+            setOrientation(VERTICAL);
+        }
+
+        @Override
+        public void addView(View c) {
+            if ("sw".equals(c.getTag())) {
+                if (cur == null || cnt >= 2) {
+                    cur = new LinearLayout(getContext());
+                    cur.setOrientation(HORIZONTAL);
+                    cnt = 0;
+                    super.addView(cur, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+                }
+                cur.addView(c, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+                cnt++;
+            } else {
+                cur = null;
+                cnt = 0;
+                super.addView(c);
+            }
+        }
     }
 
     protected interface SpeedPick {
@@ -604,13 +709,61 @@ public abstract class BaseActivity extends Activity {
         return best;
     }
 
+    protected interface LevelPick {
+        void pick(int level);
+    }
+
+    // подвійне меню бота: складність і швидкість (затискання на аватарі)
+    protected void showBotMenu(String title, String[] levels, int curLevel, int curSpeed, final LevelPick lpk, final SpeedPick spk) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(tv(title, 0.4f, WHITE, true), lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0.08f));
+        box.addView(tv("Складність", 0.32f, 0xFF90A4AE, false));
+        final Button[] lv = new Button[levels.length];
+        LinearLayout r1 = new LinearLayout(this);
+        for (int k = 0; k < levels.length; k++) {
+            final int lk = k;
+            lv[k] = btn(levels[k], curLevel == k ? SEL : 0xFF455A64, new View.OnClickListener() {
+                public void onClick(View v) {
+                    lpk.pick(lk);
+                    for (int j = 0; j < lv.length; j++) lv[j].setBackground(btnBg(j == lk ? SEL : 0xFF455A64));
+                }
+            });
+            lv[k].setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.28f * u);
+            r1.addView(lv[k], lp(2.0f, 0.85f, 0.03f));
+        }
+        box.addView(r1);
+        box.addView(tv("Швидкість ходів", 0.32f, 0xFF90A4AE, false));
+        final Button[] sv = new Button[5];
+        LinearLayout r2 = new LinearLayout(this);
+        for (int k = 0; k < 5; k++) {
+            final int sk = k + 1;
+            sv[k] = btn("" + sk, curSpeed == sk ? SEL : 0xFF455A64, new View.OnClickListener() {
+                public void onClick(View v) {
+                    spk.pick(sk);
+                    for (int j = 0; j < 5; j++) sv[j].setBackground(btnBg(j + 1 == sk ? SEL : 0xFF455A64));
+                }
+            });
+            r2.addView(sv[k], lp(1.6f, 0.85f, 0.03f));
+        }
+        box.addView(r2);
+        final Dialog[] dd = new Dialog[1];
+        box.addView(btn("Готово", 0xFF1565C0, new View.OnClickListener() {
+            public void onClick(View v) {
+                dd[0].dismiss();
+            }
+        }), lp(3.0f, 0.85f, 0.08f));
+        dd[0] = makeDialog(box, true);
+        showSized(dd[0], 9.2f);
+    }
+
     protected void showSpeedDialog() {
         showSpeedPick("Швидкість ботів", botSpeed, new SpeedPick() {
             public void pick(int val) {
                 botSpeed = val;
                 botDelay = SPEED_MS[val - 1];
                 onBotDelay(botDelay);
-                if (speedBtn != null) speedBtn.setText("Швидкість ботів: " + botSpeed);
+                if (speedBtn != null) speedBtn.setText("" + botSpeed);
             }
         });
     }
@@ -623,7 +776,7 @@ public abstract class BaseActivity extends Activity {
         for (int k = 1; k <= 5; k++) {
             final int val = k;
             String t = String.valueOf(k) + (k == 1 ? "  (повільно)" : k == 5 ? "  (швидко)" : "");
-            box.addView(btn(t, cur == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+            box.addView(btn(t, cur == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                 public void onClick(View v) {
                     sp.pick(val);
                     dd[0].dismiss();
@@ -632,25 +785,6 @@ public abstract class BaseActivity extends Activity {
         }
         dd[0] = makeDialog(box, true);
         showSized(dd[0], 5.5f);
-    }
-
-    private void fillOnOff(final LinearLayout row, boolean on, final Toggle cb) {
-        row.removeAllViews();
-        for (int k = 0; k < 2; k++) {
-            final boolean val = k == 0;
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.85f), 1f);
-            p.setMargins(px(0.02f), px(0.02f), px(0.02f), px(0.02f));
-            Button ob = btn(val ? "Увімкнено" : "Вимкнено", on == val ? (val ? 0xFF2E7D32 : 0xFFC62828) : 0xFF455A64, new View.OnClickListener() {
-                public void onClick(View v) {
-                    cb.set(val);
-                    fillOnOff(row, val, cb);
-                }
-            });
-            ob.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.3f * u);
-            ob.setPadding(px(0.05f), px(0.05f), px(0.05f), px(0.05f));
-            ob.setSingleLine(true);
-            row.addView(ob, p);
-        }
     }
 
     private void refreshBgs() {
@@ -704,7 +838,7 @@ public abstract class BaseActivity extends Activity {
                     LinearLayout row = new LinearLayout(this_());
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     boolean has = snd.hasTrack("music" + k);
-                    row.addView(btn("Мелодія " + k + (has ? "" : " (немає файлу)"), pick[0] == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                    row.addView(btn("Мелодія " + k + (has ? "" : " (немає файлу)"), pick[0] == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                         public void onClick(View v) {
                             pick[0] = kk;
                             setBgMel(bg, kk);
@@ -779,7 +913,7 @@ public abstract class BaseActivity extends Activity {
         avatarTabs.removeAllViews();
         for (int k = 0; k < Avatars.CAT_NAMES.length; k++) {
             final int cat = k;
-            Button t = btn(Avatars.CAT_NAMES[k], avCat == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+            Button t = btn(Avatars.CAT_NAMES[k], avCat == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                 public void onClick(View v) {
                     avCat = cat;
                     refreshAvatars();
@@ -834,7 +968,7 @@ public abstract class BaseActivity extends Activity {
         themeBox.removeAllViews();
         LinearLayout row = null;
         for (int i = 0; i < deckCount(); i++) {
-            if (i % 3 == 0) {
+            if (i == 0) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 themeBox.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -842,12 +976,16 @@ public abstract class BaseActivity extends Activity {
             final int id = i;
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, px(0.9f), 1f);
             p.setMargins(px(0.05f), px(0.05f), px(0.05f), px(0.05f));
-            row.addView(btn(deckTitle(i), deckSel() == i ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+            Button tb = btn(deckTitle(i), deckSel() == i ? SEL : 0xFF455A64, new View.OnClickListener() {
                 public void onClick(View v) {
                     deckPick(id);
                     refreshThemes();
                 }
-            }), p);
+            });
+            tb.setTextSize(TypedValue.COMPLEX_UNIT_PX, 0.28f * u);
+            tb.setSingleLine(true);
+            tb.setPadding(px(0.05f), px(0.05f), px(0.05f), px(0.05f));
+            row.addView(tb, p);
         }
         if (preview != null) preview.invalidate();
     }
@@ -934,7 +1072,7 @@ public abstract class BaseActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         final Dialog[] dd = new Dialog[1];
-        row.addView(btn("Скасувати", 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Скасувати", 0xFF1565C0, new View.OnClickListener() {
             public void onClick(View v) {
                 dd[0].dismiss();
             }

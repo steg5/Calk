@@ -347,13 +347,16 @@ public class Host {
 
     public int defLevel = 1;
 
+    private int botCat = -1;
+
     private int freeAvatar() {
+        if (botCat < 0) botCat = rnd.nextInt(Avatars.CAT_START.length - 1);
         ArrayList<Integer> ok = new ArrayList<Integer>();
-        for (int a = Avatars.CAT_START[1]; a < Avatars.CAT_START[2]; a++) if (!avatarUsed(a)) ok.add(a);
+        for (int a = Avatars.CAT_START[botCat]; a < Avatars.CAT_START[botCat + 1]; a++) if (!avatarUsed(a)) ok.add(a);
         if (ok.isEmpty()) {
             for (int a = 0; a < Avatars.TOTAL; a++) if (!avatarUsed(a)) ok.add(a);
         }
-        if (ok.isEmpty()) return Avatars.CAT_START[1] + rnd.nextInt(Avatars.CAT_START[2] - Avatars.CAT_START[1]);
+        if (ok.isEmpty()) return Avatars.CAT_START[botCat] + rnd.nextInt(Avatars.CAT_START[botCat + 1] - Avatars.CAT_START[botCat]);
         return ok.get(rnd.nextInt(ok.size()));
     }
 

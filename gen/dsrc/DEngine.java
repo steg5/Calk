@@ -221,6 +221,7 @@ public class DEngine {
         if (atk.isEmpty()) return p == att;
         if (ordered && p != thrower) return false;
         if (atk.size() >= limit) return false;
+        if (!taking && anyBeaten() && unbeaten() > 0) return false;
         if (unbeaten() >= hands.get(def).size() && !taking) {
             // у захисника не лишилось карт, щоб відбити більше
             return false;
@@ -398,6 +399,8 @@ public class DEngine {
         if (decided()) return;
         boolean done;
         if (!taking && unbeaten() == 0 && hands.get(def).isEmpty()) {
+            done = true;
+        } else if (atk.size() >= limit && (taking || unbeaten() == 0)) {
             done = true;
         } else if (taking || unbeaten() == 0) {
             done = true;

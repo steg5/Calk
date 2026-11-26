@@ -329,9 +329,10 @@ public class TableView extends View {
         if (g.lastP >= 0 && g.lastP < names.length) {
             tp.setStyle(Paint.Style.FILL);
             tp.setTextAlign(Paint.Align.CENTER);
-            tp.setTextSize(u * 0.22f);
+            tp.setTextSize(u * 0.28f);
             tp.setColor(Theme.pcol(g.lastP));
-            c.drawText(names[g.lastP].length() > 9 ? names[g.lastP].substring(0, 8) + "…" : names[g.lastP], discX, cyP - ph / 2f - u * 0.1f, tp);
+            String ln = names[g.lastP].startsWith("Бот ") ? names[g.lastP].substring(4) : names[g.lastP];
+            c.drawText(ln.length() > 9 ? ln.substring(0, 8) + "…" : ln, discX, cyP - ph / 2f - u * 0.22f, tp);
         }
         if (g.pend > 0) {
             p.setStyle(Paint.Style.FILL);

@@ -70,6 +70,8 @@ public class BattleView extends View {
     private int emoFrom = -1;
     private long emoUntil;
     private long shakeUntil;
+    private int hitIdx = -1;
+    private long hitUntil;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rf = new RectF();
     private final Handler hd = new Handler(Looper.getMainLooper());
@@ -87,6 +89,33 @@ public class BattleView extends View {
         emoFrom = from;
         emoUntil = System.currentTimeMillis() + 2600;
         invalidate();
+    }
+
+    // короткий червоний спалах ніка того, хто влучив
+    public void flashHit(int shooter) {
+        hitIdx = shooter;
+        hitUntil = System.currentTimeMillis() + 700;
+        invalidate();
+    }
+
+    private boolean hitNow(int i) {
+        return i == hitIdx && hitUntil > System.currentTimeMillis();
+    }
+
+    private int alivePhrase(int i) {
+        if (boards == null || i < 0 || i >= boards.length || boards[i] == null) return 0;
+        int c = 0;
+        for (Board.Ship s : boards[i].ships) if (!boards[i].sunk(s)) c++;
+        return c;
+    }
+
+    private void count(Canvas cv, int i, float x, float y, float u) {
+        if (i < 0 || (i < alive.length && !alive[i])) return;
+        p.setStyle(Paint.Style.FILL);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(u * 0.32f);
+        p.setColor(0xFFB0BEC5);
+        cv.drawText(String.valueOf(alivePhrase(i)), x, y, p);
     }
 
     public void shake() {
@@ -156,7 +185,7 @@ public class BattleView extends View {
         if ((i == sel && !dim) || mover) {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(u * (mover ? 0.09f : 0.05f));
-            p.setColor(mover ? 0xFFFFEB3B : 0xFFFFFFFF);
+            p.setColor(mover ? (hitNow(i) ? 0xFFFF1744 : 0xFFFFEB3B) : 0xFFFFFFFF);
             cv.drawRoundRect(rf, c[3] * 0.3f, c[3] * 0.3f, p);
         }
         float tx = c[0] + c[2] / 2f;
@@ -243,48 +272,83 @@ public class BattleView extends View {
                 }
             }
         }
+        // повідомлення про хід: у середній зоні, дрібніше, у два рядки за потреби
         p.setStyle(Paint.Style.FILL);
         p.setTextAlign(Paint.Align.CENTER);
-        p.setTextSize(u * 0.4f);
-        float mw = p.measureText(msg);
-        if (mw > getWidth() * 0.9f) p.setTextSize(u * 0.4f * getWidth() * 0.9f / mw);
         p.setColor(myTurn ? 0xFF69F0AE : 0xFFFFD54F);
-        cv.drawText(msg, getWidth() / 2f, u * 0.5f, p);
+        float zoneW = l.midW - 0.2f * u, zx = l.midX + l.midW / 2f;
+        float fs = u * 0.3f;
+        p.setTextSize(fs);
+        if (p.measureText(msg) <= zoneW) {
+            cv.drawText(msg, zx, u * 0.5f, p);
+        } else {
+            int cut = -1, best = Integer.MAX_VALUE;
+            for (int i = 1; i < msg.length() - 1; i++) {
+                if (msg.charAt(i) == ' ') {
+                    int d = Math.abs(i - msg.length() / 2);
+                    if (d < best) {
+                        best = d;
+                        cut = i;
+                    }
+                }
+            }
+            String s1 = cut > 0 ? msg.substring(0, cut) : msg, s2 = cut > 0 ? msg.substring(cut + 1) : "";
+            float wm = Math.max(p.measureText(s1), p.measureText(s2));
+            if (wm > zoneW) p.setTextSize(fs * zoneW / wm);
+            cv.drawText(s1, zx, u * 0.32f, p);
+            if (s2.length() > 0) cv.drawText(s2, zx, u * 0.62f, p);
+        }
         // ніки
         if (n > 2) {
             for (int i = 0; i < n; i++) drawChip(cv, l, i);
         } else {
-            nameLabel(cv, names[me], l.mx + 5 * l.ec, pt - 0.18f * u, l.ec * 10, u, turn == me ? 0xFFFFEB3B : 0xFFE0E6EA);
+            nameLabel(cv, names[me], l.mx + 5 * l.ec, pt - 0.18f * u, l.ec * 10, u, turn == me ? (hitNow(me) ? 0xFFFF1744 : 0xFFFFEB3B) : 0xFFE0E6EA);
         }
-        nameLabel(cv, names[rightIdx], l.ex + 5 * l.ec, pt - 0.18f * u, l.ec * 10, u, turn == rightIdx ? 0xFFFFEB3B : 0xFFE0E6EA);
+        nameLabel(cv, names[rightIdx], l.ex + 5 * l.ec, pt - 0.18f * u, l.ec * 10, u, turn == rightIdx ? (hitNow(rightIdx) ? 0xFFFF1744 : 0xFFFFEB3B) : 0xFFE0E6EA);
+        // кількість непотоплених кораблів над ніками
+        float cy0 = pt - 0.66f * u;
+        if (n > 2) {
+            for (int i = 0; i < n; i++) {
+                float[] c = chip(l, i);
+                count(cv, i, c[0] + c[2] / 2f, c[1] - 0.04f * u, u);
+            }
+        } else {
+            count(cv, me, l.mx + 5 * l.ec, cy0, u);
+        }
+        count(cv, rightIdx, l.ex + 5 * l.ec, cy0, u);
         // флот цілі посередині
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(u * 0.32f);
         p.setColor(0xFFB0BEC5);
         float cx = l.cx;
         float zone = l.ex - 0.85f * l.ec - (l.midX + 0.1f * u);
-        cv.drawText("Флот ворога", cx, u * 1.0f, p);
+        int fi = (sel != me && sel >= 0 && sel < n) ? sel : rightIdx;
+        Board fb = boards[fi];
+        String ft = "Флот " + names[fi];
+        float ftw = p.measureText(ft);
+        if (ftw > l.midW - 0.2f * u) p.setTextSize(u * 0.32f * (l.midW - 0.2f * u) / ftw);
+        cv.drawText(ft, cx, u * 1.0f, p);
         float fc = l.fc, gap = fc * 0.4f, rowH = fc * 1.3f;
-        int ns = right.ships.length;
+        int ns = fb.ships.length;
         int[] row = new int[ns];
         float[] rowW = new float[12];
         int r = 0;
         for (int i = 0; i < ns; i++) {
-            if (i > 0 && right.ships[i].len != right.ships[i - 1].len) r++;
+            if (i > 0 && fb.ships[i].len != fb.ships[i - 1].len) r++;
             row[i] = r;
-            rowW[r] += (rowW[r] > 0 ? gap : 0) + right.ships[i].len * fc;
+            rowW[r] += (rowW[r] > 0 ? gap : 0) + fb.ships[i].len * fc;
         }
         float maxW = 0;
         for (int i = 0; i <= r; i++) maxW = Math.max(maxW, rowW[i]);
         float lf = cx - maxW / 2f;
         float[] pos = new float[12];
         for (int i = 0; i < ns; i++) {
-            Board.Ship s = right.ships[i];
+            Board.Ship s = fb.ships[i];
             float x = lf + pos[row[i]];
             float y = u * 1.2f + row[i] * rowH;
             int th = s.theme >= 0 ? s.theme : theme;
             Painter.draw(cv, p, th, x, y, fc, s.len, true, s.idx);
-            if (right.sunk(s)) {
+            if (fb.sunk(s)) {
                 p.setStyle(Paint.Style.FILL);
                 p.setColor(0xB8000000);
                 rf.set(x, y + fc * 0.05f, x + s.len * fc, y + fc * 0.95f);
@@ -293,7 +357,7 @@ public class BattleView extends View {
             pos[row[i]] += s.len * fc + gap;
         }
         p.setStyle(Paint.Style.FILL);
-        boolean anim = rMode > 0 || shakeUntil > now;
+        boolean anim = rMode > 0 || shakeUntil > now || hitUntil > now;
         if (crossUntil > now && crossCell >= 0) {
             float cx2 = l.ex + (crossCell % 10) * l.ec + l.ec / 2f, cy2 = l.y0 + (crossCell / 10) * l.ec + l.ec / 2f;
             float al = Math.min(1f, (crossUntil - now) / 250f);

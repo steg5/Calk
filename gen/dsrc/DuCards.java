@@ -66,11 +66,13 @@ public class DuCards {
         p.setColor(color);
         path.reset();
         if (su == 1) {
-            c.drawCircle(cx - s * 0.25f, cy - s * 0.18f, s * 0.29f, p);
-            c.drawCircle(cx + s * 0.25f, cy - s * 0.18f, s * 0.29f, p);
-            path.moveTo(cx - s * 0.52f, cy - s * 0.08f);
-            path.lineTo(cx + s * 0.52f, cy - s * 0.08f);
-            path.lineTo(cx, cy + s * 0.55f);
+            // серце одним контуром (без швів)
+            float o = 0.08f;
+            path.moveTo(cx, cy + s * (0.56f - o));
+            path.cubicTo(cx - s * 0.18f, cy + s * (0.40f - o), cx - s * 0.54f, cy + s * (0.12f - o), cx - s * 0.54f, cy + s * (-0.16f - o));
+            path.cubicTo(cx - s * 0.54f, cy + s * (-0.40f - o), cx - s * 0.20f, cy + s * (-0.52f - o), cx, cy + s * (-0.24f - o));
+            path.cubicTo(cx + s * 0.20f, cy + s * (-0.52f - o), cx + s * 0.54f, cy + s * (-0.40f - o), cx + s * 0.54f, cy + s * (-0.16f - o));
+            path.cubicTo(cx + s * 0.54f, cy + s * (0.12f - o), cx + s * 0.18f, cy + s * (0.40f - o), cx, cy + s * (0.56f - o));
             path.close();
             c.drawPath(path, p);
         } else if (su == 2) {
@@ -81,18 +83,15 @@ public class DuCards {
             path.close();
             c.drawPath(path, p);
         } else if (su == 0) {
-            c.drawCircle(cx - s * 0.25f, cy + s * 0.1f, s * 0.29f, p);
-            c.drawCircle(cx + s * 0.25f, cy + s * 0.1f, s * 0.29f, p);
-            path.moveTo(cx - s * 0.52f, cy + s * 0.0f);
-            path.lineTo(cx + s * 0.52f, cy + s * 0.0f);
-            path.lineTo(cx, cy - s * 0.58f);
-            path.close();
-            c.drawPath(path, p);
-            path.reset();
-            path.moveTo(cx - s * 0.08f, cy + s * 0.1f);
-            path.lineTo(cx + s * 0.08f, cy + s * 0.1f);
-            path.lineTo(cx + s * 0.22f, cy + s * 0.55f);
-            path.lineTo(cx - s * 0.22f, cy + s * 0.55f);
+            // піка одним контуром разом із ніжкою
+            path.moveTo(cx, cy - s * 0.56f);
+            path.cubicTo(cx + s * 0.18f, cy - s * 0.40f, cx + s * 0.54f, cy - s * 0.12f, cx + s * 0.54f, cy + s * 0.16f);
+            path.cubicTo(cx + s * 0.54f, cy + s * 0.40f, cx + s * 0.22f, cy + s * 0.50f, cx + s * 0.08f, cy + s * 0.30f);
+            path.lineTo(cx + s * 0.22f, cy + s * 0.58f);
+            path.lineTo(cx - s * 0.22f, cy + s * 0.58f);
+            path.lineTo(cx - s * 0.08f, cy + s * 0.30f);
+            path.cubicTo(cx - s * 0.22f, cy + s * 0.50f, cx - s * 0.54f, cy + s * 0.40f, cx - s * 0.54f, cy + s * 0.16f);
+            path.cubicTo(cx - s * 0.54f, cy - s * 0.12f, cx - s * 0.18f, cy - s * 0.40f, cx, cy - s * 0.56f);
             path.close();
             c.drawPath(path, p);
         } else {
@@ -147,7 +146,7 @@ public class DuCards {
     }
 
     private void faceBlock(Canvas c, float x, float y, float w, float h, Card k, int col, float rad) {
-        float fx0 = x + w * 0.38f, fx1 = x + w * 0.78f, fy0 = y + h * 0.12f, fy1 = y + h * 0.49f;
+        float fx0 = x + w * 0.43f, fx1 = x + w * 0.86f, fy0 = y + h * 0.12f, fy1 = y + h * 0.49f;
         p.setStyle(Paint.Style.FILL);
         p.setColor(ds == 3 ? 0xFF0A0A12 : (ds == 2 ? 0x40D4A017 : (col & 0x00FFFFFF) | 0x30000000));
         rf.set(fx0, fy0, fx1, fy1);
@@ -510,20 +509,19 @@ public class DuCards {
         int col = suitColor(k.c);
         String r = rank(k.v);
         boolean newStyle = ds != 0;
-        float ix = w * 0.27f;
-        float fs = r.length() > 1 ? w * 0.25f : w * 0.29f;
-        float ty = y + h * 0.2f;
-        float sy = y + h * 0.32f;
-        float ss = w * 0.18f;
+        float ix = w * 0.2f;
+        float fs = r.length() > 1 ? w * 0.21f : w * 0.26f;
+        float ty = y + h * 0.18f;
+        float sy = y + h * 0.29f;
+        float ss = w * 0.15f;
         if (!newStyle || k.v < 11 || k.v > 13) {
             if (k.v >= 11 && k.v <= 13) {
                 p.setColor((col & 0x00FFFFFF) | 0x22000000);
                 rf.set(x + w * 0.3f, y + h * 0.32f, x + w * 0.7f, y + h * 0.68f);
                 c.drawRoundRect(rf, rad, rad, p);
-                text(c, r, x + w * 0.5f, y + h * 0.55f, w * 0.42f, col);
-                suit(c, k.c, x + w * 0.5f, y + h * 0.71f, w * 0.18f, col);
+                text(c, r, x + w * 0.5f, y + h * 0.58f, w * 0.46f, col);
             } else {
-                suit(c, k.c, x + w * 0.5f, y + h * 0.5f, w * (k.v == 14 ? 0.7f : 0.5f), col);
+                suit(c, k.c, x + w * 0.5f, y + h * 0.5f, w * (k.v == 14 ? 0.46f : 0.4f), col);
             }
         } else {
             faceBlock(c, x, y, w, h, k, col, rad);

@@ -217,6 +217,14 @@ public class Net {
         Peer p = relay ? byCid(c) : byLink(l);
         if (line.startsWith("HELLO")) {
             if (p == null) {
+                if (!relay) {
+                    // той самий пристрій не може бути двома гравцями; мертві з'єднання прибираємо
+                    String ip = l.remote();
+                    for (Peer o : new ArrayList<Peer>(peers)) {
+                        if (o.relay || o.link == l) continue;
+                        if (o.link.dead() || (ip.length() > 0 && ip.equals(o.link.remote()))) dropPeer(o);
+                    }
+                }
                 if (!locked && count() < MAX) {
                     p = new Peer();
                     p.id = nextId++;

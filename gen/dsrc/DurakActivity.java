@@ -91,7 +91,7 @@ public class DurakActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
-        dstyle = sp.getInt("dstyle", 0);
+        dstyle = sp.getInt("dstyle", 1);
         voice = new VoiceHelper(this);
         root = new FrameLayout(this);
         setContentView(root);
@@ -155,6 +155,11 @@ public class DurakActivity extends BaseActivity {
     }
 
     @Override
+    protected boolean showHostItems() {
+        return (isHost && host != null) || screen == S_MENU;
+    }
+
+    @Override
     protected void onBotDelay(int ms) {
         if (host != null) host.setBotDelay(ms);
     }
@@ -166,20 +171,24 @@ public class DurakActivity extends BaseActivity {
 
     @Override
     protected String labelPass() {
-        return "Кнопка «Бито»";
+        return "«Бито»: показувати постійно";
     }
 
     @Override
     protected String labelDraw() {
-        return "Кнопка «Беру»";
+        return "«Беру»: показувати постійно";
     }
 
     @Override
     protected int addExtraSettings(LinearLayout right) {
+        if (!showHostItems()) return 0;
         right.addView(onOff("Перевідний за замовчуванням", sp.getBoolean("transfer", false), new Toggle() {
             public void set(boolean on) {
                 sp.edit().putBoolean("transfer", on).commit();
-                if (host != null && isHost) host.setTransfer(on);
+                if (host != null && isHost) {
+                    host.setTransfer(on);
+                    send("NOTE|" + (on ? "Наступної партії буде перевідний" : "Наступної партії перевідного не буде"));
+                }
             }
         }));
         right.addView(onOff("Підкидати по черзі", sp.getBoolean("ordered", false), new Toggle() {
@@ -412,6 +421,8 @@ public class DurakActivity extends BaseActivity {
                 }
             } else if (f[0].equals("BLOCK")) {
                 toast("Гравець (" + f[1] + ") заблокував сповіщення");
+            } else if (f[0].equals("NOTE")) {
+                toast(f[1]);
             } else if (f[0].equals("POKED")) {
                 onPoked(pi(f[1]));
             } else if (f[0].equals("RES")) {
@@ -527,7 +538,8 @@ public class DurakActivity extends BaseActivity {
         screen = S_JOIN;
         joinSig = "";
         root.removeAllViews();
-        root.setBackgroundColor(0xFF1F2A30);
+        root.setBackgroundColor(0xFF1B5E3A);
+        root.addView(new BgView(this), new FrameLayout.LayoutParams(MATCH, MATCH));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
@@ -607,7 +619,7 @@ public class DurakActivity extends BaseActivity {
     // ---------- лобі ----------
     private void setTransferBtn() {
         if (lobbyTransfer != null) {
-            lobbyTransfer.setBackground(bg(transferOn ? 0xFF2E7D32 : 0xFF455A64, 0.2f));
+            lobbyTransfer.setBackground(btnBg(transferOn ? SEL : 0xFF455A64));
         }
         if (lobbyTrLbl != null) lobbyTrLbl.setText("Перевідний: " + (transferOn ? "так" : "ні"));
     }
@@ -617,7 +629,8 @@ public class DurakActivity extends BaseActivity {
         stopDisc();
         screen = S_LOBBY;
         root.removeAllViews();
-        root.setBackgroundColor(0xFF1F2A30);
+        root.setBackgroundColor(0xFF1B5E3A);
+        root.addView(new BgView(this), new FrameLayout.LayoutParams(MATCH, MATCH));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(0.5f), px(0.3f), px(0.5f), px(0.3f));
@@ -665,7 +678,7 @@ public class DurakActivity extends BaseActivity {
             }), lp(3f, 1.0f, 0.08f));
             View sp0 = new View(this);
             row.addView(sp0, new LinearLayout.LayoutParams(0, 1, 1f));
-            lobbyTransfer = btn("Перевідний", transferOn ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+            lobbyTransfer = btn("Перевідний", transferOn ? SEL : 0xFF455A64, new View.OnClickListener() {
                 public void onClick(View v) {
                     if (host == null) return;
                     boolean on = !host.getTransfer();
@@ -708,7 +721,7 @@ public class DurakActivity extends BaseActivity {
         boolean n = host != null && host.isInternet();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(btn("Wifi", w ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Wifi", w ? SEL : 0xFF455A64, new View.OnClickListener() {
             public void onClick(View v) {
                 if (host == null) return;
                 if (host.isWifi()) {
@@ -719,7 +732,7 @@ public class DurakActivity extends BaseActivity {
                 fillNetBar();
             }
         }), lp(2.4f, 0.85f, 0.04f));
-        row.addView(btn("Інтернет", n ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+        row.addView(btn("Інтернет", n ? SEL : 0xFF455A64, new View.OnClickListener() {
             public void onClick(View v) {
                 if (host == null || netBusy) return;
                 if (host.isInternet()) {
@@ -768,7 +781,7 @@ public class DurakActivity extends BaseActivity {
         if (e != null) toast(e);
     }
 
-    private LinearLayout playerRow(final int idx) {
+    private LinearLayout playerRow(final int idx, final boolean inRoom) {
         String[] p = players.get(idx);
         boolean bot = p[3].equals("1");
         LinearLayout row = new LinearLayout(this);
@@ -781,11 +794,11 @@ public class DurakActivity extends BaseActivity {
         String label = bot ? p[0] : (p[0] + (hostRow ? " - господар" : " - гість"));
         row.addView(tv(label, bot && isHost ? 0.3f : 0.38f, WHITE, true), new LinearLayout.LayoutParams(0, WRAP, 1f));
         if (isHost) {
-            if (bot) {
+            if (bot && !inRoom) {
                 int lv = pi(p[4]);
                 for (int k = 0; k < LEVELS.length; k++) {
                     final int lk = k;
-                    Button lb = btn(LEVELS[k], lv == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                    Button lb = btn(LEVELS[k], lv == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                         public void onClick(View v) {
                             if (host != null) {
                                 host.setLevel(idx, lk);
@@ -852,7 +865,7 @@ public class DurakActivity extends BaseActivity {
         if (lobbyList == null) return;
         lobbyList.removeAllViews();
         for (int i = 0; i < players.size(); i++) {
-            lobbyList.addView(playerRow(i), lp(MATCH, WRAP, 0.06f));
+            lobbyList.addView(playerRow(i, false), lp(MATCH, WRAP, 0.06f));
         }
         lobbyCount.setText("Гравці: " + players.size() + " з 6 (потрібно від 2)");
         setTransferBtn();
@@ -928,7 +941,14 @@ public class DurakActivity extends BaseActivity {
                 if (players.get(idx)[3].equals("1")) {
                     if (isHost && host != null) {
                         final int bi = idx;
-                        showSpeedPick("Швидкість: " + pname(idx), speedOf(host.getBotDelayOf(idx)), new SpeedPick() {
+                        showBotMenu("Бот: " + pname(idx), LEVELS, pi(players.get(idx)[4]), speedOf(host.getBotDelayOf(idx)), new LevelPick() {
+                            public void pick(int lv) {
+                                if (host != null) {
+                                    host.setLevel(bi, lv);
+                                    countLevel(lv);
+                                }
+                            }
+                        }, new SpeedPick() {
                             public void pick(int val) {
                                 host.setBotDelayOf(bi, SPEED_MS[val - 1]);
                             }
@@ -1268,7 +1288,7 @@ public class DurakActivity extends BaseActivity {
         if (roomDlg == null || !roomDlg.isShowing() || roomList == null) return;
         roomList.removeAllViews();
         for (int i = 0; i < players.size(); i++) {
-            roomList.addView(playerRow(i), lp(MATCH, WRAP, 0.05f));
+            roomList.addView(playerRow(i, true), lp(MATCH, WRAP, 0.05f));
         }
     }
 
@@ -1556,7 +1576,7 @@ public class DurakActivity extends BaseActivity {
                 }
                 for (int k = from; k < rs.size(); k++) {
                     final int kk = k;
-                    tabs.addView(btn(String.valueOf(k + 1), sel[0] == k ? 0xFF2E7D32 : 0xFF455A64, new View.OnClickListener() {
+                    tabs.addView(btn(String.valueOf(k + 1), sel[0] == k ? SEL : 0xFF455A64, new View.OnClickListener() {
                         public void onClick(View v) {
                             sel[0] = kk;
                             fill[0].run();
