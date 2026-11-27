@@ -79,8 +79,8 @@ jobs:
                   applicationId "com.example.gryntsivgames"
                   minSdk 23
                   targetSdk 26
-                  versionCode 20
-                  versionName "2.0"
+                  versionCode 21
+                  versionName "2.1"
               }
               signingConfigs {
                   debug {
@@ -531,9 +531,9 @@ jobs:
         run: gradle assembleDebug --no-daemon
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Gryntsiv_Games_v20.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Gryntsiv_Games_v21.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Gryntsiv_Games_v20
-          path: app/build/outputs/apk/debug/Gryntsiv_Games_v20.apk
+          name: Gryntsiv_Games_v21
+          path: app/build/outputs/apk/debug/Gryntsiv_Games_v21.apk
