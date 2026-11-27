@@ -174,18 +174,19 @@ public class MainActivity extends BaseActivity {
                 dcard(cv, new Card(0, 12), W * 0.70f, H * 0.55f, W * 0.40f, H * 0.58f, 20);
                 dcard(cv, new Card(2, 13), W * 0.50f, H * 0.47f, W * 0.42f, H * 0.62f, 0);
             } else {
-                pt.setColor(0xFF1C2226);
+                pt.setColor(0xFF7A1212);
                 r.set(0, 0, W, H);
                 cv.drawRoundRect(r, W * 0.1f, W * 0.1f, pt);
-                pt.setColor(0xFF2A3238);
+                pt.setColor(0x33000000);
                 r.set(W * 0.05f, H * 0.05f, W * 0.95f, H * 0.95f);
                 cv.drawRoundRect(r, W * 0.08f, W * 0.08f, pt);
-                pt.setColor(0xFF78909C);
+                dcard(cv, new Card(1, 12), W * 0.34f, H * 0.42f, W * 0.36f, H * 0.52f, -14);
+                dcard(cv, new Card(1, 13), W * 0.66f, H * 0.42f, W * 0.36f, H * 0.52f, 14);
+                pt.setColor(0xFFFFD54F);
                 pt.setTextAlign(Paint.Align.CENTER);
                 pt.setTypeface(Typeface.DEFAULT_BOLD);
-                pt.setTextSize(H * 0.15f);
-                cv.drawText("У процесі", W / 2f, H * 0.47f, pt);
-                cv.drawText("розробки", W / 2f, H * 0.47f + H * 0.18f, pt);
+                pt.setTextSize(H * 0.22f);
+                cv.drawText("1000", W / 2f, H * 0.88f, pt);
             }
         }
     }
@@ -201,7 +202,7 @@ public class MainActivity extends BaseActivity {
                 if (kind == 0) startActivity(new Intent(MainActivity.this, com.example.gryntsivgames.uno.MainActivity.class));
                 else if (kind == 1) startActivity(new Intent(MainActivity.this, com.example.gryntsivgames.sea.SeaActivity.class));
                 else if (kind == 2) startActivity(new Intent(MainActivity.this, com.example.gryntsivgames.durak.DurakActivity.class));
-                else toast("У процесі розробки");
+                else startActivity(new Intent(MainActivity.this, com.example.gryntsivgames.thousand.ThousandActivity.class));
             }
         });
         box.addView(tile, lp(side, side, 0.1f));

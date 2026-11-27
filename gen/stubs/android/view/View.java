@@ -6,6 +6,10 @@ public class View {
   public interface OnLongClickListener { boolean onLongClick(View v); }
   public void setOnLongClickListener(OnLongClickListener l) {}
   public View(android.content.Context c) {}
+  public void setTag(Object o) {}
+  public Object getTag() { return null; }
+  public boolean performClick() { return true; }
+  public android.content.Context getContext() { return null; }
   public void setBackground(android.graphics.drawable.Drawable d) {}
   public void setBackgroundColor(int c) {}
   public void setOnClickListener(OnClickListener l) {}

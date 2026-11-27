@@ -31,6 +31,7 @@ on:
       - '.github/workflows/Gryntsiv_Uno.yml'
       - '.github/workflows/Gryntsiv_Sea.yml'
       - '.github/workflows/Gryntsiv_Durak.yml'
+      - '.github/workflows/Gryntsiv_Thousand.yml'
 
 jobs:
   uno:
@@ -39,8 +40,10 @@ jobs:
     uses: ./.github/workflows/Gryntsiv_Sea.yml
   durak:
     uses: ./.github/workflows/Gryntsiv_Durak.yml
+  thousand:
+    uses: ./.github/workflows/Gryntsiv_Thousand.yml
   build:
-    needs: [uno, sea, durak]
+    needs: [uno, sea, durak, thousand]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -162,6 +165,12 @@ heredoc("app/src/main/AndroidManifest.xml", """<?xml version="1.0" encoding="utf
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
             android:windowSoftInputMode="stateHidden|adjustResize"/>
         <activity
+            android:name=".thousand.ThousandActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+            android:windowSoftInputMode="stateHidden|adjustResize"/>
+        <activity
             android:name=".sea.SeaActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
@@ -270,3 +279,7 @@ game_file("Gryntsiv_Sea_v%d.yml" % VERSION_CODE, "Gryntsiv_Sea", "src-sea", "/se
 durak_order = ["Link", "Client", "Relay", "Discovery", "DuCards", "DState", "DEngine", "DBot", "DHost", "DuTable", "DurakActivity"]
 game_file("Gryntsiv_Durak_v%d.yml" % VERSION_CODE, "Gryntsiv_Durak", "src-durak", "/durak",
           [("%s.java" % n, "dsrc/%s.java" % n) for n in durak_order], [], [])
+
+thousand_order = ["Link", "Client", "Relay", "Discovery", "TState", "TEngine", "TBot", "THost", "TTable", "ThousandActivity"]
+game_file("Gryntsiv_Thousand_v%d.yml" % VERSION_CODE, "Gryntsiv_Thousand", "src-thousand", "/thousand",
+          [("%s.java" % n, "tsrc/%s.java" % n) for n in thousand_order], [], [])
